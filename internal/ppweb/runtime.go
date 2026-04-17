@@ -355,7 +355,9 @@ func (s *Server) validateAndReloadNginx(ctx context.Context) error {
 
 	validateCtx, validateCancel := context.WithTimeout(ctx, 20*time.Second)
 	defer validateCancel()
-	out, err := runPrivilegedCommand(validateCtx, nginxBinary, "-t")
+	// Используем -g "error_log /dev/null;", чтобы nginx не пытался писать в логи при проверке конфига, 
+	// так как это часто вызывает ошибки доступа в ограниченных окружениях.
+	out, err := runPrivilegedCommand(validateCtx, nginxBinary, "-t", "-g", "error_log /dev/null;")
 	if err != nil {
 		return fmt.Errorf("nginx -t failed: %s", strings.TrimSpace(string(out)))
 	}
@@ -403,8 +405,9 @@ func connectionRuntimeWarning(connection *Connection) string {
 		port = addr.Port
 	}
 	tlsEnabled := connection.TLS != nil && connection.TLS.Enabled
+	domain, _ := connection.Settings["domain"].(string)
 
-	if !tlsEnabled {
+	if !tlsEnabled && domain == "" {
 		return "generated client configs expect HTTPS on :443; enable HTTPS and pp-web will publish this connection through nginx automatically"
 	}
 	if addr != nil && addr.IP != nil && addr.IP.IsLoopback() {

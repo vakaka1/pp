@@ -55,15 +55,42 @@ echo ""
 # =============================================================================
 step "Установка системных зависимостей"
 # =============================================================================
-if command -v apt-get &>/dev/null; then
-    export DEBIAN_FRONTEND=noninteractive
-    apt-get update -qq
-    apt-get install -y -qq curl nginx certbot python3-certbot-nginx libcap2-bin
-elif command -v dnf &>/dev/null; then
-    dnf install -y curl nginx certbot python3-certbot-nginx libcap
-elif command -v yum &>/dev/null; then
-    yum install -y curl nginx certbot python3-certbot-nginx libcap
-else
+{
+    if command -v apt-get &>/dev/null; then
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get update -qq
+        apt-get install -y -qq curl nginx certbot python3-certbot-nginx libcap2-bin
+    elif command -v dnf &>/dev/null; then
+        dnf install -y curl nginx certbot python3-certbot-nginx libcap
+    elif command -v yum &>/dev/null; then
+        yum install -y curl nginx certbot python3-certbot-nginx libcap
+    fi
+} >/dev/null 2>&1 &
+pid=$!
+
+width=20
+pos=0
+dir=1
+while kill -0 "$pid" 2>/dev/null; do
+    bar=""
+    for ((i=0; i<width; i++)); do
+        if [ "$i" -eq "$pos" ]; then
+            bar="${bar}━"
+        elif [ "$i" -eq "$((pos-1))" ] || [ "$i" -eq "$((pos+1))" ]; then
+            bar="${bar}─"
+        else
+            bar="${bar}·"
+        fi
+    done
+    printf "\r${GREEN}  [%s] Установка системных зависимостей...${NC}" "$bar"
+    pos=$((pos + dir))
+    if [ "$pos" -ge "$((width-1))" ]; then dir=-1; elif [ "$pos" -le 0 ]; then dir=1; fi
+    sleep 0.08
+done
+wait "$pid"
+printf "\r\033[K"
+
+if ! command -v apt-get &>/dev/null && ! command -v dnf &>/dev/null && ! command -v yum &>/dev/null; then
     warn "Неизвестный пакетный менеджер — убедитесь что nginx, certbot и curl установлены"
 fi
 ok "Зависимости установлены"
@@ -246,10 +273,10 @@ TimeoutStopSec=30
 StandardOutput=append:${PP_LOG_DIR}/pp-web.log
 StandardError=append:${PP_LOG_DIR}/pp-web.log
 
-ProtectSystem=strict
+ProtectSystem=full
 ProtectHome=yes
 PrivateTmp=yes
-ReadWritePaths=${PP_LOG_DIR} ${PP_WEB_DATA_DIR} ${PP_CONFIG_DIR} ${PP_NGINX_MANAGED_DIR} /etc/letsencrypt /var/lib/letsencrypt /var/log/letsencrypt /run /var/lib/nginx /var/cache/nginx /var/log/nginx
+ReadWritePaths=${PP_LOG_DIR} ${PP_WEB_DATA_DIR} ${PP_CONFIG_DIR} ${PP_NGINX_MANAGED_DIR} /etc/letsencrypt /run /var/lib/nginx /var/cache/nginx /var/log/nginx
 
 [Install]
 WantedBy=multi-user.target
