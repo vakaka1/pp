@@ -356,9 +356,9 @@ func (s *Server) validateAndReloadNginx(ctx context.Context) error {
 	validateCtx, validateCancel := context.WithTimeout(ctx, 20*time.Second)
 	defer validateCancel()
 	
-	// Принудительно перенаправляем лог ошибок во временный файл в /tmp, 
-	// чтобы избежать ошибки "Read-only file system" при проверке конфига через sudo.
-	out, err := runPrivilegedCommand(validateCtx, nginxBinary, "-t", "-g", "error_log /tmp/nginx_error.log;")
+	// Принудительно отключаем логирование ошибок в файл при проверке, 
+	// перенаправляя их в stderr, который перехватывает Go.
+	out, err := runPrivilegedCommand(validateCtx, nginxBinary, "-t", "-g", "error_log stderr;")
 	if err != nil {
 		return fmt.Errorf("nginx -t failed: %s", strings.TrimSpace(string(out)))
 	}

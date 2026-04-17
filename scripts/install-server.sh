@@ -19,7 +19,7 @@ step()  { echo -e "\n${BOLD}▶ $*${NC}"; }
 # ---------- Конфигурация ----------
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 GITHUB_REPO="${GITHUB_REPO:-vakaka1/pp}"
-RELEASE_TAG="${RELEASE_TAG:-latest}"
+RELEASE_TAG="${RELEASE_TAG:-v1.0.15}"
 
 PP_USER="pp-server"
 PP_BIN="/usr/local/bin/pp"
