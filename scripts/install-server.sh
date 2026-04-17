@@ -47,11 +47,11 @@ show_progress() {
 [ "$EUID" -eq 0 ] || die "Запустите скрипт от root. Если sudo доступен: curl ... | sudo bash"
 
 # ---------- Конфигурация ----------
-SCRIPT_SOURCE="${BASH_SOURCE[0]:-}"
-if [ -n "$SCRIPT_SOURCE" ]; then
+SCRIPT_SOURCE="${BASH_SOURCE:-}"
+if [ -n "$SCRIPT_SOURCE" ] && [ -f "$SCRIPT_SOURCE" ]; then
     ROOT_DIR="$(cd "$(dirname "$SCRIPT_SOURCE")/.." && pwd)"
 else
-    ROOT_DIR="$(pwd)"
+    ROOT_DIR=""
 fi
 GITHUB_REPO="${GITHUB_REPO:-vakaka1/pp}"
 RELEASE_TAG="${RELEASE_TAG:-latest}"
@@ -105,7 +105,7 @@ step "Установка системных зависимостей"
     fi
 } >/dev/null 2>&1 &
 pid=$!
-show_progress $pid "Установка системных зависимостей"
+show_progress "$pid" "Установка системных зависимостей"
 
 if ! command -v apt-get &>/dev/null && ! command -v dnf &>/dev/null && ! command -v yum &>/dev/null; then
     warn "Неизвестный пакетный менеджер — убедитесь что nginx, certbot и curl установлены"
@@ -122,7 +122,7 @@ download_binary() {
     local filename="${name}_linux_${GOARCH}"
 
     # Если бинарник уже собран локально в папке bin/, используем его
-    if [ -f "$ROOT_DIR/bin/$name" ]; then
+    if [ -n "$ROOT_DIR" ] && [ -f "$ROOT_DIR/bin/$name" ]; then
         info "Использование локального бинарника ${name}..."
         install -m 755 "$ROOT_DIR/bin/$name" "$dest"
         ok "${name} (локальный) → ${dest}"
