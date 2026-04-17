@@ -1,79 +1,129 @@
-# PP: Невидимый интернет
-
-В современном мире интернет-ограничения и блокировки становятся всё более изощренными. Стандартные VPN и прокси-сервисы легко вычисляются провайдерами с помощью систем глубокого анализа трафика (DPI) и безжалостно блокируются. 
-
-**PP** — это инструмент нового поколения для обхода любых блокировок. Его главная философия — не бороться с системами слежки напрямую, а стать для них абсолютно невидимым, мимикрируя под обычный повседневный интернет-трафик.
-
-Система состоит из двух ключевых компонентов, которые работают в связке: ядра **pp-core** и уникальной технологии маскировки **pp-fallback**.
-
-## pp-core: Умное сердце системы
-
-**pp-core** — это центральный двигатель проекта. Это ядро оркестрации, которое берет на себя всю работу по управлению потоками данных.
-
-* **Универсальность:** Ядро может работать в двух режимах. На вашем устройстве оно работает как **клиент**, незаметно перехватывая ваши запросы и отправляя их в зашифрованный туннель. Где-то в интернете оно работает как **сервер**, принимая эти запросы и выпуская их в свободный интернет.
-* **Оркестрация и управление:** `pp-core` следит за стабильностью соединения, управляет сервером, прокладывает самые быстрые и безопасные маршруты для трафика и гарантирует, что ваши данные передаются без потерь и задержек.
-
-## pp-fallback: Идеальная маскировка под настоящий сайт
-
-Главная проблема любого прокси — он выглядит как прокси. Когда сканирующее оборудование провайдера (DPI) стучится на сервер, чтобы проверить, что там находится, обычный прокси-сервер либо сбрасывает соединение, либо отвечает непонятным набором данных. Для провайдера это четкий сигнал: "Здесь спрятан VPN, блокируем".
-
-**pp-fallback** решает эту проблему гениально просто: он превращает ваш сервер в настоящий, живой веб-сайт для всех посторонних.
-
-**Как именно работает эта магия маскировки:**
-
-1. **Два лица одного сервера:** Ваш сервер всегда "слушает" обычный веб-порт (чаще всего 443). Когда к нему кто-то подключается, сервер ждет доли секунды, чтобы понять, кто именно к нему пришел. 
-2. **Пароль для "своих":** Ваше клиентское приложение (pp-core) при подключении отправляет специфический, криптографически защищенный "пароль", спрятанный прямо в первый, с виду обычный веб-запрос. Сервер понимает: "Это свой", и мгновенно открывает для вас скоростной прокси-туннель.
-3. **Спектакль для проверяющих:** Если на сервер заходит случайный человек, интернет-робот провайдера, сканер или система цензуры (без правильного пароля), `pp-fallback` включает режим маскировки. Вместо того чтобы выдать ошибку или закрыть соединение, он показывает полноценный, красивый и убедительный веб-сайт.
-4. **Настоящий контент:** Это не просто статичная картинка-заглушка. Модуль генерирует, собирает и отдает реальные статьи, тексты, HTML-страницы и заголовки. Для любого проверяющего алгоритма или человека-цензора ваш сервер выглядит как безобидный блог, новостной ресурс или портал со статьями. Нет никаких причин его блокировать.
-5. **Абсолютная неотличимость:** Весь ваш зашифрованный прокси-трафик упаковывается таким образом, что внешне он выглядит как обычное чтение этого самого сайта. Системы слежки видят лишь то, что вы просто долго листаете страницы или смотрите видео на каком-то легальном ресурсе.
-
-## Сравнение с аналогами
-
-Существует множество инструментов для обхода блокировок, но PP предлагает уникальный подход по сравнению с популярными решениями:
-
-* **Xray (VLESS, VMess, Trojan):** Это мощные и популярные протоколы, которые отлично справляются со своей задачей. Однако они часто полагаются на сложные криптографические подписи и особенности TLS-соединений. Современные системы DPI научились вычислять такие протоколы по характерным паттернам трафика или по поведению сервера при проверке цензорами (так называемое "активное прощупывание" или Active Probing). PP решает эту проблему радикально: он не просто имитирует безопасное соединение, он отдает полноценный контент и структуру настоящего сайта, делая любые проверки цензоров бессмысленными.
-* **NaïveProxy:** Этот инструмент использует сетевой стек настоящего браузера Chrome для маскировки трафика под обычный веб-серфинг. Это отличный и очень надежный подход, но он требует сложных настроек и может потреблять значительные ресурсы. `pp-fallback` в связке с `pp-core` реализует схожую философию маскировки под легитимный веб-трафик и активный сайт, но делает это на уровне собственного легкого и оптимизированного ядра. Это обеспечивает высокую скорость работы и простоту запуска без лишнего "веса".
-
-## Итог
-
-Проект PP — это не просто программа для смены IP-адреса. Это комплексная система защиты от цензуры, которая прячет ваш трафик на самом видном месте. Вы получаете быстрый, надежный и свободный интернет, а системы блокировки видят лишь обычный информационный сайт, к которому у них нет никаких претензий.
+<p align="center">
+  <img alt="GoReleaser Logo" src="https://avatars2.githubusercontent.com/u/24697112?v=3&s=200" height="140" />
+  <h3 align="center">GoReleaser</h3>
+  <p align="center">Deliver Go binaries as fast and easily as possible.</p>
+</p>
 
 ---
 
-## Установка
+GoReleaser builds Go binaries for several platforms, creates a GitHub release and then
+pushes a Homebrew formula to a tap repository. All that wrapped in your favorite CI.
 
-### Сервер
+![](https://raw.githubusercontent.com/goreleaser/example-simple/main/goreleaser.gif)
 
-Для развёртывания нужен VPS с публичным IP-адресом. Одна команда устанавливает всё необходимое:
+---
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/vakaka1/pp/main/scripts/install-server.sh | sudo bash
-```
+## Get GoReleaser
 
-После завершения откройте в браузере `http://<IP-сервера>:4090` — **веб-панель pp-web** встроена прямо в бинарник и проведёт вас через настройку: домен, ключи, SSL-сертификат и генерацию клиентского конфига. Для прямого режима рекомендуемый адрес прослушивания подключения — `0.0.0.0:443`: клиентские конфиги по умолчанию идут на `domain:443`. Оба сервиса (`pp-core` и `pp-web`) добавляются в автозагрузку.
+- [On your machine](https://goreleaser.com/install/);
+- [On CI/CD systems](https://goreleaser.com/ci/).
 
-### Клиент
+## Documentation
 
-1. Установите клиент:
+Documentation is hosted live at https://goreleaser.com
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/vakaka1/pp/main/scripts/install-client.sh | bash
-```
+## Community
 
-2. Подключите его через CLI готовым клиентским конфигом:
+You have questions, need support and or just want to talk about GoReleaser?
 
-```bash
-pp-client-connect --config client.json
-```
+Here are ways to get in touch with the GoReleaser community:
 
-Команда `pp-client-connect` сохраняет конфиг как активный и сразу запускает `pp-client` в текущем терминале. Логи идут прямо в stdout, остановка обычная: `Ctrl+C`. Чтобы переключиться на другой сервер или другой клиентский конфиг, просто снова запустите команду с новым JSON.
+[![Join Discord](https://img.shields.io/badge/Join_our_Discord_server-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/RGEBtg8vQ6)
+[![Follow Twitter](https://img.shields.io/badge/follow_on_twitter-1DA1F2?style=for-the-badge&logo=twitter&logoColor=white)](https://twitter.com/goreleaser)
+[![GitHub Discussions](https://img.shields.io/badge/GITHUB_DISCUSSION-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/goreleaser/goreleaser/discussions)
 
-Если нужен system-wide режим для браузера и терминала без ручной настройки прокси, используйте Linux full-tunnel TCP mode:
+You can find the links above and all others [here](https://goreleaser.com/links/).
 
-```bash
-sudo "$(command -v pp-client-connect)" tun --config client.json
-```
+### Code of Conduct
 
-Этот режим включает transparent redirect всего локального TCP-трафика через `pp-client`, тоже в текущем терминале. При остановке через `Ctrl+C` правила редиректа снимаются автоматически. Ограничения первой версии: требуется Linux + root, а UDP и IPv6 пока не туннелируются.
+This project adheres to the Contributor Covenant [code of conduct](https://github.com/goreleaser/.github/blob/main/CODE_OF_CONDUCT.md).
+By participating, you are expected to uphold this code.
+We appreciate your contribution.
+Please refer to our [contributing guidelines](CONTRIBUTING.md) for further information.
 
-В обычном proxy-режиме после запуска будут доступны **SOCKS5**-прокси (`127.0.0.1:1080`) и **HTTP**-прокси (`127.0.0.1:8080`). Настройте браузер или систему на их использование — и вы в свободном интернете.
+## Badges
+
+[![Release](https://img.shields.io/github/release/goreleaser/goreleaser.svg?style=for-the-badge)](https://github.com/goreleaser/goreleaser/releases/latest)
+[![Software License](https://img.shields.io/badge/license-MIT-brightgreen.svg?style=for-the-badge)](/LICENSE.md)
+[![Build status](https://img.shields.io/github/actions/workflow/status/goreleaser/goreleaser/build.yml?style=for-the-badge&branch=main)](https://github.com/goreleaser/goreleaser/actions?workflow=build)
+[![Codecov branch](https://img.shields.io/codecov/c/github/goreleaser/goreleaser/main.svg?style=for-the-badge)](https://codecov.io/gh/goreleaser/goreleaser)
+[![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/goreleaser&style=for-the-badge)](https://artifacthub.io/packages/search?repo=goreleaser)
+[![Go Doc](https://img.shields.io/badge/godoc-reference-blue.svg?style=for-the-badge)](http://godoc.org/github.com/goreleaser/goreleaser)
+[![Powered By: GoReleaser](https://img.shields.io/badge/powered%20by-goreleaser-green.svg?style=for-the-badge)](https://github.com/goreleaser)
+[![Backers on Open Collective](https://opencollective.com/goreleaser/backers/badge.svg?style=for-the-badge)](https://opencollective.com/goreleaser/backers/)
+[![Sponsors on Open Collective](https://opencollective.com/goreleaser/sponsors/badge.svg?style=for-the-badge)](https://opencollective.com/goreleaser/sponsors/)
+[![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg?style=for-the-badge)](https://conventionalcommits.org)
+[![CII Best Practices](https://img.shields.io/cii/summary/5420?label=openssf%20best%20practices&style=for-the-badge)](https://bestpractices.coreinfrastructure.org/projects/5420)
+
+## GitHub Sponsors
+
+High-tier sponsors of [@caarlos0](https://github.com/sponsors/caarlos0/) on GitHub:
+
+<a href="https://smallstep.com" target="_blank"><img width="200" src="https://github.com/goreleaser/goreleaser/assets/245435/05ade839-6652-474a-af90-da3ea67dde24"></a>
+
+## OpenCollective
+
+### Sponsors
+
+Does your company use goreleaser? Help keep the project bug-free and feature rich by [sponsoring the project](https://opencollective.com/goreleaser#sponsor).
+
+<a href="https://opencollective.com/goreleaser/sponsors/0/website" target="_blank"><img src="https://opencollective.com/goreleaser/sponsors/0/avatar"></a>
+<a href="https://opencollective.com/goreleaser/sponsors/1/website" target="_blank"><img src="https://opencollective.com/goreleaser/sponsors/1/avatar"></a>
+<a href="https://opencollective.com/goreleaser/sponsors/2/website" target="_blank"><img src="https://opencollective.com/goreleaser/sponsors/2/avatar"></a>
+<a href="https://opencollective.com/goreleaser/sponsors/3/website" target="_blank"><img src="https://opencollective.com/goreleaser/sponsors/3/avatar"></a>
+<a href="https://opencollective.com/goreleaser/sponsors/4/website" target="_blank"><img src="https://opencollective.com/goreleaser/sponsors/4/avatar"></a>
+<a href="https://opencollective.com/goreleaser/sponsors/5/website" target="_blank"><img src="https://opencollective.com/goreleaser/sponsors/5/avatar"></a>
+<a href="https://opencollective.com/goreleaser/sponsors/6/website" target="_blank"><img src="https://opencollective.com/goreleaser/sponsors/6/avatar"></a>
+<a href="https://opencollective.com/goreleaser/sponsors/7/website" target="_blank"><img src="https://opencollective.com/goreleaser/sponsors/7/avatar"></a>
+<a href="https://opencollective.com/goreleaser/sponsors/8/website" target="_blank"><img src="https://opencollective.com/goreleaser/sponsors/8/avatar"></a>
+<a href="https://opencollective.com/goreleaser/sponsors/9/website" target="_blank"><img src="https://opencollective.com/goreleaser/sponsors/9/avatar"></a>
+<a href="https://opencollective.com/goreleaser/sponsors/10/website" target="_blank"><img src="https://opencollective.com/goreleaser/sponsors/10/avatar"></a>
+<a href="https://opencollective.com/goreleaser/sponsors/11/website" target="_blank"><img src="https://opencollective.com/goreleaser/sponsors/11/avatar"></a>
+<a href="https://opencollective.com/goreleaser/sponsors/12/website" target="_blank"><img src="https://opencollective.com/goreleaser/sponsors/12/avatar"></a>
+<a href="https://opencollective.com/goreleaser/sponsors/13/website" target="_blank"><img src="https://opencollective.com/goreleaser/sponsors/13/avatar"></a>
+<a href="https://opencollective.com/goreleaser/sponsors/14/website" target="_blank"><img src="https://opencollective.com/goreleaser/sponsors/14/avatar"></a>
+<a href="https://opencollective.com/goreleaser/sponsors/15/website" target="_blank"><img src="https://opencollective.com/goreleaser/sponsors/15/avatar"></a>
+<a href="https://opencollective.com/goreleaser/sponsors/16/website" target="_blank"><img src="https://opencollective.com/goreleaser/sponsors/16/avatar"></a>
+
+### Backers
+
+Love our work and community? [Become a backer](https://opencollective.com/goreleaser).
+
+<a href="https://opencollective.com/goreleaser/backers/0/website" target="_blank"><img src="https://opencollective.com/goreleaser/backers/0/avatar"></a>
+<a href="https://opencollective.com/goreleaser/backers/1/website" target="_blank"><img src="https://opencollective.com/goreleaser/backers/1/avatar"></a>
+<a href="https://opencollective.com/goreleaser/backers/2/website" target="_blank"><img src="https://opencollective.com/goreleaser/backers/2/avatar"></a>
+<a href="https://opencollective.com/goreleaser/backers/3/website" target="_blank"><img src="https://opencollective.com/goreleaser/backers/3/avatar"></a>
+<a href="https://opencollective.com/goreleaser/backers/4/website" target="_blank"><img src="https://opencollective.com/goreleaser/backers/4/avatar"></a>
+<a href="https://opencollective.com/goreleaser/backers/5/website" target="_blank"><img src="https://opencollective.com/goreleaser/backers/5/avatar"></a>
+<a href="https://opencollective.com/goreleaser/backers/6/website" target="_blank"><img src="https://opencollective.com/goreleaser/backers/6/avatar"></a>
+<a href="https://opencollective.com/goreleaser/backers/7/website" target="_blank"><img src="https://opencollective.com/goreleaser/backers/7/avatar"></a>
+<a href="https://opencollective.com/goreleaser/backers/8/website" target="_blank"><img src="https://opencollective.com/goreleaser/backers/8/avatar"></a>
+<a href="https://opencollective.com/goreleaser/backers/9/website" target="_blank"><img src="https://opencollective.com/goreleaser/backers/9/avatar"></a>
+<a href="https://opencollective.com/goreleaser/backers/10/website" target="_blank"><img src="https://opencollective.com/goreleaser/backers/10/avatar"></a>
+<a href="https://opencollective.com/goreleaser/backers/11/website" target="_blank"><img src="https://opencollective.com/goreleaser/backers/11/avatar"></a>
+<a href="https://opencollective.com/goreleaser/backers/12/website" target="_blank"><img src="https://opencollective.com/goreleaser/backers/12/avatar"></a>
+<a href="https://opencollective.com/goreleaser/backers/13/website" target="_blank"><img src="https://opencollective.com/goreleaser/backers/13/avatar"></a>
+<a href="https://opencollective.com/goreleaser/backers/14/website" target="_blank"><img src="https://opencollective.com/goreleaser/backers/14/avatar"></a>
+<a href="https://opencollective.com/goreleaser/backers/15/website" target="_blank"><img src="https://opencollective.com/goreleaser/backers/15/avatar"></a>
+<a href="https://opencollective.com/goreleaser/backers/16/website" target="_blank"><img src="https://opencollective.com/goreleaser/backers/16/avatar"></a>
+<a href="https://opencollective.com/goreleaser/backers/17/website" target="_blank"><img src="https://opencollective.com/goreleaser/backers/17/avatar"></a>
+<a href="https://opencollective.com/goreleaser/backers/18/website" target="_blank"><img src="https://opencollective.com/goreleaser/backers/18/avatar"></a>
+<a href="https://opencollective.com/goreleaser/backers/19/website" target="_blank"><img src="https://opencollective.com/goreleaser/backers/19/avatar"></a>
+<a href="https://opencollective.com/goreleaser/backers/20/website" target="_blank"><img src="https://opencollective.com/goreleaser/backers/20/avatar"></a>
+<a href="https://opencollective.com/goreleaser/backers/21/website" target="_blank"><img src="https://opencollective.com/goreleaser/backers/21/avatar"></a>
+<a href="https://opencollective.com/goreleaser/backers/22/website" target="_blank"><img src="https://opencollective.com/goreleaser/backers/22/avatar"></a>
+<a href="https://opencollective.com/goreleaser/backers/23/website" target="_blank"><img src="https://opencollective.com/goreleaser/backers/23/avatar"></a>
+<a href="https://opencollective.com/goreleaser/backers/24/website" target="_blank"><img src="https://opencollective.com/goreleaser/backers/24/avatar"></a>
+<a href="https://opencollective.com/goreleaser/backers/25/website" target="_blank"><img src="https://opencollective.com/goreleaser/backers/25/avatar"></a>
+<a href="https://opencollective.com/goreleaser/backers/26/website" target="_blank"><img src="https://opencollective.com/goreleaser/backers/26/avatar"></a>
+<a href="https://opencollective.com/goreleaser/backers/27/website" target="_blank"><img src="https://opencollective.com/goreleaser/backers/27/avatar"></a>
+<a href="https://opencollective.com/goreleaser/backers/28/website" target="_blank"><img src="https://opencollective.com/goreleaser/backers/28/avatar"></a>
+<a href="https://opencollective.com/goreleaser/backers/29/website" target="_blank"><img src="https://opencollective.com/goreleaser/backers/29/avatar"></a>
+
+### Contributors
+
+This project exists thanks to all the people who contribute. [[Contribute](CONTRIBUTING.md)].
+<a href="https://github.com/goreleaser/goreleaser/graphs/contributors"><img src="https://opencollective.com/goreleaser/contributors.svg?width=890" /></a>
+
+## Stargazers over time
+[![Stargazers over time](https://starchart.cc/goreleaser/goreleaser.svg?variant=adaptive)](https://starchart.cc/goreleaser/goreleaser)

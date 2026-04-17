@@ -86,9 +86,6 @@ release:
   draft: false
   prerelease: auto
   name_template: "v{{.Version}}"
-  # Frontend dist — собирается в CI и загружается как отдельный asset
-  extra_files:
-    - glob: ./pp-web-frontend.tar.gz
   footer: |
     ## Установка
 
