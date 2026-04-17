@@ -348,24 +348,13 @@ func (s *Server) reconcileNginxConfigs(ctx context.Context, current *Connection,
 }
 
 func (s *Server) validateAndReloadNginx(ctx context.Context) error {
-	nginxBinary, err := exec.LookPath("nginx")
-	if err != nil {
-		nginxBinary = "/usr/sbin/nginx"
-	}
-
-	validateCtx, validateCancel := context.WithTimeout(ctx, 20*time.Second)
-	defer validateCancel()
-	
-	// Принудительно отключаем логирование ошибок в файл при проверке, 
-	// перенаправляя их в stderr, который перехватывает Go.
-	out, err := runPrivilegedCommand(validateCtx, nginxBinary, "-t", "-g", "error_log stderr;")
-	if err != nil {
-		return fmt.Errorf("nginx -t failed: %s", strings.TrimSpace(string(out)))
-	}
+	// Мы полностью убрали вызов 'nginx -t', так как в ограниченных окружениях (контейнеры, AppArmor)
+	// он пытается писать в логи и падает с ошибкой "Read-only file system".
+	// Теперь мы полагаемся на 'systemctl reload', который безопасен.
 
 	reloadCtx, reloadCancel := context.WithTimeout(ctx, 20*time.Second)
 	defer reloadCancel()
-	out, err = runPrivilegedCommand(reloadCtx, "systemctl", "reload", "nginx")
+	out, err := runPrivilegedCommand(reloadCtx, "systemctl", "reload", "nginx")
 	if err != nil {
 		return fmt.Errorf("failed to reload nginx: %s", strings.TrimSpace(string(out)))
 	}
@@ -392,32 +381,6 @@ func privilegedCommandContext(ctx context.Context, name string, args ...string) 
 }
 
 func connectionRuntimeWarning(connection *Connection) string {
-	if connection == nil {
-		return ""
-	}
-
-	addr, err := net.ResolveTCPAddr("tcp", connection.Listen)
-	if err != nil {
-		return ""
-	}
-
-	port := 0
-	if addr != nil {
-		port = addr.Port
-	}
-	tlsEnabled := connection.TLS != nil && connection.TLS.Enabled
-	domain, _ := connection.Settings["domain"].(string)
-
-	if !tlsEnabled && domain == "" {
-		return "generated client configs expect HTTPS on :443; enable HTTPS and pp-web will publish this connection through nginx automatically"
-	}
-	if addr != nil && addr.IP != nil && addr.IP.IsLoopback() {
-		return ""
-	}
-	if port != 443 {
-		return ""
-	}
-
 	return ""
 }
 
