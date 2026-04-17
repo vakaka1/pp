@@ -376,10 +376,6 @@ echo "  Full-tunnel:   $PP_TUN_RUNNER"
 echo "  Подключение:   $PP_CONNECT --config client.json"
 echo "  Full-tunnel:   $PP_CONNECT tun --config client.json"
 echo ""
-echo "  install-client.sh больше НЕ создаёт подключение автоматически."
-echo "  Чтобы активировать прокси, примените конфиг отдельной командой."
-echo "  pp-client-connect запускает клиент в текущем терминале до Ctrl+C."
-echo ""
 if [[ ":$PATH:" != *":$INSTALL_PREFIX/bin:"* ]]; then
     warn "Каталог $INSTALL_PREFIX/bin не найден в PATH"
 fi
