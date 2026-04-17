@@ -17,6 +17,7 @@ step()  { echo -e "\n${BOLD}▶ $*${NC}"; }
 [ "$EUID" -eq 0 ] || die "Запустите скрипт от root: curl ... | sudo bash"
 
 # ---------- Конфигурация ----------
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 GITHUB_REPO="${GITHUB_REPO:-vakaka1/pp}"
 RELEASE_TAG="${RELEASE_TAG:-latest}"
 
@@ -103,6 +104,14 @@ download_binary() {
     local name="$1"
     local dest="$2"
     local filename="${name}_linux_${GOARCH}"
+
+    # Если бинарник уже собран локально в папке bin/, используем его
+    if [ -f "$ROOT_DIR/bin/$name" ]; then
+        info "Использование локального бинарника ${name}..."
+        install -m 755 "$ROOT_DIR/bin/$name" "$dest"
+        ok "${name} (локальный) → ${dest}"
+        return
+    fi
 
     if [ "$RELEASE_TAG" = "latest" ]; then
         local url="https://github.com/${GITHUB_REPO}/releases/latest/download/${filename}"
