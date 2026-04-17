@@ -249,7 +249,7 @@ StandardError=append:${PP_LOG_DIR}/pp-web.log
 ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes
-ReadWritePaths=${PP_LOG_DIR} ${PP_WEB_DATA_DIR} ${PP_CONFIG_DIR} ${PP_NGINX_MANAGED_DIR} /etc/letsencrypt /var/lib/letsencrypt /var/log/letsencrypt /run /var/lib/nginx /var/cache/nginx
+ReadWritePaths=${PP_LOG_DIR} ${PP_WEB_DATA_DIR} ${PP_CONFIG_DIR} ${PP_NGINX_MANAGED_DIR} /etc/letsencrypt /var/lib/letsencrypt /var/log/letsencrypt /run /var/lib/nginx /var/cache/nginx /var/log/nginx
 
 [Install]
 WantedBy=multi-user.target

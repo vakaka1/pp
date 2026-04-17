@@ -243,16 +243,9 @@ func (s *Server) buildNginxConfig(connection *Connection) (string, error) {
 	var backendSSL strings.Builder
 	httpUpstream := "http"
 	grpcUpstream := "grpc"
-	if tlsEnabled {
-		httpUpstream = "https"
-		grpcUpstream = "grpcs"
-		backendSSL.WriteString(`
-        proxy_ssl_server_name on;
-        proxy_ssl_verify off;
-        grpc_ssl_server_name on;
-        grpc_ssl_verify off;`)
-	}
-
+	// При проксировании через Nginx на 127.0.0.1 мы всегда используем plain http/grpc, 
+	// так как SSL терминируется на стороне Nginx.
+	
 	sb.WriteString("    location / {\n")
 	sb.WriteString(fmt.Sprintf("        proxy_pass %s://%s:%s;\n", httpUpstream, coreIP, corePort))
 	sb.WriteString("        proxy_set_header Host $host;\n")
