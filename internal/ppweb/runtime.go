@@ -177,7 +177,9 @@ func (s *Server) shouldManageNginx(connection *Connection) bool {
 	if connection == nil || !connection.Enabled {
 		return false
 	}
-	if connection.TLS == nil || !connection.TLS.Enabled {
+
+	domain, _ := connection.Settings["domain"].(string)
+	if strings.TrimSpace(domain) == "" {
 		return false
 	}
 
@@ -203,23 +205,45 @@ func (s *Server) buildNginxConfig(connection *Connection) (string, error) {
 	if domain == "" {
 		return "", fmt.Errorf("connection has no domain")
 	}
-	if connection.TLS == nil || !connection.TLS.Enabled {
-		return "", fmt.Errorf("connection HTTPS is not configured")
+
+	addr, err := net.ResolveTCPAddr("tcp", connection.Listen)
+	if err != nil || addr == nil {
+		return "", fmt.Errorf("failed to resolve listen address: %w", err)
 	}
 
-	corePort := strings.TrimPrefix(connection.Listen, ":")
-	if addr, err := net.ResolveTCPAddr("tcp", connection.Listen); err == nil && addr != nil && addr.Port != 0 {
-		corePort = strconv.Itoa(addr.Port)
+	corePort := strconv.Itoa(addr.Port)
+	coreIP := addr.IP.String()
+	if coreIP == "<nil>" || coreIP == "::" || coreIP == "0.0.0.0" {
+		coreIP = "127.0.0.1"
 	}
+
 	grpcPath, _ := connection.Settings["grpc_path"].(string)
 	if grpcPath == "" {
 		grpcPath = "/pp.v1.TunnelService/Connect"
 	}
 
+	tlsEnabled := connection.TLS != nil && connection.TLS.Enabled && connection.TLS.CertFile != "" && connection.TLS.KeyFile != ""
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("# Managed by pp-web for connection %s\n", connection.Tag))
+	sb.WriteString("server {\n")
+	sb.WriteString("    listen 80;\n")
+
+	if tlsEnabled {
+		sb.WriteString("    listen 443 ssl http2;\n")
+	}
+
+	sb.WriteString(fmt.Sprintf("    server_name %s;\n\n", domain))
+
+	if tlsEnabled {
+		sb.WriteString(fmt.Sprintf("    ssl_certificate %s;\n", connection.TLS.CertFile))
+		sb.WriteString(fmt.Sprintf("    ssl_certificate_key %s;\n\n", connection.TLS.KeyFile))
+	}
+
 	var backendSSL strings.Builder
 	httpUpstream := "http"
 	grpcUpstream := "grpc"
-	if connection.TLS != nil && connection.TLS.Enabled {
+	if tlsEnabled {
 		httpUpstream = "https"
 		grpcUpstream = "grpcs"
 		backendSSL.WriteString(`
@@ -229,38 +253,28 @@ func (s *Server) buildNginxConfig(connection *Connection) (string, error) {
         grpc_ssl_verify off;`)
 	}
 
-	config := fmt.Sprintf(`# Managed by pp-web for connection %s
-server {
-    listen 80;
-    listen 443 ssl http2;
-    server_name %s;
+	sb.WriteString("    location / {\n")
+	sb.WriteString(fmt.Sprintf("        proxy_pass %s://%s:%s;\n", httpUpstream, coreIP, corePort))
+	sb.WriteString("        proxy_set_header Host $host;\n")
+	sb.WriteString("        proxy_set_header X-Real-IP $remote_addr;\n")
+	sb.WriteString("        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n")
+	sb.WriteString("        proxy_set_header X-Forwarded-Proto $scheme;\n")
+	sb.WriteString(backendSSL.String())
+	sb.WriteString("\n        proxy_buffering off;\n")
+	sb.WriteString("        proxy_read_timeout 3600s;\n")
+	sb.WriteString("    }\n\n")
 
-    ssl_certificate %s;
-    ssl_certificate_key %s;
+	sb.WriteString(fmt.Sprintf("    location %s {\n", grpcPath))
+	sb.WriteString(fmt.Sprintf("        grpc_pass %s://%s:%s;\n", grpcUpstream, coreIP, corePort))
+	sb.WriteString("        grpc_set_header Host $host;\n")
+	sb.WriteString("        grpc_set_header X-Real-IP $remote_addr;\n")
+	sb.WriteString(backendSSL.String())
+	sb.WriteString("\n        grpc_read_timeout 3600s;\n")
+	sb.WriteString("        grpc_send_timeout 3600s;\n")
+	sb.WriteString("    }\n")
+	sb.WriteString("}\n")
 
-    location / {
-        proxy_pass %s://127.0.0.1:%s;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-%s
-        proxy_buffering off;
-        proxy_read_timeout 3600s;
-    }
-
-    location %s {
-        grpc_pass %s://127.0.0.1:%s;
-        grpc_set_header Host $host;
-        grpc_set_header X-Real-IP $remote_addr;
-%s
-        grpc_read_timeout 3600s;
-        grpc_send_timeout 3600s;
-    }
-}
-`, connection.Tag, domain, connection.TLS.CertFile, connection.TLS.KeyFile, httpUpstream, corePort, backendSSL.String(), grpcPath, grpcUpstream, corePort, backendSSL.String())
-
-	return config, nil
+	return sb.String(), nil
 }
 
 func (s *Server) reconcileNginxConfigs(ctx context.Context, current *Connection, previous *Connection) error {

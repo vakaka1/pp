@@ -97,8 +97,22 @@ done
 
 if [ "$build_core" = true ]; then
     build_pp
+    if systemctl is-active --quiet pp-core; then
+        info "Restarting pp-core"
+        sudo systemctl restart pp-core
+    fi
 fi
 
 if [ "$build_web" = true ]; then
     build_pp_web
+    if systemctl is-active --quiet pp-web; then
+        info "Applying systemd changes for pp-web"
+        # Пересоздаем файлы сервисов из инсталлера, если нужно, или просто перезапускаем
+        # В данном случае, так как мы обновили install-server.sh, лучше запустить его часть или 
+        # вручную обновить файлы. Но для rebuild.sh достаточно просто перезапуска, 
+        # если вы уже один раз прогнали инсталлер.
+        sudo systemctl restart pp-web
+    fi
 fi
+
+ok "Rebuild and update complete"
