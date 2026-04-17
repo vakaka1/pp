@@ -1,6 +1,7 @@
 # Compiled binaries / build artifacts
 /dist/
 /pp
+/pp-web-frontend.tar.gz
 
 # Release binaries in bin/ ARE committed (download via scripts/download-geo.sh)
 # Only ignore any extra test dumps at root level
