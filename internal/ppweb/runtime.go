@@ -374,7 +374,7 @@ func (s *Server) validateAndReloadNginx(ctx context.Context) error {
 	defer reloadCancel()
 	out, err := runPrivilegedCommand(reloadCtx, "systemctl", "reload", "nginx")
 	if err != nil {
-		return fmt.Errorf("failed to reload nginx: %s", strings.TrimSpace(string(out)))
+		return fmt.Errorf("failed to reload nginx: %s", explainPrivilegedCommandFailure("systemctl reload nginx", out, err))
 	}
 
 	return nil
@@ -383,6 +383,26 @@ func (s *Server) validateAndReloadNginx(ctx context.Context) error {
 func runPrivilegedCommand(ctx context.Context, name string, args ...string) ([]byte, error) {
 	cmd := privilegedCommandContext(ctx, name, args...)
 	return cmd.CombinedOutput()
+}
+
+func explainPrivilegedCommandFailure(command string, out []byte, err error) string {
+	message := strings.TrimSpace(string(out))
+	if message == "" && err != nil {
+		message = strings.TrimSpace(err.Error())
+	}
+	if message == "" {
+		message = "unknown error"
+	}
+
+	if strings.Contains(message, "sudo: a password is required") || strings.Contains(message, "sudo: no password was provided") {
+		return fmt.Sprintf("%s; pp-web is not running as root and sudo requires a password. Re-run install-server.sh to refresh the service/sudoers setup, or run pp-web as root", message)
+	}
+
+	if strings.Contains(message, "executable file not found") && strings.Contains(message, "sudo") {
+		return fmt.Sprintf("%s; sudo is not installed. Run pp-web as root or reinstall with the updated install-server.sh", message)
+	}
+
+	return message
 }
 
 func privilegedCommandContext(ctx context.Context, name string, args ...string) *exec.Cmd {

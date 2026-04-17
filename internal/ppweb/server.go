@@ -620,7 +620,7 @@ func (s *Server) handleSetupHTTPS(w http.ResponseWriter, r *http.Request, _ *Adm
 		)
 		if err != nil {
 			s.log.Error("certbot failed", zap.Error(err), zap.String("output", string(out)))
-			writeError(w, http.StatusInternalServerError, "Certbot failed: "+string(out))
+			writeError(w, http.StatusInternalServerError, "Certbot failed: "+explainPrivilegedCommandFailure("certbot certonly", out, err))
 			return
 		}
 
