@@ -282,8 +282,8 @@ TimeoutStopSec=30
 StandardOutput=append:${PP_LOG_DIR}/pp-web.log
 StandardError=append:${PP_LOG_DIR}/pp-web.log
 
-# Отключаем все ограничения, так как pp-web управляет системными сервисами (nginx, certbot)
-# и системная изоляция мешает корректной работе sudo и записи в системные логи.
+# Отключаем все системные изоляции для pp-web, 
+# так как они конфликтуют с работой sudo и управлением nginx/certbot.
 [Install]
 WantedBy=multi-user.target
 EOF
