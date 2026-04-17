@@ -50,6 +50,54 @@ func TestGuestIndexDoesNotCreateArticles(t *testing.T) {
 	}
 }
 
+func TestPublicPagesDoNotExposeInternalTerminology(t *testing.T) {
+	db, err := InitFallbackDB("")
+	if err != nil {
+		t.Fatalf("InitFallbackDB() error = %v", err)
+	}
+
+	if _, err := db.InsertArticle("Пост о сетях", "Разбор инфраструктуры.\n\nБез служебных меток.", "https://example.com/post", time.Now()); err != nil {
+		t.Fatalf("InsertArticle() error = %v", err)
+	}
+
+	testCases := []struct {
+		name     string
+		siteType string
+		path     string
+	}{
+		{name: "blog index", siteType: "blog", path: "/"},
+		{name: "blog article", siteType: "blog", path: "/article/1"},
+		{name: "forum index", siteType: "forum", path: "/"},
+		{name: "forum thread", siteType: "forum", path: "/thread/1"},
+	}
+
+	forbidden := []string{"fallback", "tunnel", "гостевой"}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			handler, err := NewFallbackHandler(tc.siteType, "", "invite", db)
+			if err != nil {
+				t.Fatalf("NewFallbackHandler() error = %v", err)
+			}
+
+			req := httptest.NewRequest(http.MethodGet, tc.path, nil)
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusOK {
+				t.Fatalf("expected status 200, got %d", rec.Code)
+			}
+
+			body := strings.ToLower(rec.Body.String())
+			for _, word := range forbidden {
+				if strings.Contains(body, word) {
+					t.Fatalf("unexpected internal term %q in %s", word, tc.name)
+				}
+			}
+		})
+	}
+}
+
 func TestContentLoaderPublishesKeywordArticles(t *testing.T) {
 	db, err := InitFallbackDB("")
 	if err != nil {
@@ -121,7 +169,7 @@ func TestCommentRouteShowsAuthGate(t *testing.T) {
 	}
 
 	body := rec.Body.String()
-	if !strings.Contains(body, "Комментарии закрыты для гостей") {
+	if !strings.Contains(body, "Обсуждение доступно участникам") {
 		t.Fatalf("expected auth gate in response body, got %q", body)
 	}
 	if !strings.Contains(body, "/login") {
