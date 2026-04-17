@@ -65,8 +65,6 @@ archives:
     name_template: "pp_{{ .Os }}_{{ .Arch }}"
     # Распространяем как голый бинарник (без tar.gz) — проще качать через curl
     format: binary
-    # Geo-данные не включаем: они gitignored и загружаются install-скриптом напрямую с v2fly.
-    files: []
   - id: pp-web-archive
     builds:
       - pp-web-amd64
