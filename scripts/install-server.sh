@@ -14,6 +14,35 @@ warn()  { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 die()   { echo -e "${RED}[ERROR]${NC} $*" >&2; exit 1; }
 step()  { echo -e "\n${BOLD}▶ $*${NC}"; }
 
+show_progress() {
+    local pid=$1
+    local msg=$2
+    local width=20
+    local pos=0
+    local dir=1
+    while kill -0 "$pid" 2>/dev/null; do
+        local bar=""
+        for ((i=0; i<width; i++)); do
+            if [ "$i" -eq "$pos" ]; then
+                bar="${bar}━"
+            elif [ "$i" -eq "$((pos-1))" ] || [ "$i" -eq "$((pos+1))" ]; then
+                bar="${bar}─"
+            else
+                bar="${bar}·"
+            fi
+        done
+        printf "\r${GREEN}  [%s] %s...${NC}" "$bar" "$msg"
+        pos=$((pos + dir))
+        if [ "$pos" -ge "$((width-1))" ]; then dir=-1; elif [ "$pos" -le 0 ]; then dir=1; fi
+        sleep 0.08
+    done
+    wait "$pid"
+    local exit_code=$?
+    printf "\r\033[K"
+    return $exit_code
+}
+
+
 # ---------- Проверка root ----------
 [ "$EUID" -eq 0 ] || die "Запустите скрипт от root. Если sudo доступен: curl ... | sudo bash"
 
@@ -70,29 +99,7 @@ step "Установка системных зависимостей"
         yum install -y curl nginx certbot python3-certbot-nginx libcap
     fi
 } >/dev/null 2>&1 &
-pid=$!
-
-width=20
-pos=0
-dir=1
-while kill -0 "$pid" 2>/dev/null; do
-    bar=""
-    for ((i=0; i<width; i++)); do
-        if [ "$i" -eq "$pos" ]; then
-            bar="${bar}━"
-        elif [ "$i" -eq "$((pos-1))" ] || [ "$i" -eq "$((pos+1))" ]; then
-            bar="${bar}─"
-        else
-            bar="${bar}·"
-        fi
-    done
-    printf "\r${GREEN}  [%s] Установка системных зависимостей...${NC}" "$bar"
-    pos=$((pos + dir))
-    if [ "$pos" -ge "$((width-1))" ]; then dir=-1; elif [ "$pos" -le 0 ]; then dir=1; fi
-    sleep 0.08
-done
-wait "$pid"
-printf "\r\033[K"
+show_progress $pid "Установка системных зависимостей"
 
 if ! command -v apt-get &>/dev/null && ! command -v dnf &>/dev/null && ! command -v yum &>/dev/null; then
     warn "Неизвестный пакетный менеджер — убедитесь что nginx, certbot и curl установлены"
@@ -297,9 +304,15 @@ EOF
 
 systemctl daemon-reload
 systemctl enable pp-web
-systemctl start pp-web \
-    && ok "pp-web запущен" \
-    || warn "pp-web не запустился — проверьте: journalctl -u pp-web -n 30"
+if systemctl is-active --quiet pp-web; then
+    systemctl restart pp-web \
+        && ok "pp-web перезапущен с новым бинарником" \
+        || warn "pp-web не перезапустился — проверьте: journalctl -u pp-web -n 30"
+else
+    systemctl start pp-web \
+        && ok "pp-web запущен" \
+        || warn "pp-web не запустился — проверьте: journalctl -u pp-web -n 30"
+fi
 
 # =============================================================================
 echo ""
