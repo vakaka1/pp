@@ -204,7 +204,6 @@ LimitNOFILE=1048576
 StandardOutput=append:${PP_LOG_DIR}/pp-core.log
 StandardError=append:${PP_LOG_DIR}/pp-core.log
 
-NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes
@@ -247,11 +246,10 @@ TimeoutStopSec=30
 StandardOutput=append:${PP_LOG_DIR}/pp-web.log
 StandardError=append:${PP_LOG_DIR}/pp-web.log
 
-NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes
-ReadWritePaths=${PP_LOG_DIR} ${PP_WEB_DATA_DIR} ${PP_CONFIG_DIR} ${PP_NGINX_MANAGED_DIR}
+ReadWritePaths=${PP_LOG_DIR} ${PP_WEB_DATA_DIR} ${PP_CONFIG_DIR} ${PP_NGINX_MANAGED_DIR} /etc/letsencrypt /var/lib/letsencrypt /var/log/letsencrypt /run /var/lib/nginx
 
 [Install]
 WantedBy=multi-user.target
