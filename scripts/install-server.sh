@@ -123,6 +123,7 @@ else
     die "Не удалось загрузить frontend pp-web с ${FRONTEND_URL}"
 fi
 
+if command -v setcap &>/dev/null; then
     setcap 'cap_net_bind_service=+ep' "$PP_BIN" || true
 fi
 
