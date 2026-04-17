@@ -1,0 +1,48 @@
+# Compiled binaries / build artifacts
+/dist/
+/pp
+
+# Release binaries in bin/ ARE committed (download via scripts/download-geo.sh)
+# Only ignore any extra test dumps at root level
+
+# Go build cache
+*.test
+*.out
+
+# Runtime / data files (generated at runtime, not for VCS)
+/pp-web-data/*.sqlite
+/pp-web-data/*.sqlite-shm
+/pp-web-data/*.sqlite-wal
+/pp-web-data/generated/
+
+# GeoIP / GeoSite databases (large, downloaded by scripts/download-geo.sh)
+/data/geoip.dat
+/data/geosite.dat
+
+# Client configs with real keys — никогда не коммитить!
+client.json
+/etc/pp/
+
+# Frontend build artifacts
+/pp-web/frontend/dist/
+/pp-web/frontend/node_modules/
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# goreleaser local output
+/.task/
+
+# Bundled dev tools (not part of the project)
+/.tools/
+
+# AI / editor metadata
+.codex
+
+# Local development cache
+/.cache/

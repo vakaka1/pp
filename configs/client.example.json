@@ -1,0 +1,49 @@
+{
+  "log": {
+    "level": "info",
+    "output": "stdout",
+    "file": "",
+    "log_target_addresses": false
+  },
+  "client": {
+    "socks5_listen": "127.0.0.1:1080",
+    "http_proxy_listen": "127.0.0.1:8080",
+    "server": {
+      "address": "YOUR_DOMAIN:443",
+      "domain": "YOUR_DOMAIN",
+      "noise_public_key": "PASTE_PUBLIC_KEY_FROM_pp_keygen",
+      "psk": "PASTE_PSK_FROM_pp_keygen",
+      "tls_fingerprint": "chrome",
+      "grpc_path": "/pp.v1.TunnelService/Connect",
+      "grpc_user_agent": "grpc-go/1.62.1"
+    },
+    "routing": {
+      "default_policy": "proxy",
+      "dns": {
+        "strategy": "remote_for_proxied",
+        "local_servers": ["8.8.8.8", "1.1.1.1"],
+        "doh_url": ""
+      },
+      "rules": [
+        { "comment": "Direct RU domains", "type": "geosite", "value": "ru", "policy": "direct" },
+        { "comment": "Direct RU IPs",     "type": "geoip",   "value": "ru", "policy": "direct" },
+        { "type": "domain",  "value": "localhost",      "policy": "direct" },
+        { "type": "ip_cidr", "value": "192.168.0.0/16", "policy": "direct" },
+        { "type": "ip_cidr", "value": "10.0.0.0/8",     "policy": "direct" },
+        { "type": "ip_cidr", "value": "172.16.0.0/12",  "policy": "direct" }
+      ]
+    },
+    "transport": {
+      "jitter_max_ms": 30,
+      "shaper_enabled": true,
+      "keepalive_interval_seconds": 25,
+      "reconnect_stream_min": 800,
+      "reconnect_stream_max": 1200,
+      "reconnect_duration_min_h": 3,
+      "reconnect_duration_max_h": 5
+    },
+    "connection_pool": {
+      "size": 1
+    }
+  }
+}

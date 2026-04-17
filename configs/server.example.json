@@ -1,0 +1,25 @@
+{
+  "log": {
+    "level": "info",
+    "output": "stdout"
+  },
+  "inbounds": [
+    {
+      "tag": "main",
+      "protocol": "pp-fallback",
+      "listen": "127.0.0.1:8081",
+      "settings": {
+        "type": "smart-blog",
+        "domain": "YOUR_DOMAIN",
+        "grpc_path": "/pp.v1.TunnelService/Connect",
+        "noise_private_key": "PASTE_PRIVATE_KEY_FROM_pp_keygen",
+        "psk": "PASTE_PSK_FROM_pp_keygen",
+        "fallback_http_addr": "127.0.0.1:8080",
+        "scraper_keywords": ["technology", "linux", "go", "backend", "devops"],
+        "publish_interval_minutes": 60,
+        "publish_batch_size": 3,
+        "invite_code": "CHANGE_THIS_RANDOM_STRING"
+      }
+    }
+  ]
+}

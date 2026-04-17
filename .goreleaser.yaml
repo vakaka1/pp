@@ -1,0 +1,134 @@
+version: 2
+
+project_name: pp
+
+# Эти переменные прокидываются в ldflags как в Makefile
+before:
+  hooks:
+    - go mod tidy
+
+# ─── Сборка бинарников ────────────────────────────────────────────────────────
+builds:
+  # pp (core + client) — CGO_ENABLED=0, чистая кросс-компиляция
+  - id: pp
+    main: ./cmd/pp
+    binary: pp
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.buildDate={{.Date}}
+      - -X main.gitCommit={{.Commit}}
+  - id: pp-web-amd64
+    main: ./cmd/pp-web
+    binary: pp-web
+    env:
+      - CGO_ENABLED=1
+      - CC=gcc
+    goos:
+      - linux
+    goarch:
+      - amd64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.buildDate={{.Date}}
+      - -X main.gitCommit={{.Commit}}
+  - id: pp-web-arm64
+    main: ./cmd/pp-web
+    binary: pp-web
+    env:
+      - CGO_ENABLED=1
+      - CC=aarch64-linux-gnu-gcc
+    goos:
+      - linux
+    goarch:
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.buildDate={{.Date}}
+      - -X main.gitCommit={{.Commit}}
+
+# ─── Архивы (то, что попадёт в GitHub Release) ───────────────────────────────
+archives:
+  - id: pp-archive
+    builds:
+      - pp
+    # Формат: pp_linux_amd64  — именно это ожидают install-server.sh и install-client.sh
+    name_template: "pp_{{ .Os }}_{{ .Arch }}"
+    # Распространяем как голый бинарник (без tar.gz) — проще качать через curl
+    format: binary
+    # Вместе с бинарником кладём гео-данные и readme
+    files:
+      - src: data/geoip.dat
+        dst: .
+        strip_parent: true
+      - src: data/geosite.dat
+        dst: .
+        strip_parent: true
+      - README.md
+  - id: pp-web-archive
+    builds:
+      - pp-web-amd64
+      - pp-web-arm64
+    name_template: "pp-web_{{ .Os }}_{{ .Arch }}"
+    format: binary
+
+# ─── Чексуммы ────────────────────────────────────────────────────────────────
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+# ─── GitHub Release ──────────────────────────────────────────────────────────
+release:
+  github:
+    owner: vakaka1
+    name: pp
+  # Черновик пока не нажать «Publish» вручную — удобно для проверки
+  draft: false
+  prerelease: auto
+  name_template: "v{{.Version}}"
+  footer: |
+    ## Установка
+
+    **Сервер:**
+    ```bash
+    curl -fsSL https://raw.githubusercontent.com/vakaka1/pp/main/scripts/install-server.sh | sudo bash -s -- your-domain.com
+    ```
+
+    **Клиент:**
+    ```bash
+    curl -fsSL https://raw.githubusercontent.com/vakaka1/pp/main/scripts/install-client.sh | bash -s -- --config client.json
+    ```
+
+# ─── Changelog ────────────────────────────────────────────────────────────────
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+      - Merge pull request
+      - Merge branch
+  groups:
+    - title: "🚀 Features"
+      regexp: "^feat"
+      order: 0
+    - title: "🐛 Bug Fixes"
+      regexp: "^fix"
+      order: 1
+    - title: "⚡ Performance"
+      regexp: "^perf"
+      order: 2
+    - title: "Other"
+      order: 999

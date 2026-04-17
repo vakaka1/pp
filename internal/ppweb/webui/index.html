@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PP Web</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="chrome"></div>
+  <div class="shell">
+    <header class="masthead">
+      <div>
+        <p class="eyebrow">PP Web</p>
+        <h1>Server control plane</h1>
+        <p class="subtitle">Install-ready management UI embedded directly into the <code>pp-web</code> binary.</p>
+      </div>
+      <div class="masthead-actions">
+        <button id="refreshButton" class="ghost">Refresh</button>
+      </div>
+    </header>
+
+    <div id="notice" class="notice hidden"></div>
+
+    <main id="app" class="app-shell">
+      <section class="panel loading-panel">
+        <div class="spinner"></div>
+        <p>Loading control plane...</p>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="viewerDialog" class="viewer">
+    <div class="viewer-head">
+      <h2 id="viewerTitle">Output</h2>
+      <button id="viewerClose" class="ghost">Close</button>
+    </div>
+    <pre id="viewerBody"></pre>
+  </dialog>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

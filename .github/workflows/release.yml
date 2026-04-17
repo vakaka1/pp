@@ -1,0 +1,48 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'   # Срабатывает на любой тег вида v1.0.0, v2.3.1-beta и т.д.
+
+permissions:
+  contents: write  # Нужно для создания GitHub Release
+
+jobs:
+  release:
+    name: Build & Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # goreleaser нужна полная история для changelog
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+
+      - name: Set up GCC (для CGO-зависимостей в тестах и релизах)
+        run: sudo apt-get install -y gcc gcc-aarch64-linux-gnu
+
+      - name: Run tests
+        run: go test -race ./...
+        env:
+          CGO_ENABLED: 1
+
+      - name: Install goreleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          install-only: true
+          version: '~> v2'
+
+      - name: Release
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: '~> v2'
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
