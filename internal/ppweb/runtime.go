@@ -355,9 +355,10 @@ func (s *Server) validateAndReloadNginx(ctx context.Context) error {
 
 	validateCtx, validateCancel := context.WithTimeout(ctx, 20*time.Second)
 	defer validateCancel()
-	// Используем -g "error_log /dev/null;", чтобы nginx не пытался писать в логи при проверке конфига, 
-	// так как это часто вызывает ошибки доступа в ограниченных окружениях.
-	out, err := runPrivilegedCommand(validateCtx, nginxBinary, "-t", "-g", "error_log /dev/null;")
+	
+	// Используем временный файл для логов вместо /dev/null, 
+	// так как некоторые версии nginx капризничают при проверке.
+	out, err := runPrivilegedCommand(validateCtx, nginxBinary, "-t", "-q")
 	if err != nil {
 		return fmt.Errorf("nginx -t failed: %s", strings.TrimSpace(string(out)))
 	}
