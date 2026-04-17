@@ -47,7 +47,12 @@ show_progress() {
 [ "$EUID" -eq 0 ] || die "Запустите скрипт от root. Если sudo доступен: curl ... | sudo bash"
 
 # ---------- Конфигурация ----------
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPT_SOURCE="${BASH_SOURCE[0]:-}"
+if [ -n "$SCRIPT_SOURCE" ]; then
+    ROOT_DIR="$(cd "$(dirname "$SCRIPT_SOURCE")/.." && pwd)"
+else
+    ROOT_DIR="$(pwd)"
+fi
 GITHUB_REPO="${GITHUB_REPO:-vakaka1/pp}"
 RELEASE_TAG="${RELEASE_TAG:-latest}"
 
@@ -99,6 +104,7 @@ step "Установка системных зависимостей"
         yum install -y curl nginx certbot python3-certbot-nginx libcap
     fi
 } >/dev/null 2>&1 &
+pid=$!
 show_progress $pid "Установка системных зависимостей"
 
 if ! command -v apt-get &>/dev/null && ! command -v dnf &>/dev/null && ! command -v yum &>/dev/null; then
