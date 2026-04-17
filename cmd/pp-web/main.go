@@ -60,7 +60,7 @@ func main() {
 		_ = httpServer.Close()
 	}()
 
-	log.Printf("pp-web listening on http://%s", *listenAddress)
+	log.Printf("pp-web v%s (built %s) listening on http://%s", version, buildDate, *listenAddress)
 	if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("pp-web failed: %v", err)
 	}
