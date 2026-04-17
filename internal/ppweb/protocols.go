@@ -81,7 +81,13 @@ func (r *protocolRegistry) BuildCoreConfig(connections []Connection, clientPSKsB
 		if err != nil {
 			return nil, fmt.Errorf("connection %q: %w", connection.Name, err)
 		}
-		inbound.TLS = connection.TLS
+		if shouldManageNginxConnection(&connection) {
+			// In managed mode nginx terminates TLS on :443 and forwards plain h2c/http
+			// to pp-core on the loopback/backend port.
+			inbound.TLS = nil
+		} else {
+			inbound.TLS = connection.TLS
+		}
 
 		// Inject per-client PSKs when available.
 		if psks := clientPSKsByConn[connection.ID]; len(psks) > 0 {
@@ -303,7 +309,7 @@ func (fallbackProtocol) GenerateSecrets() (map[string]string, error) {
 // It contains both the compact URI (for sharing) and the full JSON config
 // that the pp client binary reads.
 type ClientConfigResult struct {
-	URI    string              `json:"uri"`
+	URI    string          `json:"uri"`
 	Config ppconfig.Config `json:"config"`
 }
 

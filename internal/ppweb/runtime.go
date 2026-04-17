@@ -181,7 +181,7 @@ func sanitizeFileFragment(value string) string {
 	return strings.Trim(b.String(), "-.")
 }
 
-func (s *Server) shouldManageNginx(connection *Connection) bool {
+func shouldManageNginxConnection(connection *Connection) bool {
 	if connection == nil || !connection.Enabled {
 		return false
 	}
@@ -205,6 +205,10 @@ func (s *Server) shouldManageNginx(connection *Connection) bool {
 	}
 
 	return addr.Port != 443
+}
+
+func (s *Server) shouldManageNginx(connection *Connection) bool {
+	return shouldManageNginxConnection(connection)
 }
 
 func (s *Server) buildNginxConfig(connection *Connection) (string, error) {

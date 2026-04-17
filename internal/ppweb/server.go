@@ -59,12 +59,20 @@ func NewServer(opts Options) (*Server, error) {
 
 	logger, _ := zap.NewProduction()
 
-	return &Server{
+	server := &Server{
 		opts:      opts,
 		store:     store,
 		protocols: newProtocolRegistry(),
 		log:       logger,
-	}, nil
+	}
+
+	startupCtx, startupCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer startupCancel()
+	if err := server.applyCoreConfig(startupCtx); err != nil {
+		server.log.Warn("failed to apply core config on startup", zap.Error(err))
+	}
+
+	return server, nil
 }
 
 func (s *Server) Close() error {
