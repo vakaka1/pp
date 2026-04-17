@@ -57,10 +57,14 @@ jobs:
 
       - name: Build binaries
         run: |
+          mkdir -p bin
           # Build pp (core/client, without CGO)
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-s -w -X main.version=${{ github.ref_name }}" -o bin/pp_linux_amd64 ./cmd/pp
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags "-s -w -X main.version=${{ github.ref_name }}" -o bin/pp_linux_arm64 ./cmd/pp
+          
           # Build pp-web (needs CGO for sqlite)
           CGO_ENABLED=1 CC=gcc GOOS=linux GOARCH=amd64 go build -ldflags "-s -w -X main.version=${{ github.ref_name }}" -o bin/pp-web_linux_amd64 ./cmd/pp-web
+
 
       - name: Create Release
         env:
@@ -68,6 +72,7 @@ jobs:
         run: |
           gh release create "${{ github.ref_name }}" \
             bin/pp_linux_amd64 \
+            bin/pp_linux_arm64 \
             bin/pp-web_linux_amd64 \
             pp-web-frontend.tar.gz \
             --title "Release ${{ github.ref_name }}" \
