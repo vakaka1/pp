@@ -44,17 +44,17 @@ builds:
 # ─── Архивы (то, что попадёт в GitHub Release) ───────────────────────────────
 archives:
   - id: pp-archive
-    builds:
+    ids:
       - pp
     # Формат: pp_linux_amd64  — именно это ожидают install-server.sh и install-client.sh
     name_template: "pp_{{ .Os }}_{{ .Arch }}"
     # Распространяем как голый бинарник (без tar.gz) — проще качать через curl
-    format: binary
+    formats: ["binary"]
   - id: pp-web-archive
-    builds:
+    ids:
       - pp-web-amd64
     name_template: "pp-web_{{ .Os }}_{{ .Arch }}"
-    format: binary
+    formats: ["binary"]
 
 # ─── Чексуммы ────────────────────────────────────────────────────────────────
 checksum:
