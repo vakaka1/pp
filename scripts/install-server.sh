@@ -102,7 +102,27 @@ download_binary() {
 download_binary "pp"     "$PP_BIN"
 download_binary "pp-web" "$PP_WEB_BIN"
 
-if command -v setcap &>/dev/null; then
+# Загружаем frontend dist для pp-web
+FRONTEND_ARCHIVE_NAME="pp-web-frontend.tar.gz"
+if [ "$RELEASE_TAG" = "latest" ]; then
+    FRONTEND_URL="https://github.com/${GITHUB_REPO}/releases/latest/download/${FRONTEND_ARCHIVE_NAME}"
+else
+    FRONTEND_URL="https://github.com/${GITHUB_REPO}/releases/download/${RELEASE_TAG}/${FRONTEND_ARCHIVE_NAME}"
+fi
+
+info "Загрузка frontend для pp-web..."
+mkdir -p "$PP_WEB_FRONTEND_DIR"
+FRONTEND_TMP="$(mktemp)"
+if curl -fsSL --connect-timeout 30 --retry 3 --retry-delay 2 -o "$FRONTEND_TMP" "$FRONTEND_URL"; then
+    tar -xzf "$FRONTEND_TMP" -C "$PP_WEB_FRONTEND_DIR" --strip-components=1
+    rm -f "$FRONTEND_TMP"
+    chown -R "${PP_USER}:${PP_USER}" "$PP_WEB_FRONTEND_DIR"
+    ok "Frontend pp-web → ${PP_WEB_FRONTEND_DIR}"
+else
+    rm -f "$FRONTEND_TMP"
+    die "Не удалось загрузить frontend pp-web с ${FRONTEND_URL}"
+fi
+
     setcap 'cap_net_bind_service=+ep' "$PP_BIN" || true
 fi
 

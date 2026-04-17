@@ -25,8 +25,30 @@ jobs:
           go-version: '1.22'
           cache: true
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: pp-web/frontend/package-lock.json
+
       - name: Set up GCC (для CGO-зависимостей в тестах и релизах)
         run: sudo apt-get install -y gcc gcc-aarch64-linux-gnu
+
+      - name: Build frontend dist
+        run: |
+          cd pp-web/frontend
+          npm ci
+          npm run build
+          cd ../..
+          # Пакуем dist/ в архив — будет загружен как release asset
+          tar -czf pp-web-frontend.tar.gz -C pp-web/frontend dist
+          echo "Frontend built and packed: $(du -sh pp-web-frontend.tar.gz | cut -f1)"
+
+      - name: Download GeoIP / GeoSite databases
+        run: bash scripts/download-geo.sh
+        # geo-данные нужны только для того, чтобы они могли быть включены в
+        # pp-archive если понадобится, и для тестов с geo-routing
 
       - name: Run tests
         run: go test -race ./...
