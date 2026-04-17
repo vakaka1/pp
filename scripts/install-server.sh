@@ -282,13 +282,8 @@ TimeoutStopSec=30
 StandardOutput=append:${PP_LOG_DIR}/pp-web.log
 StandardError=append:${PP_LOG_DIR}/pp-web.log
 
-# Отключаем ProtectSystem, так как pp-web управляет nginx и certbot через sudo, 
-# что требует записи в различные системные директории (/etc/nginx, /var/log, /run и т.д.)
-ProtectSystem=off
-ProtectHome=yes
-PrivateTmp=yes
-ReadWritePaths=${PP_LOG_DIR} ${PP_WEB_DATA_DIR} ${PP_CONFIG_DIR} ${PP_NGINX_MANAGED_DIR} /etc/letsencrypt /run /var/lib/nginx /var/cache/nginx /var/log/nginx
-
+# Отключаем все ограничения, так как pp-web управляет системными сервисами (nginx, certbot)
+# и системная изоляция мешает корректной работе sudo и записи в системные логи.
 [Install]
 WantedBy=multi-user.target
 EOF
