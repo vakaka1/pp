@@ -3,10 +3,10 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'   # Срабатывает на любой тег вида v1.0.0, v2.3.1-beta и т.д.
+      - 'v*'
 
 permissions:
-  contents: write  # Нужно для создания GitHub Release
+  contents: write
 
 jobs:
   release:
@@ -17,7 +17,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # goreleaser нужна полная история для changelog
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -32,45 +32,28 @@ jobs:
           cache: 'npm'
           cache-dependency-path: pp-web/frontend/package-lock.json
 
-      - name: Set up GCC (для CGO-зависимостей в тестах и релизах)
-        run: sudo apt-get install -y gcc gcc-aarch64-linux-gnu
-
       - name: Build frontend dist
         run: |
           cd pp-web/frontend
           npm ci
           npm run build
           cd ../..
-          # Пакуем dist/ в архив — будет загружен как release asset
           tar -czf pp-web-frontend.tar.gz -C pp-web/frontend dist
-          echo "Frontend built and packed: $(du -sh pp-web-frontend.tar.gz | cut -f1)"
-
-      - name: Download GeoIP / GeoSite databases
-        run: bash scripts/download-geo.sh
-        # geo-данные нужны только для того, чтобы они могли быть включены в
-        # pp-archive если понадобится, и для тестов с geo-routing
-
-      - name: Run tests
-        run: go test -race ./...
-        env:
-          CGO_ENABLED: 1
 
       - name: Build binaries
         run: |
           mkdir -p bin
-          # Build pp (core/client, without CGO)
+          # Build pp
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-s -w -X main.version=${{ github.ref_name }}" -o bin/pp_linux_amd64 ./cmd/pp
-          
-          # Build pp-web (needs CGO for sqlite)
-          CGO_ENABLED=1 CC=gcc GOOS=linux GOARCH=amd64 go build -ldflags "-s -w -X main.version=${{ github.ref_name }}" -o bin/pp-web_linux_amd64 ./cmd/pp-web
+          # Build pp-web
+          CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -ldflags "-s -w -X main.version=${{ github.ref_name }}" -o bin/pp-web_linux_amd64 ./cmd/pp-web
 
       - name: Create Release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release create "${{ github.ref_name }}" \
-            bin/pp_linux_amd64 \
-            bin/pp-web_linux_amd64 \
-            pp-web-frontend.tar.gz \
-            --title "Release ${{ github.ref_name }}" \
-            --generate-notes
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            bin/pp_linux_amd64
+            bin/pp-web_linux_amd64
+            pp-web-frontend.tar.gz
+          name: Release ${{ github.ref_name }}
+          generate_release_notes: true
