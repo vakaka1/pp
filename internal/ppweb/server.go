@@ -555,6 +555,8 @@ func (s *Server) handleSetupHTTPS(w http.ResponseWriter, r *http.Request, _ *Adm
 	}
 
 	tlsConfig := &config.TLSConfig{Enabled: true}
+	var stagedConnection *Connection
+	revertStagedSite := false
 
 	switch payload.Mode {
 	case "self-signed":
@@ -570,23 +572,35 @@ func (s *Server) handleSetupHTTPS(w http.ResponseWriter, r *http.Request, _ *Adm
 
 	case "lets-encrypt":
 		s.log.Info("requesting lets-encrypt certificate", zap.String("domain", domain))
-		nginxStopped := false
-		if s.serviceUnitExists("nginx") {
-			stopCtx, stopCancel := context.WithTimeout(context.Background(), 20*time.Second)
-			defer stopCancel()
-			if out, err := runPrivilegedCommand(stopCtx, "systemctl", "stop", "nginx"); err != nil {
-				s.log.Warn("failed to stop nginx before certbot", zap.Error(err), zap.String("output", strings.TrimSpace(string(out))))
-			} else {
-				nginxStopped = true
-				defer func() {
-					startCtx, startCancel := context.WithTimeout(context.Background(), 20*time.Second)
-					defer startCancel()
-					if out, err := runPrivilegedCommand(startCtx, "systemctl", "start", "nginx"); err != nil {
-						s.log.Warn("failed to start nginx after certbot", zap.Error(err), zap.String("output", strings.TrimSpace(string(out))))
-					}
-				}()
-			}
+		if !s.serviceUnitExists("nginx") {
+			writeError(w, http.StatusBadRequest, "nginx service is required for lets-encrypt mode")
+			return
 		}
+
+		webrootDir := s.acmeChallengeDirectory(connection.Tag)
+		if err := os.MkdirAll(webrootDir, 0o750); err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to prepare ACME webroot: "+err.Error())
+			return
+		}
+
+		staged := *connection
+		staged.TLS = &config.TLSConfig{Enabled: true}
+		stagedConnection = &staged
+		if err := s.reconcileNginxConfigs(r.Context(), stagedConnection, connection); err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to publish HTTP site before certbot: "+err.Error())
+			return
+		}
+		revertStagedSite = true
+		defer func() {
+			if !revertStagedSite || stagedConnection == nil {
+				return
+			}
+			rollbackCtx, rollbackCancel := context.WithTimeout(context.Background(), 20*time.Second)
+			defer rollbackCancel()
+			if err := s.reconcileNginxConfigs(rollbackCtx, connection, stagedConnection); err != nil {
+				s.log.Warn("failed to roll back staged nginx config after certbot error", zap.Error(err), zap.String("domain", domain))
+			}
+		}()
 
 		certbotCtx, certbotCancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer certbotCancel()
@@ -595,9 +609,9 @@ func (s *Server) handleSetupHTTPS(w http.ResponseWriter, r *http.Request, _ *Adm
 			certbotCtx,
 			"certbot",
 			"certonly",
-			"--standalone",
-			"--preferred-challenges",
-			"http",
+			"--webroot",
+			"--webroot-path",
+			webrootDir,
 			"--non-interactive",
 			"--agree-tos",
 			"--register-unsafely-without-email",
@@ -605,9 +619,6 @@ func (s *Server) handleSetupHTTPS(w http.ResponseWriter, r *http.Request, _ *Adm
 			domain,
 		)
 		if err != nil {
-			if nginxStopped {
-				s.log.Warn("lets-encrypt failed after stopping nginx", zap.String("domain", domain))
-			}
 			s.log.Error("certbot failed", zap.Error(err), zap.String("output", string(out)))
 			writeError(w, http.StatusInternalServerError, "Certbot failed: "+string(out))
 			return
@@ -621,13 +632,12 @@ func (s *Server) handleSetupHTTPS(w http.ResponseWriter, r *http.Request, _ *Adm
 		return
 	}
 
-	connection.TLS = tlsConfig
 	input := ConnectionInput{
 		Name:     connection.Name,
 		Tag:      connection.Tag,
 		Protocol: connection.Protocol,
 		Listen:   connection.Listen,
-		TLS:      connection.TLS,
+		TLS:      tlsConfig,
 		Enabled:  connection.Enabled,
 		Settings: connection.Settings,
 	}
@@ -637,6 +647,7 @@ func (s *Server) handleSetupHTTPS(w http.ResponseWriter, r *http.Request, _ *Adm
 		writeError(w, http.StatusInternalServerError, "failed to save connection: "+err.Error())
 		return
 	}
+	revertStagedSite = false
 
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "tls": tlsConfig, "warning": warning})
 }

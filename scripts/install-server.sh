@@ -1,7 +1,8 @@
 #!/bin/bash
 # =============================================================================
 #  PP Server Installer — https://github.com/vakaka1/pp
-#  Запуск: curl -fsSL https://raw.githubusercontent.com/vakaka1/pp/main/scripts/install-server.sh | sudo bash
+#  Запуск: curl -fsSL https://raw.githubusercontent.com/vakaka1/pp/main/scripts/install-server.sh | bash
+#          если вы уже root; иначе: ... | sudo bash
 # =============================================================================
 set -euo pipefail
 
@@ -14,7 +15,7 @@ die()   { echo -e "${RED}[ERROR]${NC} $*" >&2; exit 1; }
 step()  { echo -e "\n${BOLD}▶ $*${NC}"; }
 
 # ---------- Проверка root ----------
-[ "$EUID" -eq 0 ] || die "Запустите скрипт от root: curl ... | sudo bash"
+[ "$EUID" -eq 0 ] || die "Запустите скрипт от root. Если sudo доступен: curl ... | sudo bash"
 
 # ---------- Конфигурация ----------
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -37,6 +38,8 @@ PP_NGINX_INCLUDE="/etc/nginx/conf.d/pp-managed.conf"
 PP_WEB_LISTEN="0.0.0.0:4090"
 GEO_IP_URL="https://github.com/v2fly/geoip/releases/latest/download/geoip.dat"
 GEO_SITE_URL="https://github.com/v2fly/domain-list-community/releases/latest/download/dlc.dat"
+PP_WEB_SERVICE_USER="$PP_USER"
+PP_WEB_SERVICE_GROUP="$PP_USER"
 
 # ---------- Детектирование архитектуры ----------
 ARCH="$(uname -m)"
@@ -152,7 +155,6 @@ FRONTEND_TMP="$(mktemp)"
 if curl -fsSL --connect-timeout 30 --retry 3 --retry-delay 2 -o "$FRONTEND_TMP" "$FRONTEND_URL"; then
     tar -xzf "$FRONTEND_TMP" -C "$PP_WEB_FRONTEND_DIR" --strip-components=1
     rm -f "$FRONTEND_TMP"
-    chown -R "${PP_USER}:${PP_USER}" "$PP_WEB_FRONTEND_DIR"
     ok "Frontend pp-web → ${PP_WEB_FRONTEND_DIR}"
 else
     rm -f "$FRONTEND_TMP"
@@ -201,18 +203,23 @@ ok "Geo-данные подготовлены"
 # =============================================================================
 step "Разрешение привилегированных операций для pp-web"
 # =============================================================================
-SYSTEMCTL_BIN="$(command -v systemctl || echo /bin/systemctl)"
-CERTBOT_BIN="$(command -v certbot || echo /usr/bin/certbot)"
-NGINX_BIN="$(command -v nginx || echo /usr/sbin/nginx)"
-cat > /etc/sudoers.d/pp-web <<EOF
+if command -v sudo &>/dev/null; then
+    SYSTEMCTL_BIN="$(command -v systemctl || echo /bin/systemctl)"
+    CERTBOT_BIN="$(command -v certbot || echo /usr/bin/certbot)"
+    cat > /etc/sudoers.d/pp-web <<EOF
 Defaults:${PP_USER} !requiretty
-${PP_USER} ALL=(root) NOPASSWD: ${SYSTEMCTL_BIN} restart pp-core, ${SYSTEMCTL_BIN} stop pp-core, ${SYSTEMCTL_BIN} start pp-core, ${SYSTEMCTL_BIN} stop nginx, ${SYSTEMCTL_BIN} start nginx, ${SYSTEMCTL_BIN} restart nginx, ${SYSTEMCTL_BIN} reload nginx, ${CERTBOT_BIN}, ${NGINX_BIN} -t
+${PP_USER} ALL=(root) NOPASSWD: ${SYSTEMCTL_BIN} restart pp-core, ${SYSTEMCTL_BIN} stop pp-core, ${SYSTEMCTL_BIN} start pp-core, ${SYSTEMCTL_BIN} stop nginx, ${SYSTEMCTL_BIN} start nginx, ${SYSTEMCTL_BIN} restart nginx, ${SYSTEMCTL_BIN} reload nginx, ${CERTBOT_BIN}
 EOF
-chmod 440 /etc/sudoers.d/pp-web
-if command -v visudo &>/dev/null; then
-    visudo -cf /etc/sudoers.d/pp-web >/dev/null || die "sudoers для pp-web не прошёл проверку"
+    chmod 440 /etc/sudoers.d/pp-web
+    if command -v visudo &>/dev/null; then
+        visudo -cf /etc/sudoers.d/pp-web >/dev/null || die "sudoers для pp-web не прошёл проверку"
+    fi
+    ok "pp-web будет работать от ${PP_USER} и использовать sudo для systemd/nginx/certbot"
+else
+    PP_WEB_SERVICE_USER="root"
+    PP_WEB_SERVICE_GROUP="root"
+    warn "sudo не найден: pp-web будет запущен от root и выполнит привилегированные операции без sudo"
 fi
-ok "pp-web может перезапускать pp-core, проверять nginx и выпускать сертификаты через sudo"
 
 # =============================================================================
 step "Создание systemd сервиса pp-core"
@@ -266,8 +273,8 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=${PP_USER}
-Group=${PP_USER}
+User=${PP_WEB_SERVICE_USER}
+Group=${PP_WEB_SERVICE_GROUP}
 WorkingDirectory=${PP_WEB_DATA_DIR}
 ExecStart=${PP_WEB_BIN} \\
     --listen ${PP_WEB_LISTEN} \\

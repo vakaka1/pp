@@ -133,6 +133,14 @@ func (s *Server) certDirectory(tag string) string {
 	return filepath.Join(filepath.Dir(s.opts.DatabasePath), "certs", tag)
 }
 
+func (s *Server) acmeChallengeDirectory(tag string) string {
+	tag = sanitizeFileFragment(tag)
+	if tag == "" {
+		tag = "connection"
+	}
+	return filepath.Join(filepath.Dir(s.opts.DatabasePath), "acme", tag)
+}
+
 func (s *Server) nginxSitesDirectory() string {
 	return "/etc/nginx/pp-sites"
 }
@@ -175,6 +183,10 @@ func sanitizeFileFragment(value string) string {
 
 func (s *Server) shouldManageNginx(connection *Connection) bool {
 	if connection == nil || !connection.Enabled {
+		return false
+	}
+
+	if connection.TLS == nil || !connection.TLS.Enabled {
 		return false
 	}
 
@@ -243,9 +255,15 @@ func (s *Server) buildNginxConfig(connection *Connection) (string, error) {
 	var backendSSL strings.Builder
 	httpUpstream := "http"
 	grpcUpstream := "grpc"
-	// При проксировании через Nginx на 127.0.0.1 мы всегда используем plain http/grpc, 
+	// При проксировании через Nginx на 127.0.0.1 мы всегда используем plain http/grpc,
 	// так как SSL терминируется на стороне Nginx.
-	
+
+	sb.WriteString("    location ^~ /.well-known/acme-challenge/ {\n")
+	sb.WriteString(fmt.Sprintf("        alias %s/;\n", s.acmeChallengeDirectory(connection.Tag)))
+	sb.WriteString("        default_type text/plain;\n")
+	sb.WriteString("        try_files $uri =404;\n")
+	sb.WriteString("    }\n\n")
+
 	sb.WriteString("    location / {\n")
 	sb.WriteString(fmt.Sprintf("        proxy_pass %s://%s:%s;\n", httpUpstream, coreIP, corePort))
 	sb.WriteString("        proxy_set_header Host $host;\n")

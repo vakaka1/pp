@@ -13,7 +13,10 @@ func TestShouldManageNginx(t *testing.T) {
 	loopback := &Connection{
 		Enabled: true,
 		Listen:  "127.0.0.1:8081",
-		TLS:     &config.TLSConfig{Enabled: true},
+		TLS:     &config.TLSConfig{Enabled: true, CertFile: "/tmp/cert.pem", KeyFile: "/tmp/key.pem"},
+		Settings: map[string]any{
+			"domain": "loopback.example.com",
+		},
 	}
 	if !server.shouldManageNginx(loopback) {
 		t.Fatalf("expected loopback TLS connection to be published through nginx")
@@ -22,7 +25,10 @@ func TestShouldManageNginx(t *testing.T) {
 	direct := &Connection{
 		Enabled: true,
 		Listen:  "0.0.0.0:443",
-		TLS:     &config.TLSConfig{Enabled: true},
+		TLS:     &config.TLSConfig{Enabled: true, CertFile: "/tmp/cert.pem", KeyFile: "/tmp/key.pem"},
+		Settings: map[string]any{
+			"domain": "direct.example.com",
+		},
 	}
 	if server.shouldManageNginx(direct) {
 		t.Fatalf("expected direct :443 TLS connection to stay direct")
@@ -56,10 +62,16 @@ func TestBuildNginxConfigUsesConnectionListenAndPath(t *testing.T) {
 	if want := "server_name blog.example.com;"; !strings.Contains(configText, want) {
 		t.Fatalf("expected config to contain %q, got:\n%s", want, configText)
 	}
-	if want := "proxy_pass https://127.0.0.1:8085;"; !strings.Contains(configText, want) {
+	if want := "proxy_pass http://127.0.0.1:8085;"; !strings.Contains(configText, want) {
+		t.Fatalf("expected config to contain %q, got:\n%s", want, configText)
+	}
+	if want := "grpc_pass grpc://127.0.0.1:8085;"; !strings.Contains(configText, want) {
 		t.Fatalf("expected config to contain %q, got:\n%s", want, configText)
 	}
 	if want := "location /grpc-custom {"; !strings.Contains(configText, want) {
+		t.Fatalf("expected config to contain %q, got:\n%s", want, configText)
+	}
+	if want := "location ^~ /.well-known/acme-challenge/ {"; !strings.Contains(configText, want) {
 		t.Fatalf("expected config to contain %q, got:\n%s", want, configText)
 	}
 }
