@@ -55,23 +55,20 @@ jobs:
         env:
           CGO_ENABLED: 1
 
-      - name: Install goreleaser
-        uses: goreleaser/goreleaser-action@v6
-        with:
-          install-only: true
-          version: '~> v2'
+      - name: Build binaries
+        run: |
+          # Build pp (core/client, without CGO)
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-s -w -X main.version=${{ github.ref_name }}" -o bin/pp_linux_amd64 ./cmd/pp
+          # Build pp-web (needs CGO for sqlite)
+          CGO_ENABLED=1 CC=gcc GOOS=linux GOARCH=amd64 go build -ldflags "-s -w -X main.version=${{ github.ref_name }}" -o bin/pp-web_linux_amd64 ./cmd/pp-web
 
-      - name: Release
-        uses: goreleaser/goreleaser-action@v6
-        with:
-          version: '~> v2'
-          args: release --clean
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CGO_ENABLED: 1
-
-      - name: Upload frontend tarball
+      - name: Create Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload "v${{ github.ref_name }}" pp-web-frontend.tar.gz --clobber
+          gh release create "${{ github.ref_name }}" \
+            bin/pp_linux_amd64 \
+            bin/pp-web_linux_amd64 \
+            pp-web-frontend.tar.gz \
+            --title "Release ${{ github.ref_name }}" \
+            --generate-notes
