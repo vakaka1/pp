@@ -71,7 +71,7 @@ func TestPublicPagesDoNotExposeInternalTerminology(t *testing.T) {
 		{name: "forum thread", siteType: "forum", path: "/thread/1"},
 	}
 
-	forbidden := []string{"fallback", "tunnel", "гостевой"}
+	forbidden := []string{"fallback", "tunnel", "гостевой", "клуб"}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -95,6 +95,31 @@ func TestPublicPagesDoNotExposeInternalTerminology(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestLoginPageDoesNotRenderInviteField(t *testing.T) {
+	db, err := InitFallbackDB("")
+	if err != nil {
+		t.Fatalf("InitFallbackDB() error = %v", err)
+	}
+
+	handler, err := NewFallbackHandler("blog", "", "invite", db)
+	if err != nil {
+		t.Fatalf("NewFallbackHandler() error = %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/login", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+
+	body := rec.Body.String()
+	if strings.Contains(body, `name="invite_code"`) {
+		t.Fatalf("login page must not render invite field: %q", body)
 	}
 }
 
@@ -169,7 +194,7 @@ func TestCommentRouteShowsAuthGate(t *testing.T) {
 	}
 
 	body := rec.Body.String()
-	if !strings.Contains(body, "Обсуждение доступно участникам") {
+	if !strings.Contains(body, "Чтобы оставить комментарий, войдите в аккаунт") {
 		t.Fatalf("expected auth gate in response body, got %q", body)
 	}
 	if !strings.Contains(body, "/login") {

@@ -176,34 +176,33 @@ func (h *FallbackHandler) serveRegister(w http.ResponseWriter, r *http.Request) 
 		_ = r.ParseForm()
 		invite := strings.TrimSpace(r.FormValue("invite_code"))
 		if invite == "" {
-			errMessage = "Для запроса доступа нужен код приглашения."
+			errMessage = "Для регистрации нужен код приглашения."
 		} else if h.inviteCode != "" && invite != h.inviteCode {
-			errMessage = "Код приглашения не найден. Проверьте написание или запросите новый."
+			errMessage = "Код приглашения не найден. Проверьте написание или обратитесь к администратору."
 		} else {
-			errMessage = "Подтверждение заявок временно недоступно. Попробуйте позже."
+			errMessage = "Регистрация временно недоступна. Попробуйте позже."
 		}
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprint(w, authPageHTML("Запрос доступа", "Новые профили активируются по персональному коду.", errMessage, true))
+	fmt.Fprint(w, authPageHTML("Регистрация", "Новый аккаунт создаётся после проверки кода приглашения.", errMessage, true, true))
 }
 
 func (h *FallbackHandler) serveLogin(w http.ResponseWriter, r *http.Request) {
 	errMessage := ""
 	if r.Method == http.MethodPost {
 		_ = r.ParseForm()
-		invite := strings.TrimSpace(r.FormValue("invite_code"))
-		if invite == "" {
-			errMessage = "Чтобы войти, введите код доступа из приглашения."
-		} else if h.inviteCode != "" && invite != h.inviteCode {
-			errMessage = "Код доступа не подошёл. Проверьте написание или запросите новый."
+		username := strings.TrimSpace(r.FormValue("username"))
+		password := strings.TrimSpace(r.FormValue("password"))
+		if username == "" || password == "" {
+			errMessage = "Введите логин и пароль."
 		} else {
 			errMessage = "Сервис входа временно недоступен. Повторите попытку позже."
 		}
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprint(w, authPageHTML("Вход", "Обсуждения, ответы и сохранённые материалы доступны участникам клуба.", errMessage, false))
+	fmt.Fprint(w, authPageHTML("Вход", "Для комментариев и закрытых разделов используйте данные своей учётной записи.", errMessage, false, false))
 }
 
 func (h *FallbackHandler) serveCommentSubmit(w http.ResponseWriter, r *http.Request, id int, prefix string) {
@@ -225,7 +224,7 @@ func blogIndexHTML(articles []Article) string {
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>Тихая Сеть</title>
+	<title>Статьи и заметки</title>
 	<style>
 		:root { color-scheme: light; --bg:#f4efe7; --panel:rgba(255,251,245,.88); --panel-strong:#fffdf9; --ink:#1f2428; --muted:#666d6c; --line:rgba(103,78,54,.16); --accent:#96482a; --accent-strong:#78331b; --accent-soft:#f1dfd3; --shadow:0 24px 60px rgba(62,38,21,.08); }
 		* { box-sizing:border-box; }
@@ -290,13 +289,13 @@ func blogIndexHTML(articles []Article) string {
 	<div class="shell">
 		<header class="topbar">
 			<div class="brand">
-				<span class="eyebrow">Русский журнал</span>
-				<h1><a href="/">Тихая Сеть</a></h1>
-				<p>Наблюдения о сетях, инфраструктуре и самостоятельных сервисах без рекламного шума.</p>
+				<span class="eyebrow">Блог</span>
+				<h1><a href="/">Статьи и заметки</a></h1>
+				<p>Свежие публикации, длинные тексты, обзоры и аккуратно собранный архив материалов.</p>
 			</div>
 			<div class="actions">
 				<a class="button ghost" href="/login">Войти</a>
-				<a class="button solid" href="/register">Запросить доступ</a>
+				<a class="button solid" href="/register">Регистрация</a>
 			</div>
 		</header>
 
@@ -305,22 +304,22 @@ func blogIndexHTML(articles []Article) string {
 	if len(articles) == 0 {
 		b.WriteString(`<article class="hero-main">
 				<div class="hero-kicker">
-					<span class="tag">Свежий выпуск</span>
-					<span>Редакция в работе</span>
+					<span class="tag">Новые публикации</span>
+					<span>Лента обновляется</span>
 				</div>
-				<h2>Новый номер уже собирается</h2>
-				<p>Здесь появятся длинные и аккуратно оформленные материалы о практической инфраструктуре, сетях и самостоятельном хостинге.</p>
+				<h2>Новые материалы готовятся к публикации</h2>
+				<p>Здесь будут появляться новые тексты, разборы, заметки и подборки без лишнего визуального шума.</p>
 				<div class="hero-actions">
-					<a class="button solid" href="/register">Подписаться на клуб</a>
+					<a class="button solid" href="/login">Войти</a>
 				</div>
 			</article>
 			<div class="sidebar-stack">
 				<section class="side-card">
-					<h3>Разделы</h3>
+					<h3>Рубрики</h3>
 					<div class="chips">
-						<span>Сети</span>
-						<span>Инфраструктура</span>
-						<span>Практика</span>
+						<span>Заметки</span>
+						<span>Разборы</span>
+						<span>Материалы</span>
 					</div>
 				</section>
 			</div>`)
@@ -341,7 +340,7 @@ func blogIndexHTML(articles []Article) string {
 			</article>
 			<div class="sidebar-stack">
 				<section class="side-card">
-					<h3>Сейчас на обложке</h3>
+					<h3>Материал дня</h3>
 					<p>%s</p>
 					<div class="info-line">
 						<span>%s</span>
@@ -349,7 +348,7 @@ func blogIndexHTML(articles []Article) string {
 					</div>
 				</section>
 				<section class="side-card">
-					<h3>Разделы</h3>
+					<h3>Рубрики</h3>
 					<div class="chips">%s</div>
 				</section>
 			</div>`,
@@ -374,8 +373,8 @@ func blogIndexHTML(articles []Article) string {
 	if len(articles) <= 1 {
 		b.WriteString(`<article class="story-card story-empty">
 				<div>
-					<h2>Архив скоро пополнится</h2>
-					<p>На главной останутся только аккуратные материалы и спокойные разборы без визуального шума.</p>
+					<h2>Архив пополняется</h2>
+					<p>На этой странице будут собираться заметки, разборы и новые материалы без лишнего визуального шума.</p>
 				</div>
 			</article>`)
 	} else {
@@ -422,14 +421,14 @@ func forumIndexHTML(articles []Article) string {
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>Наблюдатель | Форум</title>
+	<title>Форум обсуждений</title>
 	<style>
-		:root { color-scheme: light; --bg:#edf2f7; --panel:rgba(255,255,255,.9); --ink:#152233; --muted:#677688; --line:rgba(21,34,51,.10); --accent:#125db1; --accent-dark:#0b478d; --accent-soft:#dfeefe; --shadow:0 22px 54px rgba(16,43,76,.08); }
+		:root { color-scheme: light; --bg:#edf2f7; --panel:rgba(255,255,255,.92); --ink:#152233; --muted:#677688; --line:rgba(21,34,51,.10); --accent:#125db1; --accent-dark:#0b478d; --accent-soft:#dfeefe; --shadow:0 22px 54px rgba(16,43,76,.08); }
 		* { box-sizing:border-box; }
-		body { margin:0; font-family:"IBM Plex Sans","Segoe UI",Tahoma,sans-serif; color:var(--ink); background:radial-gradient(circle at top right, rgba(18,93,177,.10), transparent 25%), radial-gradient(circle at top left, rgba(84,125,170,.10), transparent 20%), linear-gradient(180deg,#dfe8f3 0,#edf2f7 28%,#edf2f7 100%); }
+		body { margin:0; font-family:"IBM Plex Sans","Segoe UI",Tahoma,sans-serif; color:var(--ink); background:radial-gradient(circle at top right, rgba(18,93,177,.10), transparent 25%), linear-gradient(180deg,#dfe8f3 0,#edf2f7 28%,#edf2f7 100%); }
 		a { color:inherit; text-decoration:none; }
 		.shell { max-width:1240px; margin:0 auto; padding:24px 20px 72px; }
-		.topbar { display:flex; justify-content:space-between; align-items:flex-start; gap:18px; }
+		.topbar { display:flex; justify-content:space-between; align-items:flex-start; gap:18px; margin-bottom:20px; }
 		.brand small { display:inline-block; margin-bottom:12px; font-size:12px; letter-spacing:.18em; text-transform:uppercase; color:#6d7f95; }
 		.brand h1 { margin:0; font-size:46px; line-height:1; letter-spacing:-.04em; }
 		.brand p { margin:10px 0 0; max-width:620px; color:var(--muted); line-height:1.65; font-size:17px; }
@@ -437,14 +436,10 @@ func forumIndexHTML(articles []Article) string {
 		.button { display:inline-flex; align-items:center; justify-content:center; min-height:44px; padding:0 18px; border-radius:999px; font-size:15px; font-weight:700; transition:.2s ease; }
 		.button.solid { background:var(--accent); color:#fff; box-shadow:0 14px 30px rgba(18,93,177,.18); }
 		.button.ghost { border:1px solid var(--line); background:rgba(255,255,255,.72); color:var(--ink); }
-		.stats { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; margin:24px 0 18px; }
-		.stat, .board, .side-card, .post-card { background:var(--panel); border:1px solid var(--line); border-radius:26px; box-shadow:var(--shadow); }
-		.stat { padding:18px 20px; }
-		.stat strong { display:block; font-size:34px; line-height:1; letter-spacing:-.04em; }
-		.stat span { display:block; margin-top:6px; color:var(--muted); font-size:14px; }
 		.layout { display:grid; grid-template-columns:minmax(0,1fr) 310px; gap:18px; }
+		.board, .side-card, .post-card { background:var(--panel); border:1px solid var(--line); border-radius:26px; box-shadow:var(--shadow); }
 		.board { overflow:hidden; }
-		.board-head, .board-row { display:grid; grid-template-columns:minmax(0,1.8fr) 94px 110px 170px; gap:16px; align-items:center; padding:18px 22px; }
+		.board-head, .board-row { display:grid; grid-template-columns:minmax(0,1.8fr) 94px 190px; gap:16px; align-items:center; padding:18px 22px; }
 		.board-head { background:#f8fbff; color:#5f7389; font-size:13px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
 		.board-row { border-top:1px solid var(--line); }
 		.topic-cell { display:grid; grid-template-columns:54px minmax(0,1fr); gap:14px; align-items:start; }
@@ -454,7 +449,7 @@ func forumIndexHTML(articles []Article) string {
 		.topic-title { display:block; font-size:21px; font-weight:700; line-height:1.25; letter-spacing:-.02em; }
 		.topic-copy { margin:8px 0 0; color:var(--muted); line-height:1.65; }
 		.topic-meta { margin-top:10px; color:var(--muted); font-size:14px; }
-		.metric, .last { color:#223449; font-weight:700; }
+		.count { color:#223449; font-weight:700; }
 		.last { color:var(--muted); font-size:14px; font-weight:600; line-height:1.5; }
 		.sidebar { display:grid; gap:18px; align-content:start; }
 		.side-card { padding:24px; }
@@ -473,16 +468,15 @@ func forumIndexHTML(articles []Article) string {
 		}
 		@media (max-width: 920px) {
 			.topbar { flex-direction:column; }
-			.stats { grid-template-columns:1fr; }
 			.board-head { display:none; }
 			.board-row { grid-template-columns:1fr; gap:14px; }
-			.metric::before { content:attr(data-label) ": "; color:var(--muted); font-weight:600; }
+			.count::before { content:"Ответы: "; color:var(--muted); font-weight:600; }
 			.last::before { content:"Обновлено: "; color:var(--muted); font-weight:600; }
 		}
 		@media (max-width: 640px) {
 			.shell { padding:20px 16px 54px; }
 			.brand h1 { font-size:38px; }
-			.stat, .board, .side-card, .post-card { border-radius:22px; }
+			.board, .side-card, .post-card { border-radius:22px; }
 			.board-row { padding:18px; }
 			.topic-cell { grid-template-columns:48px minmax(0,1fr); }
 			.avatar { width:48px; height:48px; border-radius:14px; }
@@ -494,46 +488,26 @@ func forumIndexHTML(articles []Article) string {
 	<div class="shell">
 		<header class="topbar">
 			<div class="brand">
-				<small>Сообщество</small>
-				<h1><a href="/">Наблюдатель</a></h1>
-				<p>Разговоры о сетях, безопасности, самохостинге и спокойной инженерной работе.</p>
+				<small>Форум</small>
+				<h1><a href="/">Форум обсуждений</a></h1>
+				<p>Открытая лента тем, вопросов, заметок и рабочих обсуждений без перегруженного оформления.</p>
 			</div>
 			<div class="actions">
 				<a class="button ghost" href="/login">Войти</a>
-				<a class="button solid" href="/register">Запросить доступ</a>
+				<a class="button solid" href="/register">Регистрация</a>
 			</div>
 		</header>
-
-		<section class="stats">`)
-	fmt.Fprintf(&b, `<div class="stat">
-				<strong>%d</strong>
-				<span>тем в фокусе</span>
-			</div>
-			<div class="stat">
-				<strong>%d</strong>
-				<span>ответов в архиве</span>
-			</div>
-			<div class="stat">
-				<strong>%d</strong>
-				<span>участников клуба</span>
-			</div>`,
-		len(articles),
-		forumTotalReplies(articles),
-		forumMemberCount(articles))
-	b.WriteString(`
-		</section>
 
 		<div class="layout">
 			<section class="board">
 				<div class="board-head">
 					<div>Тема</div>
 					<div>Ответы</div>
-					<div>Просмотры</div>
 					<div>Последнее</div>
 				</div>`)
 
 	if len(articles) == 0 {
-		b.WriteString(`<div class="empty">Первое обсуждение уже готовится. В ленте останутся только содержательные ветки без лишнего шума.</div>`)
+		b.WriteString(`<div class="empty">Список тем пополнится после очередного обновления. Здесь останутся только содержательные обсуждения без лишнего шума.</div>`)
 	} else {
 		for _, a := range articles {
 			fmt.Fprintf(&b, `<div class="board-row">
@@ -549,8 +523,7 @@ func forumIndexHTML(articles []Article) string {
 							<div class="topic-meta">%s · %s</div>
 						</div>
 					</div>
-					<div class="metric" data-label="Ответы">%d</div>
-					<div class="metric" data-label="Просмотры">%d</div>
+					<div class="count">%d</div>
 					<div class="last">%s</div>
 				</div>`,
 				html.EscapeString(articleInitial(a)),
@@ -562,7 +535,6 @@ func forumIndexHTML(articles []Article) string {
 				html.EscapeString(forumAuthorName(a.ID)),
 				html.EscapeString(formatDate(a.CreatedAt)),
 				forumReplyCount(a),
-				forumViewCount(a),
 				html.EscapeString(formatDateTime(forumLastActivity(a))))
 		}
 	}
@@ -635,7 +607,7 @@ func blogArticleHTML(article *Article, commentURL string) string {
 			<a class="back" href="/">← На главную</a>
 			<div class="actions">
 				<a class="button ghost" href="/login">Войти</a>
-				<a class="button solid" href="/register">Запросить доступ</a>
+				<a class="button solid" href="/register">Регистрация</a>
 			</div>
 		</div>
 
@@ -655,8 +627,8 @@ func blogArticleHTML(article *Article, commentURL string) string {
 			</article>
 			<aside class="sidebar">
 				<section class="side-card">
-					<h2>Материал</h2>
-					<p>Спокойный разбор для чтения без лишнего визуального шума.</p>
+					<h2>Публикация</h2>
+					<p>Материал оформлен для спокойного чтения без лишних декоративных элементов.</p>
 					<div class="meta-line">
 						<span>Раздел: ` + html.EscapeString(articleCategory(*article)) + `</span>
 						<span>Источник: ` + html.EscapeString(articleSourceLabel(article.Link)) + `</span>
@@ -665,7 +637,7 @@ func blogArticleHTML(article *Article, commentURL string) string {
 				</section>
 				<section class="side-card">
 					<h2>Обсуждение</h2>
-					<p>Комментарии и заметки доступны участникам клуба.</p>
+					<p>Чтобы участвовать в обсуждении, войдите в аккаунт.</p>
 					<div class="meta-line">
 						<a class="text-link" href="` + html.EscapeString(commentURL) + `">Перейти к обсуждению</a>`)
 
@@ -740,7 +712,7 @@ func forumThreadHTML(article *Article, commentURL string) string {
 			<a class="back" href="/">← К списку тем</a>
 			<div class="actions">
 				<a class="button ghost" href="/login">Войти</a>
-				<a class="button solid" href="/register">Запросить доступ</a>
+				<a class="button solid" href="/register">Регистрация</a>
 			</div>
 		</div>
 
@@ -757,13 +729,13 @@ func forumThreadHTML(article *Article, commentURL string) string {
 					<span>` + html.EscapeString(articleSourceLabel(article.Link)) + `</span>
 				</div>
 				<h1>` + html.EscapeString(article.Title) + `</h1>
-				<div class="post-meta">` + html.EscapeString(forumAuthorName(article.ID)) + ` · ` + html.EscapeString(formatDateTime(forumLastActivity(*article))) + ` · ` + fmt.Sprintf("%d ответов", forumReplyCount(*article)) + ` · ` + fmt.Sprintf("%d просмотров", forumViewCount(*article)) + `</div>
+				<div class="post-meta">` + html.EscapeString(forumAuthorName(article.ID)) + ` · ` + html.EscapeString(formatDateTime(forumLastActivity(*article))) + ` · ` + fmt.Sprintf("%d ответов", forumReplyCount(*article)) + `</div>
 				<div class="post-body">` + safeHTML(article.Content) + `</div>
 			</article>
 			<aside class="sidebar">
 				<section class="side-card">
-					<h2>Участвовать</h2>
-					<p>Ответы, подписка на тему и закладки доступны участникам клуба.</p>
+					<h2>Ответить</h2>
+					<p>Чтобы написать сообщение в этой теме, войдите в аккаунт.</p>
 					<div class="meta-list">
 						<a class="text-link" href="` + html.EscapeString(commentURL) + `">Написать ответ</a>`)
 
@@ -774,8 +746,8 @@ func forumThreadHTML(article *Article, commentURL string) string {
 	b.WriteString(`</div>
 				</section>
 				<section class="side-card">
-					<h2>По теме</h2>
-					<p>Ветка сохранена в разделе ` + html.EscapeString(articleCategory(*article)) + ` и остаётся доступной для чтения в архиве.</p>
+					<h2>Раздел</h2>
+					<p>Тема опубликована в разделе ` + html.EscapeString(articleCategory(*article)) + ` и остаётся доступной в архиве.</p>
 				</section>
 			</aside>
 		</div>
@@ -808,9 +780,9 @@ func commentGateHTML(article *Article, returnURL string) string {
 </head>
 <body>
 	<div class="card">
-		<h1>Обсуждение доступно участникам</h1>
-		<p>Чтобы ответить на материал «%s», войдите в аккаунт или используйте код доступа.</p>
-		<div class="note">Чтение остаётся открытым, а участие в дискуссии доступно после входа.</div>
+		<h1>Чтобы оставить комментарий, войдите в аккаунт</h1>
+		<p>Ответ к материалу «%s» можно отправить после входа под своей учётной записью.</p>
+		<div class="note">Чтение страницы остаётся открытым, а публикация ответа доступна после входа.</div>
 		<div class="actions">
 			<a class="button solid" href="/login">Войти</a>
 			<a class="button ghost" href="%s">Вернуться к материалу</a>
@@ -820,22 +792,30 @@ func commentGateHTML(article *Article, returnURL string) string {
 </html>`, html.EscapeString(article.Title), html.EscapeString(returnURL))
 }
 
-func authPageHTML(title, subtitle, errMessage string, includeRegisterFields bool) string {
+func authPageHTML(title, subtitle, errMessage string, includeRegisterFields bool, includeAccessCode bool) string {
 	var extraFields string
 	var buttonLabel string
+	var note string
 	if includeRegisterFields {
 		extraFields = `<input type="text" name="username" placeholder="Имя или псевдоним" required><br>
 		<input type="password" name="password" placeholder="Пароль" required><br>`
-		buttonLabel = "Отправить запрос"
+		buttonLabel = "Зарегистрироваться"
+		note = "Если у вас нет кода приглашения, обратитесь к администратору сайта."
 	} else {
 		extraFields = `<input type="text" name="username" placeholder="Логин или e-mail" required><br>
 		<input type="password" name="password" placeholder="Пароль" required><br>`
-		buttonLabel = "Продолжить"
+		buttonLabel = "Войти"
+		note = "Если вы забыли пароль или не можете войти, обратитесь к администратору."
 	}
 
 	var msg string
 	if errMessage != "" {
 		msg = `<div class="msg">` + html.EscapeString(errMessage) + `</div>`
+	}
+
+	var accessField string
+	if includeAccessCode {
+		accessField = `<input type="text" name="invite_code" placeholder="Код приглашения" required><br>`
 	}
 
 	return fmt.Sprintf(`<!DOCTYPE html>
@@ -866,13 +846,13 @@ func authPageHTML(title, subtitle, errMessage string, includeRegisterFields bool
 		%s
 		<form method="POST">
 			%s
-			<input type="text" name="invite_code" placeholder="Код доступа" required><br>
+			%s
 			<button type="submit">%s</button>
 		</form>
-		<div class="note">Если кода пока нет, дождитесь приглашения или запроса от администратора клуба.</div>
+		<div class="note">%s</div>
 	</div>
 </body>
-</html>`, title, title, subtitle, msg, extraFields, buttonLabel)
+</html>`, title, title, subtitle, msg, extraFields, accessField, buttonLabel, note)
 }
 
 func formatDate(t time.Time) string {
@@ -946,19 +926,19 @@ func articleCategory(article Article) string {
 
 	switch {
 	case strings.Contains(text, "tls"), strings.Contains(text, "ssl"), strings.Contains(text, "https"), strings.Contains(text, "сертифик"), strings.Contains(text, "шифр"):
-		return "Безопасность"
+		return "Разбор"
 	case strings.Contains(text, "dns"), strings.Contains(text, "bgp"), strings.Contains(text, "tcp"), strings.Contains(text, "udp"), strings.Contains(text, "маршрут"), strings.Contains(text, "routing"), strings.Contains(text, "сеть"), strings.Contains(text, "сетев"):
-		return "Сети"
-	case strings.Contains(text, "docker"), strings.Contains(text, "kubernetes"), strings.Contains(text, "nginx"), strings.Contains(text, "сервер"), strings.Contains(text, "devops"), strings.Contains(text, "ci/cd"), strings.Contains(text, "инфраструкт"):
-		return "Инфраструктура"
-	case strings.Contains(text, "postgres"), strings.Contains(text, "mysql"), strings.Contains(text, "sqlite"), strings.Contains(text, "clickhouse"), strings.Contains(text, "sql"), strings.Contains(text, "база данных"):
-		return "Данные"
-	case strings.Contains(text, "golang"), strings.Contains(text, "go "), strings.Contains(text, "python"), strings.Contains(text, "rust"), strings.Contains(text, "код"), strings.Contains(text, "разработ"):
-		return "Разработка"
-	case strings.Contains(text, "self-host"), strings.Contains(text, "самохост"), strings.Contains(text, "homelab"), strings.Contains(text, "домашн"), strings.Contains(text, "nas"):
-		return "Самохостинг"
-	default:
 		return "Практика"
+	case strings.Contains(text, "docker"), strings.Contains(text, "kubernetes"), strings.Contains(text, "nginx"), strings.Contains(text, "сервер"), strings.Contains(text, "devops"), strings.Contains(text, "ci/cd"), strings.Contains(text, "инфраструкт"):
+		return "Материалы"
+	case strings.Contains(text, "postgres"), strings.Contains(text, "mysql"), strings.Contains(text, "sqlite"), strings.Contains(text, "clickhouse"), strings.Contains(text, "sql"), strings.Contains(text, "база данных"):
+		return "Архив"
+	case strings.Contains(text, "golang"), strings.Contains(text, "go "), strings.Contains(text, "python"), strings.Contains(text, "rust"), strings.Contains(text, "код"), strings.Contains(text, "разработ"):
+		return "Инструменты"
+	case strings.Contains(text, "self-host"), strings.Contains(text, "самохост"), strings.Contains(text, "homelab"), strings.Contains(text, "домашн"), strings.Contains(text, "nas"):
+		return "Опыт"
+	default:
+		return "Заметки"
 	}
 }
 
@@ -1046,7 +1026,7 @@ func normalizeContentBreaks(s string) string {
 func blogSectionChipsHTML(articles []Article, limit int) string {
 	categories := topCategories(articles, limit)
 	if len(categories) == 0 {
-		categories = []string{"Сети", "Инфраструктура", "Практика"}
+		categories = []string{"Заметки", "Разборы", "Материалы"}
 	}
 
 	var b strings.Builder
@@ -1059,11 +1039,11 @@ func blogSectionChipsHTML(articles []Article, limit int) string {
 func blogSidebarHTML(articles []Article) string {
 	var b strings.Builder
 	b.WriteString(`<section class="side-card">
-			<h3>О журнале</h3>
-			<p>Короткие и спокойные материалы о сетях, инфраструктуре и самостоятельных сервисах.</p>
+			<h3>О сайте</h3>
+			<p>Свежие публикации, длинные тексты, короткие заметки и аккуратно собранный архив материалов.</p>
 		</section>
 		<section class="side-card">
-			<h3>Разделы</h3>
+			<h3>Рубрики</h3>
 			<div class="chips">`)
 	b.WriteString(blogSectionChipsHTML(articles, 6))
 	b.WriteString(`</div>
@@ -1088,10 +1068,10 @@ func blogSidebarHTML(articles []Article) string {
 	}
 
 	b.WriteString(`<section class="side-card">
-			<h3>Клуб читателей</h3>
-			<p>Комментарии, закладки и обсуждения доступны участникам клуба.</p>
+			<h3>Комментарии</h3>
+			<p>Чтобы оставлять комментарии и сохранять материалы, войдите в аккаунт.</p>
 			<div class="info-line">
-				<a class="text-link" href="/register">Запросить доступ</a>
+				<a class="text-link" href="/register">Регистрация</a>
 			</div>
 		</section>`)
 
@@ -1101,7 +1081,7 @@ func blogSidebarHTML(articles []Article) string {
 func forumSidebarHTML(articles []Article) string {
 	var b strings.Builder
 	b.WriteString(`<section class="side-card">
-			<h3>Разделы</h3>
+			<h3>Рубрики</h3>
 			<div class="chips">`)
 	b.WriteString(blogSectionChipsHTML(articles, 6))
 	b.WriteString(`</div>
@@ -1109,7 +1089,7 @@ func forumSidebarHTML(articles []Article) string {
 
 	if len(articles) > 0 {
 		b.WriteString(`<section class="side-card">
-				<h3>Свежие обсуждения</h3>
+				<h3>Последние темы</h3>
 				<ul class="mini-list">`)
 		for index, article := range articles {
 			if index >= 4 {
@@ -1126,8 +1106,8 @@ func forumSidebarHTML(articles []Article) string {
 	}
 
 	b.WriteString(`<section class="side-card">
-			<h3>Доступ</h3>
-			<p>Чтение остаётся открытым, а ответы и подписка на темы доступны участникам клуба.</p>
+			<h3>Аккаунт</h3>
+			<p>Чтобы отвечать в темах и сохранять подписки, войдите в аккаунт или зарегистрируйтесь.</p>
 		</section>`)
 
 	return b.String()
@@ -1192,26 +1172,10 @@ func forumReplyCount(article Article) int {
 	return replies
 }
 
-func forumViewCount(article Article) int {
-	return 140 + forumReplyCount(article)*19 + article.ID*13
-}
-
 func forumLastActivity(article Article) time.Time {
 	if article.CreatedAt.IsZero() {
 		return time.Time{}
 	}
 	offsetMinutes := 35 + (article.ID*17)%180
 	return article.CreatedAt.Add(time.Duration(offsetMinutes) * time.Minute)
-}
-
-func forumTotalReplies(articles []Article) int {
-	total := 0
-	for _, article := range articles {
-		total += forumReplyCount(article)
-	}
-	return total
-}
-
-func forumMemberCount(articles []Article) int {
-	return 84 + len(articles)*17
 }
