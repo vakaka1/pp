@@ -664,6 +664,25 @@ func (s *Server) updateStatusPath() string {
 }
 
 func (s *Server) readUpdateStatus() updateRunStatus {
+	status := s.readUpdateStatusFromFile()
+
+	// Если обновление завершено успешно и мы уже на нужной версии,
+	// сбрасываем статус в idle, чтобы фронтенд не уходил в бесконечный цикл перезагрузки.
+	if status.State == "success" && status.TargetVersion != "" {
+		currentTag := normalizeVersionTag(s.opts.Build.Version)
+		targetTag := normalizeVersionTag(status.TargetVersion)
+		if currentTag == targetTag {
+			status.State = "idle"
+			status.Message = "Обновление успешно завершено."
+			// Сбрасываем файл, чтобы при следующем запуске не читать старый успех
+			_ = s.clearUpdateStatus()
+		}
+	}
+
+	return status
+}
+
+func (s *Server) readUpdateStatusFromFile() updateRunStatus {
 	payload, err := os.ReadFile(s.updateStatusPath())
 	if err != nil {
 		if !os.IsNotExist(err) {
@@ -691,6 +710,14 @@ func (s *Server) readUpdateStatus() updateRunStatus {
 		status.Message = "Состояние обновления не указано."
 	}
 	return status
+}
+
+func (s *Server) clearUpdateStatus() error {
+	err := os.Remove(s.updateStatusPath())
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
 }
 
 func (s *Server) writeUpdateStatus(status updateRunStatus) error {

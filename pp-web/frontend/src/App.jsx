@@ -304,7 +304,19 @@ export default function App() {
     const updateState = aboutData?.update?.status?.state;
     
     if (updateState === "success") {
-      // Если обновление завершено успешно, перезагружаем страницу
+      // Если обновление завершено успешно, проверяем версию.
+      // Если версия уже совпадает с целевой, значит перезагрузка больше не нужна.
+      const current = aboutData?.release?.currentVersion;
+      const target = aboutData?.update?.status?.targetVersion;
+      
+      if (current && target) {
+        const normalize = (v) => v.replace(/^v/, "");
+        if (normalize(current) === normalize(target)) {
+          return undefined;
+        }
+      }
+
+      // Если мы всё ещё на старой версии, перезагружаем страницу
       const reloadTimer = window.setTimeout(() => {
         window.location.reload();
       }, 2500);
@@ -320,7 +332,7 @@ export default function App() {
     }, 8000);
 
     return () => window.clearInterval(timer);
-  }, [aboutData?.update?.status?.state]);
+  }, [aboutData?.update?.status?.state, aboutData?.release?.currentVersion]);
 
   async function loadBootstrap() {
     setLoading(true);
