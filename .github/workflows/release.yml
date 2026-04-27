@@ -53,10 +53,24 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          MSG=$(git tag -l --format='%(contents)' ${{ github.ref_name }})
-          echo "Tag message is: $MSG"
+          # Получаем SHA объекта тега через GitHub API
+          TAG_SHA=$(gh api repos/${{ github.repository }}/git/ref/tags/${{ github.ref_name }} --jq '.object.sha')
+          
+          # Получаем сообщение тега через GitHub API (чтобы избежать проблем с локальным git checkout)
+          MSG=$(gh api repos/${{ github.repository }}/git/tags/$TAG_SHA --jq '.message' 2>/dev/null || echo "")
+          
+          # Если сообщение пустое или null (например, это lightweight тег), берем сообщение коммита
+          if [ -z "$MSG" ] || [ "$MSG" = "null" ]; then
+            MSG=$(git log -1 --format=%B)
+          fi
+          
+          echo "Описания релиза получено через API"
+          
+          # Сохраняем в файл, чтобы корректно передать многострочный текст
+          echo "$MSG" > release_notes.txt
+          
           gh release create ${{ github.ref_name }} \
             --title "Release ${{ github.ref_name }}" \
-            --notes "$MSG" \
+            --notes-file release_notes.txt \
             --generate-notes \
             bin/pp_linux_amd64 bin/pp-web_linux_amd64 pp-web-frontend.tar.gz
