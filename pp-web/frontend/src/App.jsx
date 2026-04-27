@@ -291,10 +291,26 @@ export default function App() {
     }
 
     loadAbout({ silent: true });
+
+    // Автоматическая фоновая проверка обновлений раз в 10 минут
+    const backgroundCheckTimer = window.setInterval(() => {
+      loadAbout({ silent: true });
+    }, 600000);
+
+    return () => window.clearInterval(backgroundCheckTimer);
   }, [bootstrap?.authenticated, bootstrap?.setupRequired]);
 
   useEffect(() => {
     const updateState = aboutData?.update?.status?.state;
+    
+    if (updateState === "success") {
+      // Если обновление завершено успешно, перезагружаем страницу
+      const reloadTimer = window.setTimeout(() => {
+        window.location.reload();
+      }, 2500);
+      return () => window.clearTimeout(reloadTimer);
+    }
+
     if (updateState !== "queued" && updateState !== "running") {
       return undefined;
     }
