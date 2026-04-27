@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/user/pp/internal/config"
@@ -28,6 +29,9 @@ type Server struct {
 	protocols *protocolRegistry
 	coreCmd   *exec.Cmd
 	log       *zap.Logger
+
+	releaseMu    sync.Mutex
+	releaseCache releaseCacheEntry
 }
 
 func NewServer(opts Options) (*Server, error) {
@@ -106,6 +110,10 @@ func (s *Server) serveAPI(w http.ResponseWriter, r *http.Request) {
 		s.withAdmin(w, r, s.handleProtocols)
 	case r.URL.Path == "/api/overview" && r.Method == http.MethodGet:
 		s.withAdmin(w, r, s.handleOverview)
+	case r.URL.Path == "/api/about" && r.Method == http.MethodGet:
+		s.withAdmin(w, r, s.handleAbout)
+	case r.URL.Path == "/api/about/update" && r.Method == http.MethodPost:
+		s.withAdmin(w, r, s.handleAboutUpdate)
 	case r.URL.Path == "/api/connections" && r.Method == http.MethodGet:
 		s.withAdmin(w, r, s.handleConnectionsList)
 	case r.URL.Path == "/api/connections" && r.Method == http.MethodPost:

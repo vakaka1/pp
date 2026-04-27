@@ -221,7 +221,7 @@ if command -v sudo &>/dev/null; then
     CERTBOT_BIN="$(command -v certbot || echo /usr/bin/certbot)"
     cat > /etc/sudoers.d/pp-web <<EOF
 Defaults:${PP_USER} !requiretty
-${PP_USER} ALL=(root) NOPASSWD: ${SYSTEMCTL_BIN} restart pp-core, ${SYSTEMCTL_BIN} stop pp-core, ${SYSTEMCTL_BIN} start pp-core, ${SYSTEMCTL_BIN} stop nginx, ${SYSTEMCTL_BIN} start nginx, ${SYSTEMCTL_BIN} restart nginx, ${SYSTEMCTL_BIN} reload nginx, ${CERTBOT_BIN}
+${PP_USER} ALL=(root) NOPASSWD: ${SYSTEMCTL_BIN} restart pp-core, ${SYSTEMCTL_BIN} stop pp-core, ${SYSTEMCTL_BIN} start pp-core, ${SYSTEMCTL_BIN} stop nginx, ${SYSTEMCTL_BIN} start nginx, ${SYSTEMCTL_BIN} restart nginx, ${SYSTEMCTL_BIN} reload nginx, ${SYSTEMCTL_BIN} --no-block start pp-web-update, ${CERTBOT_BIN}
 EOF
     chmod 440 /etc/sudoers.d/pp-web
     if command -v visudo &>/dev/null; then
@@ -273,6 +273,33 @@ EOF
 systemctl daemon-reload
 systemctl enable pp-core
 ok "Сервис pp-core создан и добавлен в автозагрузку (запустится после настройки в pp-web)"
+
+# =============================================================================
+step "Создание systemd сервиса pp-web-update"
+# =============================================================================
+cat > /etc/systemd/system/pp-web-update.service <<EOF
+[Unit]
+Description=PP Web update job
+Documentation=https://github.com/${GITHUB_REPO}
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=${PP_WEB_BIN} \\
+    apply-release \\
+    --repo ${GITHUB_REPO} \\
+    --tag latest \\
+    --pp-path ${PP_BIN} \\
+    --pp-web-path ${PP_WEB_BIN} \\
+    --frontend-dist ${PP_WEB_FRONTEND_DIR} \\
+    --status-path ${PP_WEB_DATA_DIR}/update-status.json \\
+    --pp-service pp-core \\
+    --web-service pp-web
+EOF
+ok "Сервис pp-web-update создан"
 
 # =============================================================================
 step "Создание systemd сервиса pp-web (веб-панель управления)"

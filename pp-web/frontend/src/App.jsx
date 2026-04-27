@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { api } from "./api";
+import AboutPage from "./AboutPage";
 
 const DEFAULT_LISTEN = "127.0.0.1:8081";
 const THEME_STORAGE_KEY = "pp-web-theme";
@@ -8,19 +9,28 @@ const THEME_STORAGE_KEY = "pp-web-theme";
 const NAV_ITEMS = [
   {
     path: "/app/overview",
-    label: "Обзор"
+    label: "Обзор",
+    shortLabel: "Обзор"
   },
   {
     path: "/app/connections",
-    label: "Подключения"
+    label: "Подключения",
+    shortLabel: "Подкл."
   },
   {
     path: "/app/pp-settings",
-    label: "Ядро PP"
+    label: "Ядро PP",
+    shortLabel: "Ядро"
   },
   {
     path: "/app/settings",
-    label: "Настройки"
+    label: "Настройки",
+    shortLabel: "Настр."
+  },
+  {
+    path: "/app/about",
+    label: "О программе",
+    shortLabel: "О PP"
   }
 ];
 
@@ -104,6 +114,91 @@ function createStatusTone(good) {
   return good ? "good" : "bad";
 }
 
+function getUpdateIndicator(aboutData, aboutError) {
+  if (aboutError) {
+    return {
+      tone: "warning",
+      label: "?"
+    };
+  }
+
+  const release = aboutData?.release;
+  if (release?.error && !release?.latestVersion) {
+    return {
+      tone: "warning",
+      label: "?"
+    };
+  }
+
+  if (!release?.updateAvailable) {
+    return null;
+  }
+
+  if (release.indicatorTone === "danger") {
+    return {
+      tone: "danger",
+      label: "!"
+    };
+  }
+
+  return {
+    tone: "warning",
+    label: "!"
+  };
+}
+
+function getSidebarUpdateCard(aboutData, aboutError) {
+  if (aboutError) {
+    return {
+      tone: "warning",
+      eyebrow: "Статус",
+      title: "Не удалось проверить релиз",
+      copy: "Откройте страницу «О программе», чтобы повторить проверку GitHub Releases.",
+      action: "Проверить снова"
+    };
+  }
+
+  if (!aboutData) {
+    return {
+      tone: "neutral",
+      eyebrow: "Система",
+      title: "Проверяем версию",
+      copy: "Информация о сборке, GitHub Releases и состоянии обновлений загружается в фоне.",
+      action: "Открыть страницу"
+    };
+  }
+
+  const release = aboutData?.release;
+  if (release?.error && !release?.updateAvailable) {
+    return {
+      tone: "warning",
+      eyebrow: "Статус",
+      title: "Проверка релиза недоступна",
+      copy: "На странице «О программе» можно повторить запрос к GitHub Releases.",
+      action: "Проверить снова"
+    };
+  }
+
+  if (release?.updateAvailable) {
+    const majorUpdate = release.indicatorTone === "danger";
+    return {
+      tone: majorUpdate ? "danger" : "warning",
+      eyebrow: majorUpdate ? "Крупное обновление" : "Обновление",
+      title: `Доступна версия ${release.latestVersion}`,
+      copy: release.statusLabel || "Откройте «О программе», чтобы посмотреть описание релиза и обновить панель.",
+      action: "Открыть релиз"
+    };
+  }
+
+  return {
+    tone: "neutral",
+    eyebrow: "Система",
+    title: "Версия актуальна",
+    copy: "На странице «О программе» можно посмотреть сведения о сборке, GitHub и историю обновлений.",
+    action: "Открыть страницу"
+  };
+}
+
 async function copyToClipboard(value) {
   if (!value) return false;
 
@@ -137,6 +232,9 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState(null);
   const [theme, setTheme] = useState(readInitialTheme);
+  const [aboutData, setAboutData] = useState(null);
+  const [aboutLoading, setAboutLoading] = useState(false);
+  const [aboutError, setAboutError] = useState(null);
 
   useEffect(() => {
     loadBootstrap();
@@ -184,6 +282,30 @@ export default function App() {
     return () => window.clearTimeout(timer);
   }, [notice]);
 
+  useEffect(() => {
+    if (!bootstrap || bootstrap.setupRequired || !bootstrap.authenticated) {
+      setAboutData(null);
+      setAboutError(null);
+      setAboutLoading(false);
+      return;
+    }
+
+    loadAbout({ silent: true });
+  }, [bootstrap?.authenticated, bootstrap?.setupRequired]);
+
+  useEffect(() => {
+    const updateState = aboutData?.update?.status?.state;
+    if (updateState !== "queued" && updateState !== "running") {
+      return undefined;
+    }
+
+    const timer = window.setInterval(() => {
+      loadAbout({ force: true, silent: true });
+    }, 8000);
+
+    return () => window.clearInterval(timer);
+  }, [aboutData?.update?.status?.state]);
+
   async function loadBootstrap() {
     setLoading(true);
     setBootstrapError(null);
@@ -199,6 +321,23 @@ export default function App() {
       setNotice({ tone: "error", message: error.message });
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadAbout({ force = false, silent = false } = {}) {
+    setAboutLoading(true);
+
+    try {
+      const payload = await api.about(force);
+      setAboutData(payload);
+      setAboutError(null);
+    } catch (error) {
+      setAboutError(error.message);
+      if (!silent) {
+        setNotice({ tone: "error", message: error.message });
+      }
+    } finally {
+      setAboutLoading(false);
     }
   }
 
@@ -281,10 +420,14 @@ export default function App() {
         route={route}
         user={bootstrap.user}
         build={bootstrap.build}
+        aboutData={aboutData}
+        aboutLoading={aboutLoading}
+        aboutError={aboutError}
         theme={theme}
         onThemeChange={setTheme}
         onNavigate={navigate}
         onLogout={handleLogout}
+        onRefreshAbout={loadAbout}
         onNotice={setNotice}
       />
     );
@@ -503,13 +646,19 @@ function Shell({
   route,
   user,
   build,
+  aboutData,
+  aboutLoading,
+  aboutError,
   theme,
   onThemeChange,
   onNavigate,
   onLogout,
+  onRefreshAbout,
   onNotice
 }) {
   const routeMeta = getRouteMeta(route);
+  const updateIndicator = getUpdateIndicator(aboutData, aboutError);
+  const sidebarUpdateCard = getSidebarUpdateCard(aboutData, aboutError);
 
   let content = null;
   if (route.startsWith("/app/overview")) {
@@ -526,6 +675,16 @@ function Shell({
         bootstrap={bootstrap}
         theme={theme}
         onThemeChange={onThemeChange}
+        onNotice={onNotice}
+      />
+    );
+  } else if (route.startsWith("/app/about")) {
+    content = (
+      <AboutPage
+        data={aboutData}
+        loading={aboutLoading}
+        error={aboutError}
+        onRefresh={onRefreshAbout}
         onNotice={onNotice}
       />
     );
@@ -547,26 +706,23 @@ function Shell({
                 key={item.path}
                 label={item.label}
                 active={route.startsWith(item.path)}
+                indicator={item.path === "/app/about" ? updateIndicator : null}
                 onClick={() => onNavigate(item.path)}
               />
             ))}
           </nav>
 
-          <div className="sidebar-repo-card">
-            <div className="sidebar-repo-card__badge">GitHub</div>
-            <div className="sidebar-repo-card__copy">
-              <h3>Узнать больше о PP</h3>
-              <p>Исходный код, релизы и развитие проекта.</p>
+          <button
+            className={`sidebar-update-card sidebar-update-card--${sidebarUpdateCard.tone}`}
+            onClick={() => onNavigate("/app/about")}
+          >
+            <div className="sidebar-update-card__eyebrow">{sidebarUpdateCard.eyebrow}</div>
+            <div className="sidebar-update-card__copy">
+              <h3>{sidebarUpdateCard.title}</h3>
+              <p>{sidebarUpdateCard.copy}</p>
             </div>
-            <a
-              className="sidebar-repo-card__button"
-              href="https://github.com/vakaka1/pp"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Открыть GitHub
-            </a>
-          </div>
+            <span className="sidebar-update-card__action">{sidebarUpdateCard.action}</span>
+          </button>
         </div>
       </aside>
 
@@ -583,29 +739,6 @@ function Shell({
           </div>
 
           <div className="app-topbar__actions">
-            {build?.version && build.version !== "dev" ? (
-              <a
-                href={`https://github.com/vakaka1/pp/releases/tag/${build.version}`}
-                target="_blank"
-                rel="noreferrer"
-                className="topbar-pill topbar-pill--link"
-                title="Релиз на GitHub"
-              >
-                <span>Версия</span>
-                <strong>{build.version.replace(/^v/, "")}</strong>
-              </a>
-            ) : build?.gitCommit && build.gitCommit !== "none" ? (
-              <a
-                href={`https://github.com/vakaka1/pp/commit/${build.gitCommit}`}
-                target="_blank"
-                rel="noreferrer"
-                className="topbar-pill topbar-pill--link"
-                title="Коммит на GitHub"
-              >
-                <span>Commit</span>
-                <strong>{build.gitCommit.slice(0, 7)}</strong>
-              </a>
-            ) : null}
             <div className="topbar-theme">
               <ThemeSwitcher value={theme} onChange={onThemeChange} compact />
             </div>
@@ -625,7 +758,12 @@ function Shell({
             className={`mobile-dock__item ${route.startsWith(item.path) ? "is-active" : ""}`}
             onClick={() => onNavigate(item.path)}
           >
-            <span>{item.label}</span>
+            {item.path === "/app/about" && updateIndicator ? (
+              <span className={`mobile-dock__indicator mobile-dock__indicator--${updateIndicator.tone}`}>
+                {updateIndicator.label}
+              </span>
+            ) : null}
+            <span>{item.shortLabel || item.label}</span>
           </button>
         ))}
       </nav>
@@ -633,10 +771,13 @@ function Shell({
   );
 }
 
-function NavItem({ label, active, onClick }) {
+function NavItem({ label, active, indicator, onClick }) {
   return (
     <button className={`nav-item ${active ? "active" : ""}`} onClick={onClick}>
       <span className="nav-item__label">{label}</span>
+      {indicator ? (
+        <span className={`nav-item__indicator nav-item__indicator--${indicator.tone}`}>{indicator.label}</span>
+      ) : null}
     </button>
   );
 }

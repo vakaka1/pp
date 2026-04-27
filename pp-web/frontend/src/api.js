@@ -49,6 +49,15 @@ export const api = {
   overview() {
     return request("/api/overview", { method: "GET" });
   },
+  about(refresh = false) {
+    return request(`/api/about${refresh ? "?refresh=1" : ""}`, { method: "GET" });
+  },
+  startAboutUpdate() {
+    return request("/api/about/update", {
+      method: "POST",
+      body: JSON.stringify({})
+    });
+  },
   listConnections() {
     return request("/api/connections", { method: "GET" });
   },

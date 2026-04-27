@@ -20,6 +20,13 @@ var (
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "apply-release" {
+		if err := ppweb.RunReleaseApplyCommand(os.Args[2:]); err != nil {
+			log.Fatalf("pp-web apply-release failed: %v", err)
+		}
+		return
+	}
+
 	defaultRoot, _ := os.Getwd()
 
 	listenAddress := flag.String("listen", "127.0.0.1:4090", "HTTP address for PP Web")
