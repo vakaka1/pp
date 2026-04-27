@@ -583,10 +583,29 @@ function Shell({
           </div>
 
           <div className="app-topbar__actions">
-            <div className="topbar-pill">
-              <span>Build</span>
-              <strong>{build?.gitCommit?.slice(0, 7) || "dev"}</strong>
-            </div>
+            {build?.version && build.version !== "dev" ? (
+              <a
+                href={`https://github.com/vakaka1/pp/releases/tag/${build.version}`}
+                target="_blank"
+                rel="noreferrer"
+                className="topbar-pill topbar-pill--link"
+                title="Релиз на GitHub"
+              >
+                <span>Версия</span>
+                <strong>{build.version.replace(/^v/, "")}</strong>
+              </a>
+            ) : build?.gitCommit && build.gitCommit !== "none" ? (
+              <a
+                href={`https://github.com/vakaka1/pp/commit/${build.gitCommit}`}
+                target="_blank"
+                rel="noreferrer"
+                className="topbar-pill topbar-pill--link"
+                title="Коммит на GitHub"
+              >
+                <span>Commit</span>
+                <strong>{build.gitCommit.slice(0, 7)}</strong>
+              </a>
+            ) : null}
             <div className="topbar-theme">
               <ThemeSwitcher value={theme} onChange={onThemeChange} compact />
             </div>
@@ -1658,30 +1677,6 @@ function SettingsPage({ user, build, bootstrap, theme, onThemeChange, onNotice }
             <Detail label="Публичный IP" value={bootstrap.publicIP || "Unknown"} />
             <Detail label="Backend listen" value={bootstrap.listen || DEFAULT_LISTEN} />
           </dl>
-        </article>
-
-        <article className="surface-card">
-          <div className="surface-card__head">
-            <div>
-              <span className="eyebrow">Build</span>
-              <h3>О системе</h3>
-            </div>
-          </div>
-
-          <div className="system-info-mini system-info-mini--soft">
-            <div className="info-row">
-              <span>Версия</span>
-              <span>{build?.version || "dev"}</span>
-            </div>
-            <div className="info-row">
-              <span>Commit</span>
-              <span title={build?.gitCommit}>{build?.gitCommit?.substring(0, 7) || "none"}</span>
-            </div>
-            <div className="info-row">
-              <span>Дата</span>
-              <span>{formatBuildDate(build?.buildDate)}</span>
-            </div>
-          </div>
         </article>
       </section>
     </div>

@@ -44,8 +44,9 @@ fi
 info "Отправка последних изменений в main..."
 git push origin main
 
-info "Создание тега $NEXT_TAG..."
-git tag "$NEXT_TAG"
+info "Создание тега $NEXT_TAG (сейчас откроется текстовый редактор для ввода описания)..."
+# Флаг -a заставляет git создать аннотированный тег и открывает текстовый редактор
+git tag -a "$NEXT_TAG"
 
 info "Отправка тега на GitHub..."
 git push origin "$NEXT_TAG"

@@ -940,6 +940,17 @@ pre {
   border: 1px solid var(--border-color);
   background: var(--surface-accent);
   min-width: 118px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.topbar-pill--link {
+  transition: all var(--transition-fast);
+}
+
+.topbar-pill--link:hover {
+  background: var(--surface-soft);
+  border-color: var(--accent-subtle);
 }
 
 .topbar-pill span {
