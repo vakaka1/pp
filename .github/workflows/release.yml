@@ -18,6 +18,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          fetch-tags: true
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -52,9 +53,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          git tag -l --format='%(contents)' ${{ github.ref_name }} > release_notes.txt
+          MSG=$(git tag -l --format='%(contents)' ${{ github.ref_name }})
+          echo "Tag message is: $MSG"
           gh release create ${{ github.ref_name }} \
             --title "Release ${{ github.ref_name }}" \
-            --notes-file release_notes.txt \
+            --notes "$MSG" \
             --generate-notes \
             bin/pp_linux_amd64 bin/pp-web_linux_amd64 pp-web-frontend.tar.gz
