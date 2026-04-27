@@ -48,23 +48,13 @@ jobs:
           # Build pp-web
           CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -ldflags "-s -w -X main.version=${{ github.ref_name }}" -o bin/pp-web_linux_amd64 ./cmd/pp-web
 
-      - name: Extract Tag Message
-        id: tag_msg
-        run: |
-          # Используем git tag -l, чтобы вытащить сообщение аннотированного тега
-          git fetch origin refs/tags/${{ github.ref_name }}:refs/tags/${{ github.ref_name }} --no-tags || true
-          MSG=$(git tag -l --format='%(contents)' ${{ github.ref_name }})
-          echo "body<<EOF" >> $GITHUB_OUTPUT
-          echo "$MSG" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
       - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            bin/pp_linux_amd64
-            bin/pp-web_linux_amd64
-            pp-web-frontend.tar.gz
-          name: Release ${{ github.ref_name }}
-          body: ${{ steps.tag_msg.outputs.body }}
-          generate_release_notes: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git tag -l --format='%(contents)' ${{ github.ref_name }} > release_notes.txt
+          gh release create ${{ github.ref_name }} \
+            --title "Release ${{ github.ref_name }}" \
+            --notes-file release_notes.txt \
+            --generate-notes \
+            bin/pp_linux_amd64 bin/pp-web_linux_amd64 pp-web-frontend.tar.gz
