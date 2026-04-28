@@ -779,7 +779,10 @@ func (s *Server) handleConnectionRoute(w http.ResponseWriter, r *http.Request, _
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		warning := s.applyAfterDeleteAndSummarize(r.Context(), connection)
+		warning := joinWarnings(
+			s.applyAfterDeleteAndSummarize(r.Context(), connection),
+			s.removeFallbackContentStore(connection),
+		)
 		writeJSON(w, http.StatusOK, map[string]any{
 			"ok":      true,
 			"warning": warning,
@@ -997,6 +1000,39 @@ func (s *Server) applyAfterDeleteAndSummarize(ctx context.Context, deleted *Conn
 		return err.Error()
 	}
 	return ""
+}
+
+func (s *Server) removeFallbackContentStore(connection *Connection) string {
+	dbPath := fallbackContentStorePath(connection)
+	if dbPath == "" {
+		return ""
+	}
+
+	if err := os.Remove(dbPath); err != nil && !os.IsNotExist(err) {
+		return fmt.Sprintf("connection deleted, but failed to remove fallback content database %s: %v", dbPath, err)
+	}
+	_ = os.Remove(dbPath + ".tmp")
+	return ""
+}
+
+func fallbackContentStorePath(connection *Connection) string {
+	if connection == nil || connection.Protocol != "pp-fallback" {
+		return ""
+	}
+
+	var settings config.FallbackSettings
+	if err := decodeSettings(connection.Settings, &settings); err != nil {
+		return ""
+	}
+
+	dbPath := strings.TrimSpace(settings.DBPath)
+	if dbPath == "auto" {
+		dbPath = ""
+	}
+	if dbPath == "" && strings.TrimSpace(connection.Tag) != "" {
+		dbPath = filepath.Join("/var/lib/pp", "fallback-"+connection.Tag+".json")
+	}
+	return dbPath
 }
 
 func (s *Server) syncOnlyAndSummarize(ctx context.Context) string {

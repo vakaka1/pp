@@ -112,7 +112,7 @@ func TestPublicPagesDoNotExposeInternalTerminology(t *testing.T) {
 	}
 }
 
-func TestBlogIndexUsesConfiguredTopics(t *testing.T) {
+func TestBlogIndexUsesStaticWelcomeCopy(t *testing.T) {
 	db, err := InitFallbackDB("")
 	if err != nil {
 		t.Fatalf("InitFallbackDB() error = %v", err)
@@ -135,9 +135,12 @@ func TestBlogIndexUsesConfiguredTopics(t *testing.T) {
 	}
 
 	body := rec.Body.String()
-	for _, topic := range []string{"Жизнь в лесу", "Новые технологии"} {
-		if !strings.Contains(body, topic) {
-			t.Fatalf("expected configured topic %q in public blog page, got %q", topic, body)
+	if !strings.Contains(body, "Добро пожалывать на мой блог") {
+		t.Fatalf("expected welcome copy in public blog page, got %q", body)
+	}
+	for _, forbidden := range []string{"Жизнь в лесу", "Новые технологии", "О журнале", "На столе", "Комментарии"} {
+		if strings.Contains(body, forbidden) {
+			t.Fatalf("unexpected removed sidebar/topic text %q in public blog page, got %q", forbidden, body)
 		}
 	}
 }
@@ -148,7 +151,7 @@ func TestBlogArticleRendersImagesLinksAndCommentsBelowArticle(t *testing.T) {
 		t.Fatalf("InitFallbackDB() error = %v", err)
 	}
 
-	content := "Пост о сетях\n\nПервый абзац со [ссылкой](https://example.org/page).\n\n![Схема](https://habrastorage.org/webt/a/b/cover.png)\n\nХабы\n\nGo\n\nТеги\n\nbackend"
+	content := "Пост о сетях\n\n## Подзаголовок\n\nПервый абзац со [ссылкой](https://example.org/page) и `inline`.\n\n```go\nfmt.Println(\"ok\")\n```\n\n- пункт списка\n\n![Схема](https://habrastorage.org/webt/a/b/cover.png)\n\nХабы\n\nGo\n\nТеги\n\nbackend"
 	if _, err := db.InsertArticle("Пост о сетях", content, "https://example.com/post", time.Now()); err != nil {
 		t.Fatalf("InsertArticle() error = %v", err)
 	}
@@ -172,6 +175,11 @@ func TestBlogArticleRendersImagesLinksAndCommentsBelowArticle(t *testing.T) {
 	}
 	for _, want := range []string{
 		`href="https://example.org/page"`,
+		`<h2>Подзаголовок</h2>`,
+		`<code>inline</code>`,
+		`<pre><code class="language-go">`,
+		`fmt.Println`,
+		`<ul><li>пункт списка</li></ul>`,
 		`src="https://habrastorage.org/webt/a/b/cover.png"`,
 		`class="article-main"`,
 		`class="side-card comment-card"`,

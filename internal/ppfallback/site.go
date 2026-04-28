@@ -260,65 +260,48 @@ func blogIndexHTML(articles []Article, hints FallbackSiteHints) string {
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>` + html.EscapeString(profile.Title) + `</title>
 	<style>
-		:root { color-scheme: light; --paper:#f7f1e6; --panel:#fffaf1; --ink:#23201b; --muted:#746b5f; --line:rgba(68,54,39,.16); --accent:#9a4f2d; --accent-dark:#69341e; --accent-soft:#ead4c3; --green:#66765b; --shadow:0 24px 70px rgba(80,61,38,.10); }
+		:root { color-scheme: light; --paper:#f4f0e8; --panel:#fffdfa; --ink:#23201b; --muted:#746b5f; --line:rgba(68,54,39,.16); --accent:#8f4b2f; --accent-dark:#62311f; --green:#4f6f61; --shadow:0 16px 42px rgba(80,61,38,.09); }
 		* { box-sizing:border-box; }
-		body { margin:0; font-family:"Literata","Iowan Old Style","Palatino Linotype",Georgia,serif; color:var(--ink); background:radial-gradient(circle at 14% 8%, rgba(154,79,45,.14), transparent 30%), radial-gradient(circle at 88% 0, rgba(102,118,91,.12), transparent 26%), linear-gradient(180deg,#efe5d5 0,#f7f1e6 36%,#f4ecde 100%); }
+		body { margin:0; font-family:"Literata","Iowan Old Style","Palatino Linotype",Georgia,serif; color:var(--ink); background:linear-gradient(180deg,#eee6da 0,#f4f0e8 38%,#f7f4ee 100%); }
 		a { color:inherit; text-decoration:none; }
 		.page { max-width:1160px; margin:0 auto; padding:26px 20px 76px; }
 		.masthead { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:24px; align-items:end; padding-bottom:22px; border-bottom:1px solid var(--line); }
-		.brand-word { display:inline-block; font-size:72px; line-height:.86; letter-spacing:-.075em; font-weight:800; }
-		.brand-word::after { content:""; display:block; width:84px; height:7px; margin-top:14px; border-radius:999px; background:linear-gradient(90deg,var(--accent),rgba(154,79,45,.18)); }
+		.brand-word { display:inline-block; font-size:64px; line-height:.92; font-weight:800; }
+		.brand-word::after { content:""; display:block; width:84px; height:6px; margin-top:14px; border-radius:999px; background:linear-gradient(90deg,var(--accent),rgba(79,111,97,.22)); }
 		.masthead p { margin:18px 0 0; max-width:650px; color:#5f554b; font-size:18px; line-height:1.65; }
 		.nav { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
-		.nav a, .button { display:inline-flex; align-items:center; justify-content:center; min-height:40px; padding:0 15px; border-radius:999px; border:1px solid var(--line); background:rgba(255,250,241,.66); color:#3c352e; font-size:14px; font-weight:700; }
+		.nav a, .button { display:inline-flex; align-items:center; justify-content:center; min-height:40px; padding:0 15px; border-radius:999px; border:1px solid var(--line); background:rgba(255,253,250,.72); color:#3c352e; font-size:14px; font-weight:700; }
 		.button.solid { border-color:transparent; background:var(--accent); color:#fff8f1; box-shadow:0 13px 28px rgba(105,52,30,.18); }
-		.front-grid { display:grid; grid-template-columns:minmax(0,1fr) 310px; gap:20px; margin-top:26px; align-items:start; }
-		.feature, .side-card, .post-row { background:rgba(255,250,241,.88); border:1px solid var(--line); box-shadow:var(--shadow); }
-		.feature { position:relative; overflow:hidden; min-height:430px; padding:42px; border-radius:34px; display:flex; flex-direction:column; justify-content:space-between; }
-		.feature::before { content:""; position:absolute; inset:22px 22px auto auto; width:116px; height:116px; border:1px solid rgba(154,79,45,.18); border-radius:50%; background:radial-gradient(circle, rgba(154,79,45,.12), transparent 66%); }
-		.feature.empty { min-height:360px; }
+		.top-feed { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; margin-top:26px; align-items:stretch; }
+		.lead-card, .post-row { background:rgba(255,253,250,.92); border:1px solid var(--line); border-radius:8px; box-shadow:var(--shadow); }
+		.lead-card { min-height:280px; padding:28px; display:flex; flex-direction:column; justify-content:space-between; }
+		.lead-card.empty { grid-column:1 / -1; min-height:220px; }
 		.meta { display:flex; gap:10px; flex-wrap:wrap; align-items:center; color:var(--muted); font-size:14px; }
-		.tag { display:inline-flex; align-items:center; min-height:27px; padding:0 11px; border-radius:999px; background:var(--accent-soft); color:var(--accent-dark); font-size:12px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; }
-		.feature h1 { position:relative; max-width:760px; margin:26px 0 18px; font-size:52px; line-height:1; letter-spacing:-.055em; }
-		.feature p { position:relative; max-width:720px; margin:0; color:#373029; font-size:19px; line-height:1.82; }
-		.feature-foot { display:flex; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-top:34px; padding-top:18px; border-top:1px solid rgba(68,54,39,.13); color:var(--muted); font-size:14px; }
-		.side-stack, .sidebar { display:grid; gap:18px; align-content:start; }
-		.side-card { padding:24px; border-radius:28px; }
-		.side-card.profile { background:linear-gradient(180deg,#fffaf1,#f2e3d0); }
-		.side-card h3 { margin:0 0 12px; font-size:22px; line-height:1.1; letter-spacing:-.025em; }
-		.side-card p { margin:0; color:var(--muted); line-height:1.72; }
-		.profile-sign { margin-top:16px; color:var(--accent-dark); font-weight:800; }
-		.info-line { display:flex; gap:10px; flex-wrap:wrap; margin-top:16px; color:var(--muted); font-size:14px; }
-		.chips { display:flex; gap:10px; flex-wrap:wrap; }
-		.chips span { display:inline-flex; align-items:center; min-height:32px; padding:0 12px; border:1px solid var(--line); border-radius:999px; color:#4f473f; background:rgba(255,255,255,.58); font-size:14px; }
-		.archive { margin-top:22px; }
+		.lead-card h2 { margin:18px 0 12px; font-size:30px; line-height:1.14; }
+		.lead-card p { margin:0; color:#3f3831; font-size:17px; line-height:1.75; }
+		.card-foot { display:flex; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-top:24px; padding-top:16px; border-top:1px solid rgba(68,54,39,.13); color:var(--muted); font-size:14px; }
+		.archive { margin-top:28px; }
 		.archive-head { display:flex; justify-content:space-between; gap:14px; align-items:end; margin:0 0 14px; padding:0 4px; }
-		.archive-head h2 { margin:0; font-size:28px; letter-spacing:-.035em; }
+		.archive-head h2 { margin:0; font-size:28px; }
 		.archive-head span { color:var(--muted); font-size:14px; }
 		.feed { display:grid; gap:14px; }
-		.post-row { display:grid; grid-template-columns:128px minmax(0,1fr); gap:22px; padding:24px 26px; border-radius:26px; }
+		.post-row { display:grid; grid-template-columns:128px minmax(0,1fr); gap:22px; padding:24px 26px; }
 		.post-date { color:var(--green); font-weight:800; line-height:1.35; }
-		.post-row h2 { margin:9px 0 10px; font-size:30px; line-height:1.12; letter-spacing:-.035em; }
+		.post-row h2 { margin:9px 0 10px; font-size:28px; line-height:1.16; }
 		.post-row p { margin:0; color:#453d35; line-height:1.78; }
 		.read-more { display:inline-flex; margin-top:16px; color:var(--accent-dark); font-weight:800; }
-		.empty-note { padding:26px; border-radius:26px; border:1px dashed rgba(68,54,39,.22); color:var(--muted); background:rgba(255,250,241,.55); line-height:1.7; }
-		.mini-list { list-style:none; padding:0; margin:0; display:grid; gap:12px; }
-		.mini-list li { padding-bottom:12px; border-bottom:1px solid rgba(103,78,54,.10); }
-		.mini-list li:last-child { padding-bottom:0; border-bottom:none; }
-		.mini-list a { font-weight:700; line-height:1.45; }
-		.mini-list span { display:block; margin-top:4px; color:var(--muted); font-size:14px; }
-		.text-link { color:var(--accent); font-weight:700; }
+		.empty-note { padding:24px; border-radius:8px; border:1px dashed rgba(68,54,39,.22); color:var(--muted); background:rgba(255,253,250,.68); line-height:1.7; }
 		@media (max-width: 980px) {
-			.masthead, .front-grid { grid-template-columns:1fr; }
+			.masthead { grid-template-columns:1fr; }
 			.nav { justify-content:flex-start; }
-			.feature h1 { font-size:42px; }
+			.top-feed { grid-template-columns:repeat(2,minmax(0,1fr)); }
 		}
 		@media (max-width: 640px) {
 			.page { padding:20px 16px 54px; }
-			.brand-word { font-size:50px; }
-			.feature, .side-card, .post-row { border-radius:24px; }
-			.feature { min-height:0; padding:28px; }
-			.feature h1 { font-size:34px; }
+			.brand-word { font-size:46px; }
+			.top-feed { grid-template-columns:1fr; }
+			.lead-card { min-height:0; padding:24px; }
+			.lead-card h2 { font-size:26px; }
 			.post-row { grid-template-columns:1fr; padding:22px; }
 			.post-row h2 { font-size:25px; }
 		}
@@ -339,78 +322,69 @@ func blogIndexHTML(articles []Article, hints FallbackSiteHints) string {
 			</nav>
 		</header>
 
-		<section class="front-grid">`)
+		<section class="top-feed" aria-label="Последние записи">`)
 
 	if len(articles) == 0 {
-		b.WriteString(`<article class="feature empty">
+		b.WriteString(`<article class="lead-card empty">
 				<div>
-					<div class="meta">
-						<span class="tag">Черновики</span>
-						<span>скоро</span>
-					</div>
-					<h1>Здесь пока тихо</h1>
-					<p>Первые записи ещё готовятся. Когда в ленте появятся материалы, здесь будет главная публикация и аккуратный архив.</p>
+					<div class="meta"><span>скоро</span></div>
+					<h2>Здесь пока тихо</h2>
+					<p>Первые записи ещё готовятся. Когда в ленте появятся материалы, здесь будут последние публикации и аккуратный архив.</p>
 				</div>
-				<div class="feature-foot">
+				<div class="card-foot">
 					<span>новая лента</span>
 					<span>архив готовится</span>
 				</div>
-			</article>
-			<aside class="side-stack">`)
-		b.WriteString(blogSidebarHTML(articles, hints))
-		b.WriteString(`</aside>`)
+			</article>`)
 	} else {
-		featured := articles[0]
-		fmt.Fprintf(&b, `<article class="feature">
+		limit := len(articles)
+		if limit > 3 {
+			limit = 3
+		}
+		for _, article := range articles[:limit] {
+			fmt.Fprintf(&b, `<article class="lead-card">
 				<div>
 					<div class="meta">
-						<span class="tag">%s</span>
 						<span>%s</span>
 						<span>%s</span>
 					</div>
-					<h1><a href="/article/%d">%s</a></h1>
+					<h2><a href="/article/%d">%s</a></h2>
 					<p>%s</p>
 				</div>
-				<div class="feature-foot">
-					<span>%s</span>
+				<div class="card-foot">
 					<span>%s</span>
 					<a class="read-more" href="/article/%d">читать дальше</a>
 				</div>
-			</article>
-			<aside class="side-stack">`,
-			html.EscapeString(articleCategory(featured)),
-			html.EscapeString(formatDate(featured.CreatedAt)),
-			html.EscapeString(articleReadingTimeLabel(featured.Content)),
-			featured.ID,
-			html.EscapeString(featured.Title),
-			safeSnippet(featured.Content, 360),
-			html.EscapeString(blogEntryLabel(featured)),
-			html.EscapeString(formatDateTime(featured.CreatedAt)),
-			featured.ID)
-		b.WriteString(blogSidebarHTML(articles, hints))
-		b.WriteString(`</aside>`)
+			</article>`,
+				html.EscapeString(formatDate(article.CreatedAt)),
+				html.EscapeString(articleReadingTimeLabel(article.Content)),
+				article.ID,
+				html.EscapeString(article.Title),
+				safeSnippet(article.Content, 240),
+				html.EscapeString(formatDateTime(article.CreatedAt)),
+				article.ID)
+		}
 	}
 
 	b.WriteString(`</section>
 
 		<section class="archive" id="archive">
 			<div class="archive-head">
-				<h2>Последние записи</h2>
+				<h2>Архив</h2>
 				<span>`)
 	b.WriteString(html.EscapeString(articleCountLabel(len(articles))))
 	b.WriteString(`</span>
 			</div>
 			<div class="feed">`)
 
-	if len(articles) <= 1 {
+	if len(articles) <= 3 {
 		b.WriteString(`<div class="empty-note">Новые записи появятся здесь по мере публикации. Архив пополняется постепенно и без отдельного расписания.</div>`)
 	} else {
-		for _, a := range articles[1:] {
+		for _, a := range articles[3:] {
 			fmt.Fprintf(&b, `<article class="post-row">
 					<div class="post-date">%s</div>
 					<div>
 						<div class="meta">
-							<span class="tag">%s</span>
 							<span>%s</span>
 						</div>
 						<h2><a href="/article/%d">%s</a></h2>
@@ -419,7 +393,6 @@ func blogIndexHTML(articles []Article, hints FallbackSiteHints) string {
 					</div>
 				</article>`,
 				html.EscapeString(formatDate(a.CreatedAt)),
-				html.EscapeString(articleCategory(a)),
 				html.EscapeString(articleReadingTimeLabel(a.Content)),
 				a.ID,
 				html.EscapeString(a.Title),
@@ -581,21 +554,20 @@ func blogArticleHTML(article *Article, commentURL string) string {
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>` + html.EscapeString(article.Title) + `</title>
 	<style>
-		:root { color-scheme: light; --paper:#f7f1e6; --panel:#fffaf1; --ink:#23201b; --muted:#746b5f; --line:rgba(68,54,39,.16); --accent:#9a4f2d; --accent-dark:#69341e; --accent-soft:#ead4c3; --green:#66765b; --shadow:0 24px 70px rgba(80,61,38,.10); }
+		:root { color-scheme: light; --paper:#f4f0e8; --panel:#fffdfa; --ink:#23201b; --muted:#746b5f; --line:rgba(68,54,39,.16); --accent:#8f4b2f; --accent-dark:#62311f; --accent-soft:#ead8ca; --green:#4f6f61; --shadow:0 16px 42px rgba(80,61,38,.09); }
 		* { box-sizing:border-box; }
-		body { margin:0; font-family:"Literata","Iowan Old Style","Palatino Linotype",Georgia,serif; color:var(--ink); background:radial-gradient(circle at 14% 8%, rgba(154,79,45,.14), transparent 30%), radial-gradient(circle at 88% 0, rgba(102,118,91,.12), transparent 26%), linear-gradient(180deg,#efe5d5 0,#f7f1e6 36%,#f4ecde 100%); }
+		body { margin:0; font-family:"Literata","Iowan Old Style","Palatino Linotype",Georgia,serif; color:var(--ink); background:linear-gradient(180deg,#eee6da 0,#f4f0e8 38%,#f7f4ee 100%); }
 		a { color:inherit; text-decoration:none; }
 		.page { max-width:1120px; margin:0 auto; padding:24px 20px 76px; }
 		.article-nav { display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; align-items:center; padding-bottom:18px; border-bottom:1px solid var(--line); color:#5a5047; font-size:14px; font-weight:800; }
 		.nav-links { display:flex; gap:8px; flex-wrap:wrap; }
-		.nav-links a { display:inline-flex; align-items:center; min-height:38px; padding:0 14px; border:1px solid var(--line); border-radius:999px; background:rgba(255,250,241,.66); }
-		.hero, .prose, .side-card { background:rgba(255,250,241,.90); border:1px solid var(--line); border-radius:30px; box-shadow:var(--shadow); }
-		.hero { position:relative; overflow:hidden; margin-top:24px; padding:42px; }
+		.nav-links a { display:inline-flex; align-items:center; min-height:38px; padding:0 14px; border:1px solid var(--line); border-radius:999px; background:rgba(255,253,250,.72); }
+		.hero, .prose, .side-card { background:rgba(255,253,250,.92); border:1px solid var(--line); border-radius:8px; box-shadow:var(--shadow); }
+		.hero { position:relative; overflow:hidden; max-width:940px; margin:24px auto 0; padding:40px; }
 		.kicker { position:relative; display:flex; gap:10px; flex-wrap:wrap; align-items:center; color:var(--muted); font-size:14px; }
-		.tag { display:inline-flex; align-items:center; min-height:27px; padding:0 11px; border-radius:999px; background:var(--accent-soft); color:var(--accent-dark); font-size:12px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; }
-		.hero h1 { position:relative; max-width:820px; margin:24px 0 16px; font-size:56px; line-height:.98; letter-spacing:-.058em; }
+		.hero h1 { position:relative; max-width:820px; margin:22px 0 16px; font-size:52px; line-height:1.02; }
 		.byline { display:flex; gap:12px; flex-wrap:wrap; margin-top:30px; padding-top:18px; border-top:1px solid rgba(68,54,39,.13); color:var(--muted); font-size:14px; }
-		.article-layout { display:grid; grid-template-columns:minmax(0,760px) 300px; gap:20px; align-items:start; margin-top:20px; }
+		.article-layout { max-width:900px; margin:20px auto 0; }
 		.article-main { display:grid; gap:18px; min-width:0; }
 		.prose { padding:42px; }
 		.article-body { font-size:20px; line-height:1.9; color:#2e2923; }
@@ -603,28 +575,36 @@ func blogArticleHTML(article *Article, commentURL string) string {
 		.article-body p:first-child::first-letter { float:left; margin:.1em .12em 0 0; font-size:4.1em; line-height:.74; color:var(--accent-dark); font-weight:800; }
 		.article-body p:last-child { margin-bottom:0; }
 		.article-body a { color:var(--accent-dark); font-weight:700; text-decoration:underline; text-decoration-thickness:1px; text-underline-offset:.18em; }
+		.article-body h2, .article-body h3, .article-body h4 { margin:1.7em 0 .7em; line-height:1.18; color:#241f1a; }
+		.article-body h2:first-child, .article-body h3:first-child, .article-body h4:first-child { margin-top:0; }
+		.article-body h2 { font-size:1.55em; }
+		.article-body h3 { font-size:1.28em; }
+		.article-body h4 { font-size:1.12em; }
+		.article-body ul, .article-body ol { margin:0 0 1.35em; padding-left:1.4em; }
+		.article-body li { margin:.35em 0; }
+		.article-body blockquote { margin:1.6em 0; padding:2px 0 2px 20px; border-left:4px solid rgba(143,75,47,.38); color:#4a4139; }
+		.article-body blockquote p:last-child { margin-bottom:0; }
+		.article-body code { font-family:"SFMono-Regular","Cascadia Code","Liberation Mono",Consolas,monospace; font-size:.88em; border-radius:5px; padding:.12em .34em; background:#efe5d8; color:#2d2822; }
+		.article-body pre { margin:1.7em 0; padding:18px 20px; overflow:auto; border-radius:8px; background:#1f2933; color:#f7fafc; border:1px solid rgba(35,32,27,.18); line-height:1.62; }
+		.article-body pre code { display:block; padding:0; background:transparent; color:inherit; white-space:pre; font-size:14px; }
 		.article-body figure { margin:2em 0; }
 		.article-body figure:first-child { margin-top:0; }
-		.article-body img { display:block; width:100%; max-width:100%; height:auto; border-radius:22px; border:1px solid rgba(68,54,39,.14); box-shadow:0 18px 46px rgba(80,61,38,.12); background:#efe5d5; }
+		.article-body img { display:block; width:100%; max-width:100%; height:auto; border-radius:8px; border:1px solid rgba(68,54,39,.14); box-shadow:0 18px 46px rgba(80,61,38,.12); background:#efe5d5; }
 		.article-body figcaption { margin-top:10px; color:var(--muted); font-size:14px; line-height:1.5; text-align:center; }
-		.sidebar { display:grid; gap:18px; align-content:start; }
 		.side-card { padding:24px; }
 		.comment-card { padding:28px; }
-		.side-card h2 { margin:0 0 12px; font-size:22px; line-height:1.1; letter-spacing:-.025em; }
+		.side-card h2 { margin:0 0 12px; font-size:22px; line-height:1.1; }
 		.side-card p { margin:0; color:var(--muted); line-height:1.7; }
 		.note-line { display:grid; gap:8px; color:var(--muted); font-size:14px; margin-top:16px; }
 		.text-link { color:var(--accent-dark); font-weight:800; }
 		@media (max-width: 980px) {
-			.article-layout { grid-template-columns:1fr; }
 			.hero h1 { font-size:42px; }
 		}
 		@media (max-width: 640px) {
 			.page { padding:20px 16px 54px; }
-			.hero, .prose, .side-card { border-radius:24px; }
 			.hero, .prose { padding:26px; }
 			.hero h1 { font-size:34px; }
 			.article-body { font-size:18px; }
-			.article-body img { border-radius:18px; }
 			.article-body p:first-child::first-letter { float:none; margin:0; font-size:inherit; line-height:inherit; color:inherit; font-weight:inherit; }
 		}
 	</style>
@@ -641,13 +621,11 @@ func blogArticleHTML(article *Article, commentURL string) string {
 
 		<header class="hero">
 			<div class="kicker">
-				<span class="tag">` + html.EscapeString(articleCategory(*article)) + `</span>
 				<span>` + html.EscapeString(formatDate(article.CreatedAt)) + `</span>
 				<span>` + html.EscapeString(articleReadingTimeLabel(article.Content)) + `</span>
 			</div>
 			<h1>` + html.EscapeString(article.Title) + `</h1>
 			<div class="byline">
-				<span>` + html.EscapeString(blogEntryLabel(*article)) + `</span>
 				<span>` + html.EscapeString(formatDateTime(article.CreatedAt)) + `</span>
 			</div>
 		</header>
@@ -665,16 +643,6 @@ func blogArticleHTML(article *Article, commentURL string) string {
 					</div>
 				</section>
 			</main>
-			<aside class="sidebar">
-				<section class="side-card">
-					<h2>В блокноте</h2>
-					<p>` + html.EscapeString(articleNotebookLine(*article)) + `</p>
-					<div class="note-line">
-						<span>Раздел: ` + html.EscapeString(articleCategory(*article)) + `</span>
-						<span>Опубликовано: ` + html.EscapeString(formatDateTime(article.CreatedAt)) + `</span>
-					</div>
-				</section>
-			</aside>
 		</div>
 	</div>
 </body>
@@ -713,6 +681,13 @@ func forumThreadHTML(article *Article, commentURL string) string {
 		.post-body { margin-top:24px; font-size:18px; line-height:1.8; color:#223140; }
 		.post-body p { margin:0 0 1.2em; }
 		.post-body p:last-child { margin-bottom:0; }
+		.post-body h2, .post-body h3, .post-body h4 { margin:1.5em 0 .65em; line-height:1.2; }
+		.post-body ul, .post-body ol { margin:0 0 1.2em; padding-left:1.35em; }
+		.post-body li { margin:.3em 0; }
+		.post-body blockquote { margin:1.4em 0; padding-left:18px; border-left:4px solid rgba(18,93,177,.28); color:#445568; }
+		.post-body code { font-family:"SFMono-Regular","Cascadia Code","Liberation Mono",Consolas,monospace; font-size:.9em; border-radius:5px; padding:.1em .32em; background:#e9f1fb; color:#182536; }
+		.post-body pre { margin:1.5em 0; padding:16px 18px; overflow:auto; border-radius:8px; background:#152233; color:#f8fbff; line-height:1.6; }
+		.post-body pre code { display:block; padding:0; background:transparent; color:inherit; white-space:pre; font-size:14px; }
 		.sidebar { display:grid; gap:18px; align-content:start; }
 		.side-card { padding:24px; }
 		.side-card h2 { margin:0 0 12px; font-size:21px; }
@@ -913,6 +888,14 @@ func safeHTML(s string, omittedLeadingTitles ...string) string {
 
 	var b strings.Builder
 	for _, block := range blocks {
+		if language, code, ok := parseMarkdownCodeBlock(block); ok {
+			classAttr := ""
+			if language != "" {
+				classAttr = ` class="language-` + html.EscapeString(language) + `"`
+			}
+			fmt.Fprintf(&b, `<pre><code%s>%s</code></pre>`, classAttr, html.EscapeString(code))
+			continue
+		}
 		if src, alt, ok := parseMarkdownImageBlock(block); ok {
 			fmt.Fprintf(&b, `<figure><img src="%s" alt="%s" loading="lazy" decoding="async">`,
 				html.EscapeString(src),
@@ -921,6 +904,30 @@ func safeHTML(s string, omittedLeadingTitles ...string) string {
 				fmt.Fprintf(&b, `<figcaption>%s</figcaption>`, html.EscapeString(alt))
 			}
 			b.WriteString(`</figure>`)
+			continue
+		}
+		if level, text, ok := parseMarkdownHeadingBlock(block); ok {
+			fmt.Fprintf(&b, `<h%d>%s</h%d>`, level, safeInlineHTML(text), level)
+			continue
+		}
+		if ordered, items, ok := parseMarkdownListBlock(block); ok {
+			if ordered {
+				b.WriteString(`<ol>`)
+			} else {
+				b.WriteString(`<ul>`)
+			}
+			for _, item := range items {
+				fmt.Fprintf(&b, `<li>%s</li>`, safeInlineHTML(item))
+			}
+			if ordered {
+				b.WriteString(`</ol>`)
+			} else {
+				b.WriteString(`</ul>`)
+			}
+			continue
+		}
+		if quote, ok := parseMarkdownQuoteBlock(block); ok {
+			fmt.Fprintf(&b, `<blockquote><p>%s</p></blockquote>`, safeInlineHTML(quote))
 			continue
 		}
 		fmt.Fprintf(&b, `<p>%s</p>`, safeInlineHTML(block))
@@ -932,22 +939,47 @@ func safeInlineHTML(s string) string {
 	var b strings.Builder
 	last := 0
 	for i := 0; i < len(s); i++ {
-		if s[i] != '[' {
+		if s[i] == '`' {
+			code, end, ok := parseInlineCodeAt(s, i)
+			if !ok {
+				continue
+			}
+			b.WriteString(html.EscapeString(s[last:i]))
+			fmt.Fprintf(&b, `<code>%s</code>`, html.EscapeString(code))
+			i = end - 1
+			last = end
 			continue
 		}
-		label, href, end, ok := parseMarkdownLinkAt(s, i)
-		if !ok {
-			continue
+		if s[i] == '[' {
+			label, href, end, ok := parseMarkdownLinkAt(s, i)
+			if !ok {
+				continue
+			}
+			b.WriteString(html.EscapeString(s[last:i]))
+			fmt.Fprintf(&b, `<a href="%s" target="_blank" rel="noreferrer">%s</a>`,
+				html.EscapeString(href),
+				html.EscapeString(label))
+			i = end - 1
+			last = end
 		}
-		b.WriteString(html.EscapeString(s[last:i]))
-		fmt.Fprintf(&b, `<a href="%s" target="_blank" rel="noreferrer">%s</a>`,
-			html.EscapeString(href),
-			html.EscapeString(label))
-		i = end - 1
-		last = end
 	}
 	b.WriteString(html.EscapeString(s[last:]))
 	return b.String()
+}
+
+func parseInlineCodeAt(s string, start int) (code string, end int, ok bool) {
+	if start >= len(s) || s[start] != '`' {
+		return "", 0, false
+	}
+	closeRel := strings.IndexByte(s[start+1:], '`')
+	if closeRel < 0 {
+		return "", 0, false
+	}
+	code = strings.TrimSpace(s[start+1 : start+1+closeRel])
+	if code == "" {
+		return "", 0, false
+	}
+	return code, start + 1 + closeRel + 1, true
 }
 
 func markdownLinksToText(s string) string {
@@ -1007,6 +1039,136 @@ func parseMarkdownImageBlock(block string) (src string, alt string, ok bool) {
 	return src, alt, true
 }
 
+func parseMarkdownCodeBlock(block string) (language string, code string, ok bool) {
+	block = strings.Trim(block, "\n")
+	lines := strings.Split(block, "\n")
+	if len(lines) < 2 {
+		return "", "", false
+	}
+
+	first := strings.TrimSpace(lines[0])
+	last := strings.TrimSpace(lines[len(lines)-1])
+	if !strings.HasPrefix(first, "```") || !strings.HasPrefix(last, "```") {
+		return "", "", false
+	}
+
+	language = sanitizeCodeLanguage(strings.TrimSpace(strings.TrimPrefix(first, "```")))
+	code = strings.Join(lines[1:len(lines)-1], "\n")
+	code = strings.Trim(code, "\n")
+	return language, code, true
+}
+
+func parseMarkdownHeadingBlock(block string) (level int, text string, ok bool) {
+	block = strings.TrimSpace(block)
+	if block == "" || block[0] != '#' {
+		return 0, "", false
+	}
+
+	for level < len(block) && level < 6 && block[level] == '#' {
+		level++
+	}
+	if level < 2 || level > 5 || level >= len(block) || block[level] != ' ' {
+		return 0, "", false
+	}
+
+	text = strings.TrimSpace(block[level:])
+	if text == "" {
+		return 0, "", false
+	}
+	if level > 4 {
+		level = 4
+	}
+	return level, text, true
+}
+
+func parseMarkdownListBlock(block string) (ordered bool, items []string, ok bool) {
+	lines := strings.Split(strings.TrimSpace(block), "\n")
+	if len(lines) == 0 {
+		return false, nil, false
+	}
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		if strings.HasPrefix(line, "- ") || strings.HasPrefix(line, "* ") {
+			if len(items) > 0 && ordered {
+				return false, nil, false
+			}
+			items = append(items, strings.TrimSpace(line[2:]))
+			continue
+		}
+		dot := strings.IndexByte(line, '.')
+		if dot > 0 && dot+1 < len(line) && line[dot+1] == ' ' && isAllASCIIDigits(line[:dot]) {
+			if len(items) > 0 && !ordered {
+				return false, nil, false
+			}
+			ordered = true
+			items = append(items, strings.TrimSpace(line[dot+2:]))
+			continue
+		}
+		return false, nil, false
+	}
+
+	return ordered, items, len(items) > 0
+}
+
+func parseMarkdownQuoteBlock(block string) (string, bool) {
+	lines := strings.Split(strings.TrimSpace(block), "\n")
+	if len(lines) == 0 {
+		return "", false
+	}
+
+	parts := make([]string, 0, len(lines))
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		if !strings.HasPrefix(line, ">") {
+			return "", false
+		}
+		parts = append(parts, strings.TrimSpace(strings.TrimPrefix(line, ">")))
+	}
+	if len(parts) == 0 {
+		return "", false
+	}
+	return strings.Join(parts, " "), true
+}
+
+func sanitizeCodeLanguage(language string) string {
+	language = strings.TrimSpace(strings.ToLower(language))
+	if language == "" {
+		return ""
+	}
+
+	var b strings.Builder
+	for _, r := range language {
+		switch {
+		case r >= 'a' && r <= 'z':
+			b.WriteRune(r)
+		case r >= '0' && r <= '9':
+			b.WriteRune(r)
+		case r == '-' || r == '_' || r == '+':
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+func isAllASCIIDigits(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
+}
+
 func isSafePublicURL(rawURL string) bool {
 	if strings.ContainsAny(rawURL, "\x00\r\n\t ") {
 		return false
@@ -1050,7 +1212,7 @@ func matchesAnyNormalizedTitle(block string, titles []string) bool {
 
 func normalizeComparableText(s string) string {
 	s = strings.ToLower(strings.Join(strings.Fields(s), " "))
-	return strings.Trim(s, " \t\n\r.,:;!?—-–\"'«»()[]")
+	return strings.Trim(s, " \t\n\r.,:;!?—-–\"'«»()[]#>*")
 }
 
 func formatDateTime(t time.Time) string {
@@ -1092,17 +1254,9 @@ func blogSiteProfile(articles []Article, hints FallbackSiteHints) blogProfile {
 	}
 
 	title := titles[blogContentSignature(articles, hints)%len(titles)]
-	topics := blogVisibleTopics(articles, hints, 3)
-	if len(topics) == 0 {
-		return blogProfile{
-			Title:    title,
-			Subtitle: "Небольшой журнал для заметок, длинных записей и материалов, которые удобно держать в одном месте.",
-		}
-	}
-
 	return blogProfile{
 		Title:    title,
-		Subtitle: "В ленте лежат заметки, наблюдения и длинные записи по темам: " + strings.ToLower(strings.Join(topics, ", ")) + ".",
+		Subtitle: "Добро пожалывать на мой блог",
 	}
 }
 
@@ -1150,11 +1304,7 @@ func forumSubtitle(articles []Article, hints FallbackSiteHints) string {
 }
 
 func blogEntryLabel(article Article) string {
-	category := strings.ToLower(articleCategory(article))
-	if category == "" {
-		return "запись в ленте"
-	}
-	return "запись: " + category
+	return "запись в блоге"
 }
 
 func articleNotebookLine(article Article) string {
@@ -1198,7 +1348,7 @@ func articleCategory(article Article) string {
 
 	switch {
 	case strings.Contains(text, "tls"), strings.Contains(text, "ssl"), strings.Contains(text, "https"), strings.Contains(text, "сертифик"), strings.Contains(text, "шифр"):
-		return "Разбор"
+		return "Технологии"
 	case strings.Contains(text, "dns"), strings.Contains(text, "bgp"), strings.Contains(text, "tcp"), strings.Contains(text, "udp"), strings.Contains(text, "маршрут"), strings.Contains(text, "routing"), strings.Contains(text, "сеть"), strings.Contains(text, "сетев"):
 		return "Практика"
 	case strings.Contains(text, "docker"), strings.Contains(text, "kubernetes"), strings.Contains(text, "nginx"), strings.Contains(text, "сервер"), strings.Contains(text, "devops"), strings.Contains(text, "ci/cd"), strings.Contains(text, "инфраструкт"):
@@ -1220,18 +1370,34 @@ func contentBlocks(s string) []string {
 		return nil
 	}
 
-	rawBlocks := strings.Split(s, "\n\n")
+	rawBlocks := splitContentBlocks(s)
 	blocks := make([]string, 0, len(rawBlocks))
 	for _, rawBlock := range rawBlocks {
-		rawBlock = strings.TrimSpace(rawBlock)
-		if rawBlock == "" {
+		rawBlock = strings.Trim(rawBlock, "\n")
+		if strings.TrimSpace(rawBlock) == "" {
 			continue
 		}
-		if isTrailingArticleMetadataBlock(markdownLinksToText(rawBlock)) {
+		if isTrailingArticleMetadataBlock(plainMarkdownBlockText(rawBlock)) {
 			break
 		}
-		if _, _, ok := parseMarkdownImageBlock(rawBlock); ok {
+		if _, _, ok := parseMarkdownCodeBlock(rawBlock); ok {
 			blocks = append(blocks, rawBlock)
+			continue
+		}
+		if _, _, ok := parseMarkdownImageBlock(rawBlock); ok {
+			blocks = append(blocks, strings.TrimSpace(rawBlock))
+			continue
+		}
+		if _, _, ok := parseMarkdownHeadingBlock(rawBlock); ok {
+			blocks = append(blocks, normalizeMarkdownLineBlock(rawBlock))
+			continue
+		}
+		if _, _, ok := parseMarkdownListBlock(rawBlock); ok {
+			blocks = append(blocks, normalizeMarkdownLineBlock(rawBlock))
+			continue
+		}
+		if _, ok := parseMarkdownQuoteBlock(rawBlock); ok {
+			blocks = append(blocks, normalizeMarkdownLineBlock(rawBlock))
 			continue
 		}
 
@@ -1251,6 +1417,63 @@ func contentBlocks(s string) []string {
 	return blocks
 }
 
+func splitContentBlocks(s string) []string {
+	lines := strings.Split(s, "\n")
+	blocks := make([]string, 0, 16)
+	current := make([]string, 0, 8)
+	inCode := false
+
+	flush := func() {
+		if len(current) == 0 {
+			return
+		}
+		block := strings.Trim(strings.Join(current, "\n"), "\n")
+		if strings.TrimSpace(block) != "" {
+			blocks = append(blocks, block)
+		}
+		current = current[:0]
+	}
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "```") {
+			if inCode {
+				current = append(current, trimmed)
+				flush()
+				inCode = false
+			} else {
+				flush()
+				current = append(current, trimmed)
+				inCode = true
+			}
+			continue
+		}
+		if inCode {
+			current = append(current, line)
+			continue
+		}
+		if trimmed == "" {
+			flush()
+			continue
+		}
+		current = append(current, line)
+	}
+	flush()
+	return blocks
+}
+
+func normalizeMarkdownLineBlock(block string) string {
+	lines := strings.Split(block, "\n")
+	out := make([]string, 0, len(lines))
+	for _, line := range lines {
+		line = strings.Join(strings.Fields(line), " ")
+		if line != "" {
+			out = append(out, line)
+		}
+	}
+	return strings.Join(out, "\n")
+}
+
 func contentParagraphs(s string) []string {
 	blocks := contentBlocks(s)
 	if len(blocks) == 0 {
@@ -1262,12 +1485,35 @@ func contentParagraphs(s string) []string {
 		if _, _, ok := parseMarkdownImageBlock(block); ok {
 			continue
 		}
-		block = markdownLinksToText(block)
+		if _, _, ok := parseMarkdownCodeBlock(block); ok {
+			continue
+		}
+		block = plainMarkdownBlockText(block)
 		if block != "" {
 			paragraphs = append(paragraphs, block)
 		}
 	}
 	return paragraphs
+}
+
+func plainMarkdownBlockText(block string) string {
+	if _, _, ok := parseMarkdownCodeBlock(block); ok {
+		return ""
+	}
+	if _, _, ok := parseMarkdownImageBlock(block); ok {
+		return ""
+	}
+	if _, text, ok := parseMarkdownHeadingBlock(block); ok {
+		return markdownLinksToText(text)
+	}
+	if _, items, ok := parseMarkdownListBlock(block); ok {
+		return markdownLinksToText(strings.Join(items, " "))
+	}
+	if quote, ok := parseMarkdownQuoteBlock(block); ok {
+		return markdownLinksToText(quote)
+	}
+	block = strings.ReplaceAll(block, "`", "")
+	return markdownLinksToText(block)
 }
 
 func normalizedContentText(s string) string {
@@ -1287,8 +1533,20 @@ func normalizeContentBreaks(s string) string {
 
 	var out []string
 	prevBlank := false
+	inCode := false
 	for _, line := range strings.Split(s, "\n") {
+		raw := strings.TrimRight(line, " \t")
 		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "```") {
+			out = append(out, trimmed)
+			inCode = !inCode
+			prevBlank = false
+			continue
+		}
+		if inCode {
+			out = append(out, raw)
+			continue
+		}
 		if trimmed == "" {
 			if prevBlank {
 				continue
@@ -1306,7 +1564,7 @@ func normalizeContentBreaks(s string) string {
 func blogSectionChipsHTML(articles []Article, hints FallbackSiteHints, limit int) string {
 	categories := blogVisibleTopics(articles, hints, limit)
 	if len(categories) == 0 {
-		categories = []string{"Заметки", "Разборы", "Материалы"}
+		categories = []string{"Заметки", "Практика", "Материалы"}
 	}
 
 	var b strings.Builder
@@ -1317,20 +1575,7 @@ func blogSectionChipsHTML(articles []Article, hints FallbackSiteHints, limit int
 }
 
 func blogSidebarHTML(articles []Article, hints FallbackSiteHints) string {
-	profile := blogSiteProfile(articles, hints)
 	var b strings.Builder
-	b.WriteString(`<section class="side-card profile">
-			<h3>О журнале</h3>
-			<p>` + html.EscapeString(profile.Subtitle) + `</p>
-			<div class="profile-sign">` + html.EscapeString(profile.Title) + `</div>
-		</section>
-		<section class="side-card">
-			<h3>На столе</h3>
-			<div class="chips">`)
-	b.WriteString(blogSectionChipsHTML(articles, hints, 6))
-	b.WriteString(`</div>
-		</section>`)
-
 	if len(articles) > 0 {
 		b.WriteString(`<section class="side-card">
 				<h3>Недавно</h3>
@@ -1339,23 +1584,14 @@ func blogSidebarHTML(articles []Article, hints FallbackSiteHints) string {
 			if index >= 4 {
 				break
 			}
-			fmt.Fprintf(&b, `<li><a href="/article/%d">%s</a><span>%s · %s</span></li>`,
+			fmt.Fprintf(&b, `<li><a href="/article/%d">%s</a><span>%s</span></li>`,
 				article.ID,
 				html.EscapeString(article.Title),
-				html.EscapeString(articleCategory(article)),
 				html.EscapeString(formatDate(article.CreatedAt)))
 		}
 		b.WriteString(`</ul>
 			</section>`)
 	}
-
-	b.WriteString(`<section class="side-card">
-			<h3>Комментарии</h3>
-			<p>Комментарии доступны после входа. Регистрация может быть закрыта приглашением, если сайт ведётся в узком круге.</p>
-			<div class="info-line">
-				<a class="text-link" href="/register">Регистрация</a>
-			</div>
-		</section>`)
 
 	return b.String()
 }

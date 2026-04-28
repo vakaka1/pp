@@ -1,6 +1,7 @@
 package ppfallback
 
 import (
+	"fmt"
 	stdhtml "html"
 	"net/url"
 	"strings"
@@ -36,7 +37,15 @@ func extractArticleTextFromHTMLWithBase(doc *html.Node, baseURL string) string {
 		if shouldSkipNode(node) {
 			return
 		}
+		if block := codeMarkdownBlock(node); block != "" {
+			blocks = append(blocks, block)
+			return
+		}
 		if block := imageMarkdownBlock(node, baseURL); block != "" {
+			blocks = append(blocks, block)
+			return
+		}
+		if block := listMarkdownBlock(node, baseURL); block != "" {
 			blocks = append(blocks, block)
 			return
 		}
@@ -47,6 +56,7 @@ func extractArticleTextFromHTMLWithBase(doc *html.Node, baseURL string) string {
 				return
 			}
 			if block != "" {
+				block = markdownBlockForElement(node.Data, block)
 				blocks = append(blocks, block)
 			}
 			return
@@ -156,6 +166,139 @@ func isTextBlock(node *html.Node) bool {
 	return false
 }
 
+func markdownBlockForElement(tag string, block string) string {
+	switch tag {
+	case "h2":
+		return "## " + block
+	case "h3":
+		return "### " + block
+	case "h4":
+		return "#### " + block
+	case "h5", "h6":
+		return "##### " + block
+	case "blockquote":
+		lines := strings.Split(block, "\n")
+		for i, line := range lines {
+			lines[i] = "> " + strings.TrimSpace(line)
+		}
+		return strings.Join(lines, "\n")
+	case "li":
+		return "- " + block
+	default:
+		return block
+	}
+}
+
+func codeMarkdownBlock(node *html.Node) string {
+	if node == nil || node.Type != html.ElementNode || node.Data != "pre" {
+		return ""
+	}
+
+	code := strings.Trim(extractCodeText(node), "\n")
+	if strings.TrimSpace(code) == "" {
+		return ""
+	}
+
+	language := codeLanguage(node)
+	if language == "" {
+		for child := node.FirstChild; child != nil; child = child.NextSibling {
+			if child.Type == html.ElementNode && child.Data == "code" {
+				language = codeLanguage(child)
+				break
+			}
+		}
+	}
+	if language != "" {
+		return "```" + language + "\n" + code + "\n```"
+	}
+	return "```\n" + code + "\n```"
+}
+
+func extractCodeText(node *html.Node) string {
+	var b strings.Builder
+	var walk func(*html.Node)
+	walk = func(current *html.Node) {
+		if current == nil {
+			return
+		}
+		switch current.Type {
+		case html.TextNode:
+			b.WriteString(current.Data)
+		case html.ElementNode:
+			if current.Data == "br" {
+				b.WriteByte('\n')
+				return
+			}
+			if shouldSkipNode(current) {
+				return
+			}
+			for child := current.FirstChild; child != nil; child = child.NextSibling {
+				walk(child)
+			}
+		default:
+			for child := current.FirstChild; child != nil; child = child.NextSibling {
+				walk(child)
+			}
+		}
+	}
+	walk(node)
+	text := stdhtml.UnescapeString(b.String())
+	text = strings.ReplaceAll(text, "\r\n", "\n")
+	text = strings.ReplaceAll(text, "\r", "\n")
+	return text
+}
+
+func codeLanguage(node *html.Node) string {
+	if node == nil {
+		return ""
+	}
+	for _, attr := range node.Attr {
+		switch attr.Key {
+		case "data-lang", "data-language":
+			if language := sanitizeCodeLanguage(attr.Val); language != "" {
+				return language
+			}
+		case "class":
+			for _, token := range strings.Fields(attr.Val) {
+				for _, prefix := range []string{"language-", "lang-"} {
+					if strings.HasPrefix(token, prefix) {
+						if language := sanitizeCodeLanguage(strings.TrimPrefix(token, prefix)); language != "" {
+							return language
+						}
+					}
+				}
+			}
+		}
+	}
+	return ""
+}
+
+func listMarkdownBlock(node *html.Node, baseURL string) string {
+	if node == nil || node.Type != html.ElementNode || (node.Data != "ul" && node.Data != "ol") {
+		return ""
+	}
+
+	lines := make([]string, 0, 8)
+	index := 1
+	for child := node.FirstChild; child != nil; child = child.NextSibling {
+		if child.Type != html.ElementNode || child.Data != "li" || shouldSkipNode(child) {
+			continue
+		}
+		text := normalizeBlockText(extractInlineMarkdown(child, baseURL))
+		if text == "" {
+			continue
+		}
+		if node.Data == "ol" {
+			lines = append(lines, fmt.Sprintf("%d. %s", index, text))
+			index++
+		} else {
+			lines = append(lines, "- "+text)
+		}
+	}
+
+	return strings.Join(lines, "\n")
+}
+
 func imageMarkdownBlock(node *html.Node, baseURL string) string {
 	image := firstImageNode(node)
 	if image == nil {
@@ -224,6 +367,14 @@ func extractInlineMarkdown(node *html.Node, baseURL string) string {
 				return
 			case "img", "figure", "picture":
 				return
+			case "code":
+				label := normalizeInlineCode(extractCodeText(current))
+				if label != "" {
+					b.WriteString("`")
+					b.WriteString(label)
+					b.WriteString("`")
+				}
+				return
 			case "a":
 				label := normalizeBlockText(extractPlainInlineText(current))
 				href := resolveArticleURL(firstNonEmptyAttr(current, "href"), baseURL)
@@ -253,6 +404,13 @@ func extractInlineMarkdown(node *html.Node, baseURL string) string {
 
 	walk(node)
 	return b.String()
+}
+
+func normalizeInlineCode(raw string) string {
+	raw = strings.ReplaceAll(raw, "\n", " ")
+	raw = strings.Join(strings.Fields(raw), " ")
+	raw = strings.ReplaceAll(raw, "`", "'")
+	return raw
 }
 
 func extractPlainInlineText(node *html.Node) string {
@@ -328,7 +486,7 @@ func sanitizeMarkdownLabel(label string) string {
 }
 
 func isTrailingArticleMetadataBlock(block string) bool {
-	normalized := strings.Trim(strings.ToLower(strings.Join(strings.Fields(block), " ")), " :")
+	normalized := strings.Trim(strings.ToLower(strings.Join(strings.Fields(block), " ")), " :#>*-.0123456789")
 	return normalized == "теги" ||
 		normalized == "хабы" ||
 		strings.HasPrefix(normalized, "теги:") ||

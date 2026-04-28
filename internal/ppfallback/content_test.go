@@ -26,7 +26,11 @@ func TestExtractArticleTextFromHTMLPreservesImagesLinksAndSkipsHabrMeta(t *testi
 					<img src="https://habrastorage.org/webt/a/b/cover.png" alt="Схема">
 					<figcaption>Подпись, которая тоже не должна попасть.</figcaption>
 				</figure>
+				<pre><code class="language-go">func main() {
+	fmt.Println("ok")
+}</code></pre>
 				<p>Второй <strong>абзац</strong> со <a href="/ru/articles/2/">ссылкой</a>.</p>
+				<ul><li>Первый пункт</li><li>Второй пункт с <code>inline</code></li></ul>
 				<h2>Хабы</h2>
 				<ul><li>Go</li><li>Инфраструктура</li></ul>
 				<h2>Теги</h2>
@@ -52,6 +56,12 @@ func TestExtractArticleTextFromHTMLPreservesImagesLinksAndSkipsHabrMeta(t *testi
 	}
 	if !strings.Contains(text, "[ссылкой](https://habr.com/ru/articles/2/)") {
 		t.Fatalf("expected article link in parsed text, got %q", text)
+	}
+	if !strings.Contains(text, "```go\nfunc main()") {
+		t.Fatalf("expected fenced code block in parsed text, got %q", text)
+	}
+	if !strings.Contains(text, "- Первый пункт") || !strings.Contains(text, "- Второй пункт с `inline`") {
+		t.Fatalf("expected list and inline code in parsed text, got %q", text)
 	}
 	for _, forbidden := range []string{"Хабы", "Теги", "backend", "Инфраструктура"} {
 		if strings.Contains(text, forbidden) {

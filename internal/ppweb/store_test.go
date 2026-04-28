@@ -2,6 +2,7 @@ package ppweb
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -51,5 +52,27 @@ func TestSaveConnectionPreservesTLSWhenUpdateOmitsIt(t *testing.T) {
 	}
 	if updated.TLS.CertFile != "/tmp/cert.pem" || updated.TLS.KeyFile != "/tmp/key.pem" {
 		t.Fatalf("unexpected preserved TLS config: %#v", updated.TLS)
+	}
+}
+
+func TestRemoveFallbackContentStoreDeletesConfiguredDB(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "fallback-blog.json")
+	if err := os.WriteFile(dbPath, []byte(`{"articles":[]}`), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	server := &Server{}
+	warning := server.removeFallbackContentStore(&Connection{
+		Protocol: "pp-fallback",
+		Tag:      "blog",
+		Settings: map[string]any{
+			"db_path": dbPath,
+		},
+	})
+	if warning != "" {
+		t.Fatalf("expected no warning, got %q", warning)
+	}
+	if _, err := os.Stat(dbPath); !os.IsNotExist(err) {
+		t.Fatalf("expected fallback db to be removed, stat err = %v", err)
 	}
 }
