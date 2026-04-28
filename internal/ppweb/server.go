@@ -583,10 +583,13 @@ func (s *Server) handleSetupHTTPS(w http.ResponseWriter, r *http.Request, _ *Adm
 		}
 
 		webrootDir := s.acmeChallengeDirectory(connection.Tag)
-		if err := os.MkdirAll(webrootDir, 0o750); err != nil {
+		if err := os.MkdirAll(webrootDir, 0o755); err != nil {
 			writeError(w, http.StatusInternalServerError, "failed to prepare ACME webroot: "+err.Error())
 			return
 		}
+		// Принудительно устанавливаем 755, чтобы Nginx (www-data) мог читать файлы
+		_ = os.Chmod(filepath.Dir(webrootDir), 0o755)
+		_ = os.Chmod(webrootDir, 0o755)
 
 		staged := *connection
 		staged.TLS = &config.TLSConfig{Enabled: true}
