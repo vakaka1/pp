@@ -286,8 +286,12 @@ function renderDashboard() {
                   <input name="grpc_path" value="${escapeHTML(formDefaults.settings.grpc_path)}" placeholder="/pp.v1.TunnelService/Connect">
                 </label>
                 <label>
-                  Publish interval (minutes)
-                  <input name="publish_interval_minutes" type="number" min="0" value="${escapeHTML(String(formDefaults.settings.publish_interval_minutes))}">
+                  Publish min delay (minutes)
+                  <input name="publish_min_delay_minutes" type="number" min="1" value="${escapeHTML(String(formDefaults.settings.publish_min_delay_minutes))}">
+                </label>
+                <label>
+                  Publish max delay (minutes)
+                  <input name="publish_max_delay_minutes" type="number" min="1" value="${escapeHTML(String(formDefaults.settings.publish_max_delay_minutes))}">
                 </label>
                 <label>
                   Publish batch size
@@ -518,7 +522,8 @@ async function submitConnectionForm(event) {
       psk: form.elements.psk.value.trim(),
       proxy_address: form.elements.proxy_address.value.trim(),
       scraper_keywords: splitList(form.elements.scraper_keywords.value),
-      publish_interval_minutes: parseNumber(form.elements.publish_interval_minutes.value, 60),
+      publish_min_delay_minutes: parseNumber(form.elements.publish_min_delay_minutes.value, 15),
+      publish_max_delay_minutes: parseNumber(form.elements.publish_max_delay_minutes.value, 75),
       publish_batch_size: parseNumber(form.elements.publish_batch_size.value, 3),
       invite_code: form.elements.invite_code.value.trim(),
       routing,
@@ -746,7 +751,8 @@ function buildConnectionDraft(connection) {
       psk: "",
       proxy_address: "",
       scraper_keywords: ["go", "linux", "devops"],
-      publish_interval_minutes: 60,
+      publish_min_delay_minutes: 15,
+      publish_max_delay_minutes: 75,
       publish_batch_size: 3,
       invite_code: "",
     },
@@ -758,6 +764,9 @@ function buildConnectionDraft(connection) {
   }
 
   const settings = connection.settings || {};
+  const legacyPublishInterval = settings.publish_interval_minutes ?? 60;
+  const publishMinDelay = settings.publish_min_delay_minutes ?? Math.max(5, Math.floor((legacyPublishInterval * 3) / 5));
+  const publishMaxDelay = settings.publish_max_delay_minutes ?? Math.max(publishMinDelay, Math.floor((legacyPublishInterval * 3) / 2));
   return {
     name: connection.name || defaults.name,
     tag: connection.tag || defaults.tag,
@@ -771,7 +780,8 @@ function buildConnectionDraft(connection) {
       psk: settings.psk || "",
       proxy_address: settings.proxy_address || "",
       scraper_keywords: Array.isArray(settings.scraper_keywords) ? settings.scraper_keywords : defaults.settings.scraper_keywords,
-      publish_interval_minutes: settings.publish_interval_minutes ?? defaults.settings.publish_interval_minutes,
+      publish_min_delay_minutes: publishMinDelay,
+      publish_max_delay_minutes: publishMaxDelay,
       publish_batch_size: settings.publish_batch_size ?? defaults.settings.publish_batch_size,
       invite_code: settings.invite_code || "",
     },

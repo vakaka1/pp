@@ -60,7 +60,9 @@ type FallbackSettings struct {
 	DBPath                 string           `json:"db_path,omitempty"`
 	RSSSources             []string         `json:"rss_sources,omitempty"`
 	ScraperKeywords        []string         `json:"scraper_keywords,omitempty"`
-	PublishIntervalMinutes int              `json:"publish_interval_minutes,omitempty"`
+	PublishIntervalMinutes int              `json:"publish_interval_minutes,omitempty"` // legacy fixed interval input
+	PublishMinDelayMinutes int              `json:"publish_min_delay_minutes,omitempty"`
+	PublishMaxDelayMinutes int              `json:"publish_max_delay_minutes,omitempty"`
 	PublishBatchSize       int              `json:"publish_batch_size,omitempty"`
 	InviteCode             string           `json:"invite_code,omitempty"`
 	Limits                 LimitsConfig     `json:"limits"`

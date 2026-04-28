@@ -72,8 +72,18 @@ func validateInboundsConfig(inbounds []InboundConfig) error {
 			if settings.PublishIntervalMinutes < 0 {
 				return fmt.Errorf("inbounds[%d].settings.publish_interval_minutes must be >= 0", i)
 			}
+			if settings.PublishMinDelayMinutes < 0 {
+				return fmt.Errorf("inbounds[%d].settings.publish_min_delay_minutes must be >= 0", i)
+			}
+			if settings.PublishMaxDelayMinutes < 0 {
+				return fmt.Errorf("inbounds[%d].settings.publish_max_delay_minutes must be >= 0", i)
+			}
 			if settings.PublishBatchSize < 0 {
 				return fmt.Errorf("inbounds[%d].settings.publish_batch_size must be >= 0", i)
+			}
+			minDelay, maxDelay := ResolveFallbackPublishWindow(&settings)
+			if minDelay <= 0 || maxDelay <= 0 {
+				return fmt.Errorf("inbounds[%d].settings publish window must resolve to positive values", i)
 			}
 			if settings.Routing != nil {
 				if err := validateRoutingConfig(settings.Routing.DefaultPolicy, settings.Routing.Rules, fmt.Sprintf("inbounds[%d].settings.routing", i)); err != nil {

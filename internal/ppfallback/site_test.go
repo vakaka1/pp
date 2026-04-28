@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/user/pp/internal/config"
 	"go.uber.org/zap"
 )
 
@@ -129,7 +130,12 @@ func TestContentLoaderPublishesKeywordArticles(t *testing.T) {
 		t.Fatalf("InitFallbackDB() error = %v", err)
 	}
 
-	loader := NewContentLoader(db, []string{"golang"}, 60, 2, zap.NewNop())
+	loader := NewContentLoader(db, config.FallbackSettings{
+		ScraperKeywords:        []string{"golang"},
+		PublishMinDelayMinutes: 15,
+		PublishMaxDelayMinutes: 30,
+		PublishBatchSize:       2,
+	}, zap.NewNop())
 	loader.sources = []string{"stub://habr"}
 	loader.fetchFeed = func(ctx context.Context, source string) ([]Item, error) {
 		return []Item{

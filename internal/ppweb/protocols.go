@@ -200,9 +200,8 @@ func (fallbackProtocol) Normalize(input ConnectionInput) (ConnectionInput, error
 	settings.ScraperKeywords = trimStringSlice(settings.ScraperKeywords)
 	settings.RSSSources = nil
 
-	if settings.PublishIntervalMinutes == 0 {
-		settings.PublishIntervalMinutes = 60
-	}
+	settings.PublishMinDelayMinutes, settings.PublishMaxDelayMinutes = ppconfig.ResolveFallbackPublishWindow(&settings)
+	settings.PublishIntervalMinutes = 0
 	if settings.PublishBatchSize == 0 {
 		settings.PublishBatchSize = 3
 	}

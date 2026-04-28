@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/user/pp/internal/config"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/user/pp/internal/config"
 )
 
 const sqliteDriverName = "sqlite3"
@@ -367,6 +367,17 @@ func (s *Store) GetConnection(ctx context.Context, id int64) (*Connection, error
 }
 
 func (s *Store) SaveConnection(ctx context.Context, id int64, input ConnectionInput) (*Connection, error) {
+	if id != 0 && input.TLS == nil {
+		existing, err := s.GetConnection(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if existing == nil {
+			return nil, fmt.Errorf("connection %d not found", id)
+		}
+		input.TLS = existing.TLS
+	}
+
 	settingsJSON, err := json.Marshal(input.Settings)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode connection settings: %w", err)

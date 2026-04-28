@@ -5,20 +5,20 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
+	mrand "math/rand"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
+	"github.com/user/pp/internal/config"
 	"go.uber.org/zap"
 	"golang.org/x/net/html"
 )
 
 const (
 	lazyFetchTimeout        = 12 * time.Second
-	defaultPublishInterval  = time.Hour
 	defaultPublishBatchSize = 3
 	contentPublisherTimeout = 45 * time.Second
 	defaultArticleFetchUA   = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
@@ -45,32 +45,33 @@ type ContentLoader struct {
 	sources          []string
 	log              *zap.Logger
 	client           *http.Client
-	publishInterval  time.Duration
+	rand             *mrand.Rand
+	publishMinDelay  time.Duration
+	publishMaxDelay  time.Duration
 	publishBatchSize int
 
 	mu           sync.Mutex
-	activitySeq  atomic.Uint64
-	activityCh   chan struct{}
-	processedSeq atomic.Uint64
 	fetchFeed    func(context.Context, string) ([]Item, error)
 	fetchArticle func(context.Context, string) (string, error)
 }
 
-func NewContentLoader(db *FallbackDB, keywords []string, intervalMinutes int, batchSize int, log *zap.Logger) *ContentLoader {
+func NewContentLoader(db *FallbackDB, settings config.FallbackSettings, log *zap.Logger) *ContentLoader {
 	if log == nil {
 		log = zap.NewNop()
 	}
 
+	minDelayMinutes, maxDelayMinutes := config.ResolveFallbackPublishWindow(&settings)
 	loader := &ContentLoader{
 		db:      db,
-		sources: buildKeywordRSSSources(keywords),
+		sources: buildKeywordRSSSources(settings.ScraperKeywords),
 		log:     log,
 		client: &http.Client{
 			Timeout: lazyFetchTimeout,
 		},
-		publishInterval:  resolvePublishInterval(intervalMinutes),
-		publishBatchSize: resolvePublishBatchSize(batchSize),
-		activityCh:       make(chan struct{}, 1),
+		rand:             mrand.New(mrand.NewSource(time.Now().UnixNano())),
+		publishMinDelay:  time.Duration(minDelayMinutes) * time.Minute,
+		publishMaxDelay:  time.Duration(maxDelayMinutes) * time.Minute,
+		publishBatchSize: resolvePublishBatchSize(settings.PublishBatchSize),
 	}
 	loader.fetchFeed = loader.fetchRSSFeed
 	loader.fetchArticle = loader.fetchArticleBody
@@ -104,60 +105,39 @@ func (l *ContentLoader) Run(ctx context.Context) {
 		return
 	}
 
-	var timer *time.Timer
-	var timerCh <-chan time.Time
-
-	resetTimer := func() {
-		if timer == nil {
-			timer = time.NewTimer(l.publishInterval)
-		} else {
-			if !timer.Stop() {
-				select {
-				case <-timer.C:
-				default:
-				}
-			}
-			timer.Reset(l.publishInterval)
-		}
-		timerCh = timer.C
-	}
-
-	stopTimer := func() {
-		if timer != nil && !timer.Stop() {
+	nextDelay := l.nextPublishDelay()
+	timer := time.NewTimer(nextDelay)
+	defer func() {
+		if !timer.Stop() {
 			select {
 			case <-timer.C:
 			default:
 			}
 		}
-		timerCh = nil
-	}
-	defer stopTimer()
+	}()
+
+	l.log.Info(
+		"fallback content publisher scheduled randomized publishing",
+		zap.Duration("next_in", nextDelay),
+		zap.Duration("min_delay", l.publishMinDelay),
+		zap.Duration("max_delay", l.publishMaxDelay),
+	)
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-l.activityCh:
-			if l.activitySeq.Load() != l.processedSeq.Load() && timerCh == nil {
-				resetTimer()
-			}
-		case <-timerCh:
-			l.publishCycle(ctx, "proxy-activity")
-			if l.activitySeq.Load() != l.processedSeq.Load() {
-				resetTimer()
-				continue
-			}
-			stopTimer()
+		case <-timer.C:
+			l.publishCycle(ctx, "scheduled-random")
+			timer.Reset(l.nextPublishDelay())
 		}
 	}
 }
 
 func (l *ContentLoader) MarkProxyActivity() {
-	l.activitySeq.Add(1)
-	select {
-	case l.activityCh <- struct{}{}:
-	default:
-	}
+	// Random publishing is scheduled independently, but proxy activity is still
+	// useful to correlate facade behavior with tunnel usage in debug logs.
+	l.log.Debug("fallback facade observed proxy activity")
 }
 
 func (l *ContentLoader) PublishBatch(ctx context.Context, limit int) (int, error) {
@@ -276,11 +256,6 @@ func (l *ContentLoader) fetchArticleBody(ctx context.Context, articleURL string)
 }
 
 func (l *ContentLoader) publishCycle(parent context.Context, reason string) {
-	currentSeq := l.activitySeq.Load()
-	if currentSeq == 0 || currentSeq == l.processedSeq.Load() {
-		return
-	}
-
 	ctx, cancel := context.WithTimeout(parent, contentPublisherTimeout)
 	defer cancel()
 
@@ -290,21 +265,12 @@ func (l *ContentLoader) publishCycle(parent context.Context, reason string) {
 		return
 	}
 
-	l.processedSeq.Store(currentSeq)
-
 	if published > 0 {
 		l.log.Info("fallback content publisher stored new articles", zap.String("reason", reason), zap.Int("count", published))
 		return
 	}
 
-	l.log.Debug("fallback content publisher found no new articles after proxy activity", zap.String("reason", reason))
-}
-
-func resolvePublishInterval(intervalMinutes int) time.Duration {
-	if intervalMinutes <= 0 {
-		return defaultPublishInterval
-	}
-	return time.Duration(intervalMinutes) * time.Minute
+	l.log.Debug("fallback content publisher found no new articles", zap.String("reason", reason))
 }
 
 func resolvePublishBatchSize(batchSize int) int {
@@ -312,6 +278,16 @@ func resolvePublishBatchSize(batchSize int) int {
 		return defaultPublishBatchSize
 	}
 	return batchSize
+}
+
+func (l *ContentLoader) nextPublishDelay() time.Duration {
+	if l.publishMinDelay <= 0 && l.publishMaxDelay <= 0 {
+		return time.Duration(config.DefaultFallbackPublishMinDelayMinutes) * time.Minute
+	}
+	if l.publishMaxDelay <= l.publishMinDelay {
+		return l.publishMinDelay
+	}
+	return l.publishMinDelay + time.Duration(l.rand.Int63n(int64(l.publishMaxDelay-l.publishMinDelay)+1))
 }
 
 func parsePubDate(raw string) time.Time {

@@ -2191,6 +2191,27 @@ function ConnectionEditor({ connection, protocols, onClose, onSaved, onNotice })
     default_policy: "proxy",
     rules: []
   };
+  const legacyPublishInterval = connection?.settings?.publish_interval_minutes ?? 60;
+  const derivedPublishMinDelay = connection?.settings?.publish_min_delay_minutes ?? Math.max(5, Math.floor((legacyPublishInterval * 3) / 5));
+  const derivedPublishMaxDelay =
+    connection?.settings?.publish_max_delay_minutes ?? Math.max(derivedPublishMinDelay, Math.floor((legacyPublishInterval * 3) / 2));
+  const initialSettings = connection?.settings
+    ? {
+        ...connection.settings,
+        publish_min_delay_minutes: derivedPublishMinDelay,
+        publish_max_delay_minutes: derivedPublishMaxDelay,
+        publish_batch_size: connection.settings.publish_batch_size ?? 3
+      }
+    : {
+        type: "blog",
+        domain: "",
+        scraper_keywords: [],
+        noise_private_key: "",
+        psk: "",
+        publish_min_delay_minutes: 15,
+        publish_max_delay_minutes: 75,
+        publish_batch_size: 3
+      };
 
   const [form, setForm] = useState({
     name: connection?.name || "",
@@ -2198,13 +2219,7 @@ function ConnectionEditor({ connection, protocols, onClose, onSaved, onNotice })
     protocol: connection?.protocol || protocols[0]?.id || "pp-fallback",
     port: connection?.listen?.split(":").pop() || "8081",
     tag: connection?.tag || "",
-    settings: connection?.settings || {
-      type: "blog",
-      domain: "",
-      scraper_keywords: [],
-      noise_private_key: "",
-      psk: ""
-    }
+    settings: initialSettings
   });
   const [routing, setRouting] = useState(connection?.settings?.routing ?? defaultRouting);
   const [showRouting, setShowRouting] = useState(false);
@@ -2237,11 +2252,14 @@ function ConnectionEditor({ connection, protocols, onClose, onSaved, onNotice })
     setSaving(true);
 
     const { port, ...formData } = form;
+    const settings = { ...formData.settings };
+    delete settings.publish_interval_minutes;
     const payload = {
       ...formData,
+      tls: connection?.tls ?? null,
       listen: `:${port}`,
       tag: formData.tag || `tag-${port}`,
-      settings: { ...formData.settings, routing }
+      settings: { ...settings, routing }
     };
 
     if (
@@ -2394,6 +2412,61 @@ function ConnectionEditor({ connection, protocols, onClose, onSaved, onNotice })
                       placeholder="Жизнь в лесу, новые технологии"
                     />
                     <p className="muted-caption">Запятая или Enter фиксируют тег. Статьи будут подбираться по этим тегам.</p>
+                  </div>
+
+                  <div className="input-group">
+                    <label>Мин. задержка публикации, мин</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={form.settings.publish_min_delay_minutes ?? 15}
+                      onChange={(event) =>
+                        setForm({
+                          ...form,
+                          settings: {
+                            ...form.settings,
+                            publish_min_delay_minutes: Number(event.target.value || 0)
+                          }
+                        })
+                      }
+                    />
+                    <p className="muted-caption">Новая статья появится не сразу, а после случайной паузы внутри заданного окна.</p>
+                  </div>
+
+                  <div className="input-group">
+                    <label>Макс. задержка публикации, мин</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={form.settings.publish_max_delay_minutes ?? 75}
+                      onChange={(event) =>
+                        setForm({
+                          ...form,
+                          settings: {
+                            ...form.settings,
+                            publish_max_delay_minutes: Number(event.target.value || 0)
+                          }
+                        })
+                      }
+                    />
+                  </div>
+
+                  <div className="input-group">
+                    <label>Пакет публикации</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={form.settings.publish_batch_size ?? 3}
+                      onChange={(event) =>
+                        setForm({
+                          ...form,
+                          settings: {
+                            ...form.settings,
+                            publish_batch_size: Number(event.target.value || 0)
+                          }
+                        })
+                      }
+                    />
                   </div>
                 </>
               ) : null}

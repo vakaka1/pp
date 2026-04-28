@@ -16,10 +16,10 @@ import (
 )
 
 type ConnectionPool struct {
-	cfg   *config.ClientConfig
-	log   *zap.Logger
-	mu    sync.Mutex
-	sess  *smux.Session
+	cfg  *config.ClientConfig
+	log  *zap.Logger
+	mu   sync.Mutex
+	sess *smux.Session
 }
 
 func NewConnectionPool(cfg *config.ClientConfig, log *zap.Logger) *ConnectionPool {
@@ -42,7 +42,8 @@ func (p *ConnectionPool) maintainConnection(ctx context.Context) {
 		default:
 		}
 
-		sess, err := ConnectToServer(p.cfg)
+		noiseRunner := newBrowserNoiseRunner(p.cfg, p.log)
+		sess, err := ConnectToServer(ctx, p.cfg, noiseRunner)
 		if err != nil {
 			p.log.Warn("failed to connect to server, retrying in 5s", zap.Error(err))
 			time.Sleep(5 * time.Second)
@@ -54,6 +55,9 @@ func (p *ConnectionPool) maintainConnection(ctx context.Context) {
 		p.mu.Unlock()
 		p.log.Info("connected to server successfully")
 
+		presenceCtx, presenceCancel := context.WithCancel(ctx)
+		go noiseRunner.RunPresenceLoop(presenceCtx)
+
 		closedCh := make(chan struct{})
 		go func() {
 			_, _ = sess.AcceptStream()
@@ -62,8 +66,10 @@ func (p *ConnectionPool) maintainConnection(ctx context.Context) {
 
 		select {
 		case <-closedCh:
+			presenceCancel()
 			p.log.Warn("session closed, reconnecting")
 		case <-ctx.Done():
+			presenceCancel()
 			sess.Close()
 			return
 		}
@@ -89,7 +95,7 @@ func (p *ConnectionPool) OpenStream(target string) (net.Conn, error) {
 
 	host, portStr, _ := net.SplitHostPort(target)
 	port, _ := strconv.Atoi(portStr)
-	
+
 	var hdr protocol.PPStreamHeader
 	hdr.Port = uint16(port)
 	if ip := net.ParseIP(host); ip != nil {

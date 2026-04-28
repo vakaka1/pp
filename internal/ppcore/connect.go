@@ -1,6 +1,7 @@
 package ppcore
 
 import (
+	"context"
 	crand "crypto/rand"
 	"encoding/hex"
 	"fmt"
@@ -31,7 +32,20 @@ func randomHex(n int) string {
 	return hex.EncodeToString(b)
 }
 
-func ConnectToServer(cfg *config.ClientConfig) (*smux.Session, error) {
+func ConnectToServer(ctx context.Context, cfg *config.ClientConfig, noise *browserNoiseRunner) (*smux.Session, error) {
+	if noise != nil {
+		browseCtx, cancel := context.WithTimeout(ctx, browserNoisePreconnectTimeout)
+		noise.runPreConnectScenario(browseCtx)
+		cancel()
+		noise.startLoginCover()
+	}
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+
 	conn, err := transport.DialTLS(cfg.Server.Address, cfg.Server.Domain, cfg.Server.TLSFingerprint, 10*time.Second)
 	if err != nil {
 		return nil, fmt.Errorf("tls dial failed: %w", err)
@@ -59,7 +73,7 @@ func ConnectToServer(cfg *config.ClientConfig) (*smux.Session, error) {
 	// Browser Emulation
 	fakePaths := []string{"/", "/assets/style.css", "/assets/app.js"}
 	streamID := uint32(1)
-	
+
 	for _, path := range fakePaths {
 		headers := []hpack.HeaderField{
 			{Name: ":method", Value: "GET"},
@@ -70,7 +84,7 @@ func ConnectToServer(cfg *config.ClientConfig) (*smux.Session, error) {
 			{Name: "accept", Value: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8"},
 		}
 		protocol.WriteHeaders(h2.Framer(), streamID, true, headers)
-		
+
 		// Simulate network and parsing delay
 		time.Sleep(time.Duration(50+mrand.Intn(100)) * time.Millisecond)
 		streamID += 2
@@ -116,7 +130,7 @@ func ConnectToServer(cfg *config.ClientConfig) (*smux.Session, error) {
 	}
 
 	noiseConn := protocol.NewNoiseConn(h2, sendCipher, recvCipher)
-	
+
 	var transportConn net.Conn = noiseConn
 	if cfg.Transport.ShaperEnabled {
 		transportConn = transport.NewShaper(noiseConn, cfg.Transport.JitterMaxMs)

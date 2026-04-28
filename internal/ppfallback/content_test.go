@@ -2,12 +2,14 @@ package ppfallback
 
 import (
 	"context"
+	mrand "math/rand"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/user/pp/internal/config"
 	"golang.org/x/net/html"
 )
 
@@ -46,13 +48,18 @@ func TestExtractArticleTextFromHTMLRemovesImages(t *testing.T) {
 	}
 }
 
-func TestContentLoaderPublishesOnlyAfterProxyActivity(t *testing.T) {
+func TestContentLoaderPublishesOnScheduledCycle(t *testing.T) {
 	db, err := InitFallbackDB("")
 	if err != nil {
 		t.Fatalf("InitFallbackDB() error = %v", err)
 	}
 
-	loader := NewContentLoader(db, []string{"golang"}, 60, 2, nil)
+	loader := NewContentLoader(db, config.FallbackSettings{
+		ScraperKeywords:        []string{"golang"},
+		PublishMinDelayMinutes: 15,
+		PublishMaxDelayMinutes: 30,
+		PublishBatchSize:       2,
+	}, nil)
 	loader.sources = []string{"stub://habr"}
 	loader.fetchFeed = func(ctx context.Context, source string) ([]Item, error) {
 		return []Item{
@@ -67,15 +74,25 @@ func TestContentLoaderPublishesOnlyAfterProxyActivity(t *testing.T) {
 		return "Полный текст статьи.", nil
 	}
 
-	loader.publishCycle(context.Background(), "test-without-activity")
-	if got := db.ArticleCount(); got != 0 {
-		t.Fatalf("expected no publications without proxy activity, got %d", got)
-	}
-
-	loader.MarkProxyActivity()
-	loader.publishCycle(context.Background(), "test-with-activity")
+	loader.publishCycle(context.Background(), "test-scheduled")
 	if got := db.ArticleCount(); got != 1 {
-		t.Fatalf("expected publication after proxy activity, got %d", got)
+		t.Fatalf("expected scheduled publication, got %d", got)
+	}
+}
+
+func TestContentLoaderNextPublishDelayUsesConfiguredWindow(t *testing.T) {
+	loader := NewContentLoader(nil, config.FallbackSettings{
+		ScraperKeywords:        []string{"golang"},
+		PublishMinDelayMinutes: 10,
+		PublishMaxDelayMinutes: 25,
+	}, nil)
+	loader.rand = mrand.New(mrand.NewSource(7))
+
+	for i := 0; i < 32; i++ {
+		delay := loader.nextPublishDelay()
+		if delay < 10*time.Minute || delay > 25*time.Minute {
+			t.Fatalf("delay %s is outside expected randomized window", delay)
+		}
 	}
 }
 

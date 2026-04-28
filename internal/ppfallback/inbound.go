@@ -20,12 +20,12 @@ import (
 )
 
 type Inbound struct {
-	tag             string
-	listen          string
-	tls             *config.TLSConfig
-	settings        config.FallbackSettings
-	log             *zap.Logger
-	jtiCache        *antireplay.JTICache
+	tag      string
+	listen   string
+	tls      *config.TLSConfig
+	settings config.FallbackSettings
+	log      *zap.Logger
+	jtiCache *antireplay.JTICache
 	// psks holds one or more decoded pre-shared keys accepted for JWT validation.
 	// Per-client PSKs are supported by populating this list with each client's PSK.
 	psks            [][]byte
@@ -98,7 +98,7 @@ func NewInbound(inb config.InboundConfig, log *zap.Logger, streamHandler func(*s
 
 	var contentLoader *ContentLoader
 	if fallbackType != "proxy" {
-		contentLoader = NewContentLoader(db, settings.ScraperKeywords, settings.PublishIntervalMinutes, settings.PublishBatchSize, inboundLog)
+		contentLoader = NewContentLoader(db, settings, inboundLog)
 	}
 
 	fallbackHandler, err := NewFallbackHandler(settings.Type, settings.ProxyAddress, settings.InviteCode, db)

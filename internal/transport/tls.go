@@ -11,6 +11,17 @@ import (
 
 // DialTLS creates a uTLS connection that mimics the specified browser fingerprint.
 func DialTLS(targetAddr string, serverName string, profile string, timeout time.Duration) (net.Conn, error) {
+	return DialTLSWithALPN(targetAddr, serverName, profile, timeout, []string{"h2", "http/1.1"})
+}
+
+// DialTLSHTTP1 creates a browser-fingerprinted TLS connection pinned to HTTP/1.1.
+func DialTLSHTTP1(targetAddr string, serverName string, profile string, timeout time.Duration) (net.Conn, error) {
+	return DialTLSWithALPN(targetAddr, serverName, profile, timeout, []string{"http/1.1"})
+}
+
+// DialTLSWithALPN creates a uTLS connection that mimics the specified browser fingerprint
+// and advertises the provided ALPN list.
+func DialTLSWithALPN(targetAddr string, serverName string, profile string, timeout time.Duration, nextProtos []string) (net.Conn, error) {
 	dialer := &net.Dialer{
 		Timeout: timeout,
 	}
@@ -22,7 +33,7 @@ func DialTLS(targetAddr string, serverName string, profile string, timeout time.
 	uTLSConfig := &utls.Config{
 		ServerName:         serverName,
 		InsecureSkipVerify: false, // ALWAYS false for security!
-		NextProtos:         []string{"h2", "http/1.1"},
+		NextProtos:         nextProtos,
 		MinVersion:         tls.VersionTLS12,
 		MaxVersion:         tls.VersionTLS13,
 	}
