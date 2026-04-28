@@ -9,6 +9,7 @@ import (
 	"time"
 
 	mrand "math/rand"
+	"go.uber.org/zap"
 )
 
 type recordedNoiseRequest struct {
@@ -78,6 +79,7 @@ func TestBrowserNoisePreConnectScenarioVisitsLandingArticleAndLogin(t *testing.T
 	runner := &browserNoiseRunner{
 		baseURL: "https://example.com",
 		doer:    doer,
+		log:     zap.NewNop(),
 		rand:    mrand.New(mrand.NewSource(1)),
 		sleep: func(delay time.Duration) {
 			sleeps = append(sleeps, delay)

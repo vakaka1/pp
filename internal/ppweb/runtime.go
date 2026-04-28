@@ -263,7 +263,7 @@ func (s *Server) buildNginxConfig(connection *Connection) (string, error) {
 	// так как SSL терминируется на стороне Nginx.
 
 	sb.WriteString("    location ^~ /.well-known/acme-challenge/ {\n")
-	sb.WriteString(fmt.Sprintf("        alias %s/;\n", s.acmeChallengeDirectory(connection.Tag)))
+	sb.WriteString(fmt.Sprintf("        root %s;\n", s.acmeChallengeDirectory(connection.Tag)))
 	sb.WriteString("        default_type text/plain;\n")
 	sb.WriteString("        try_files $uri =404;\n")
 	sb.WriteString("    }\n\n")
