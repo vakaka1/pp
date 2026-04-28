@@ -1091,6 +1091,7 @@ function ConnectionsPage({ onNotice }) {
       {editorOpen ? (
         <ConnectionEditor
           connection={editingConnection}
+          connections={connections}
           protocols={protocols}
           onClose={() => setEditorOpen(false)}
           onSaved={async (id, payload) => {
@@ -2186,11 +2187,18 @@ function TagInput({ value, onChange, placeholder }) {
   );
 }
 
-function ConnectionEditor({ connection, protocols, onClose, onSaved, onNotice }) {
+function ConnectionEditor({ connection, connections, protocols, onClose, onSaved, onNotice }) {
   const defaultRouting = {
     default_policy: "proxy",
     rules: []
   };
+  const defaultPort = (() => {
+    if (connection?.listen) return connection.listen.split(":").pop();
+    const used = new Set((connections || []).map(c => c.listen?.split(":").pop()));
+    let p = 8081;
+    while (used.has(p.toString())) p++;
+    return p.toString();
+  })();
   const legacyPublishInterval = connection?.settings?.publish_interval_minutes ?? 60;
   const derivedPublishMinDelay = connection?.settings?.publish_min_delay_minutes ?? Math.max(5, Math.floor((legacyPublishInterval * 3) / 5));
   const derivedPublishMaxDelay =
@@ -2258,7 +2266,7 @@ function ConnectionEditor({ connection, protocols, onClose, onSaved, onNotice })
       ...formData,
       tls: connection?.tls ?? null,
       listen: `:${port}`,
-      tag: formData.tag || `tag-${port}`,
+      tag: formData.tag || `tag-${port}-${Math.random().toString(36).substring(2, 8)}`,
       settings: { ...settings, routing }
     };
 
