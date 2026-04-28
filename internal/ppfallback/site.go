@@ -16,9 +16,20 @@ type FallbackHandler struct {
 	proxy      *httputil.ReverseProxy
 	inviteCode string
 	db         *FallbackDB
+	siteHints  FallbackSiteHints
 }
 
-func NewFallbackHandler(fallbackType, proxyAddress, inviteCode string, db *FallbackDB) (*FallbackHandler, error) {
+type FallbackSiteHints struct {
+	Domain   string
+	Keywords []string
+}
+
+func NewFallbackHandler(fallbackType, proxyAddress, inviteCode string, db *FallbackDB, hints ...FallbackSiteHints) (*FallbackHandler, error) {
+	siteHints := FallbackSiteHints{}
+	if len(hints) > 0 {
+		siteHints = normalizeFallbackSiteHints(hints[0])
+	}
+
 	if fallbackType == "" || fallbackType == "proxy" {
 		fallbackURL, err := url.Parse("http://" + proxyAddress)
 		if err != nil {
@@ -29,6 +40,7 @@ func NewFallbackHandler(fallbackType, proxyAddress, inviteCode string, db *Fallb
 			proxy:      httputil.NewSingleHostReverseProxy(fallbackURL),
 			inviteCode: inviteCode,
 			db:         db,
+			siteHints:  siteHints,
 		}, nil
 	}
 
@@ -41,7 +53,28 @@ func NewFallbackHandler(fallbackType, proxyAddress, inviteCode string, db *Fallb
 		siteType:   siteType,
 		inviteCode: inviteCode,
 		db:         db,
+		siteHints:  siteHints,
 	}, nil
+}
+
+func normalizeFallbackSiteHints(hints FallbackSiteHints) FallbackSiteHints {
+	out := FallbackSiteHints{
+		Domain: strings.TrimSpace(hints.Domain),
+	}
+	seen := make(map[string]struct{})
+	for _, keyword := range hints.Keywords {
+		keyword = strings.Join(strings.Fields(keyword), " ")
+		if keyword == "" {
+			continue
+		}
+		key := strings.ToLower(keyword)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out.Keywords = append(out.Keywords, keyword)
+	}
+	return out
 }
 
 func (h *FallbackHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -127,10 +160,10 @@ func (h *FallbackHandler) serveIndex(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 
 	if h.siteType == "forum" {
-		fmt.Fprint(w, forumIndexHTML(articles))
+		fmt.Fprint(w, forumIndexHTML(articles, h.siteHints))
 		return
 	}
-	fmt.Fprint(w, blogIndexHTML(articles))
+	fmt.Fprint(w, blogIndexHTML(articles, h.siteHints))
 }
 
 func (h *FallbackHandler) serveArticle(w http.ResponseWriter, r *http.Request, id int, prefix string) {
@@ -217,53 +250,58 @@ func commentPath(prefix string, id int) string {
 	return fmt.Sprintf("%s%d/comment", prefix, id)
 }
 
-func blogIndexHTML(articles []Article) string {
+func blogIndexHTML(articles []Article, hints FallbackSiteHints) string {
 	var b strings.Builder
+	profile := blogSiteProfile(articles, hints)
 	b.WriteString(`<!DOCTYPE html>
 <html lang="ru">
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>Статьи и заметки</title>
+	<title>` + html.EscapeString(profile.Title) + `</title>
 	<style>
-		:root { color-scheme: light; --bg:#f4efe7; --panel:rgba(255,251,245,.88); --panel-strong:#fffdf9; --ink:#1f2428; --muted:#666d6c; --line:rgba(103,78,54,.16); --accent:#96482a; --accent-strong:#78331b; --accent-soft:#f1dfd3; --shadow:0 24px 60px rgba(62,38,21,.08); }
+		:root { color-scheme: light; --paper:#f7f1e6; --panel:#fffaf1; --ink:#23201b; --muted:#746b5f; --line:rgba(68,54,39,.16); --accent:#9a4f2d; --accent-dark:#69341e; --accent-soft:#ead4c3; --green:#66765b; --shadow:0 24px 70px rgba(80,61,38,.10); }
 		* { box-sizing:border-box; }
-		body { margin:0; font-family:"Iowan Old Style","Palatino Linotype","Book Antiqua",Georgia,serif; color:var(--ink); background:radial-gradient(circle at top left, rgba(191,133,90,.18), transparent 28%), radial-gradient(circle at 88% 8%, rgba(157,114,73,.12), transparent 24%), linear-gradient(180deg,#eee3d4 0,#f7f3ec 32%,#f4efe7 100%); }
+		body { margin:0; font-family:"Literata","Iowan Old Style","Palatino Linotype",Georgia,serif; color:var(--ink); background:radial-gradient(circle at 14% 8%, rgba(154,79,45,.14), transparent 30%), radial-gradient(circle at 88% 0, rgba(102,118,91,.12), transparent 26%), linear-gradient(180deg,#efe5d5 0,#f7f1e6 36%,#f4ecde 100%); }
 		a { color:inherit; text-decoration:none; }
-		.shell { max-width:1180px; margin:0 auto; padding:24px 20px 72px; }
-		.topbar { display:flex; justify-content:space-between; align-items:flex-start; gap:18px; }
-		.brand .eyebrow { display:inline-block; margin-bottom:14px; font-size:12px; letter-spacing:.18em; text-transform:uppercase; color:#896f58; }
-		.brand h1 { margin:0; font-size:54px; line-height:1; letter-spacing:-.04em; }
-		.brand p { margin:12px 0 0; max-width:560px; color:var(--muted); font-size:18px; line-height:1.6; }
-		.actions { display:flex; gap:12px; flex-wrap:wrap; }
-		.button { display:inline-flex; align-items:center; justify-content:center; min-height:44px; padding:0 18px; border-radius:999px; font-size:15px; font-weight:700; transition:.2s ease; }
-		.button.solid { background:var(--accent); color:#fff8f3; box-shadow:0 14px 30px rgba(120,51,27,.18); }
-		.button.ghost { border:1px solid var(--line); background:rgba(255,251,245,.72); color:var(--ink); }
-		.hero { display:grid; grid-template-columns:minmax(0,1.35fr) 320px; gap:18px; margin:26px 0 24px; }
-		.hero-main, .side-card, .story-card { background:var(--panel); border:1px solid var(--line); border-radius:28px; box-shadow:var(--shadow); }
-		.hero-main { position:relative; overflow:hidden; padding:34px; }
-		.hero-main::after { content:""; position:absolute; inset:auto -110px -110px auto; width:280px; height:280px; border-radius:50%; background:radial-gradient(circle, rgba(150,72,42,.14), transparent 70%); }
-		.hero-kicker, .story-kicker { display:flex; gap:12px; flex-wrap:wrap; align-items:center; font-size:14px; color:var(--muted); }
-		.tag { display:inline-flex; align-items:center; min-height:28px; padding:0 12px; border-radius:999px; background:var(--accent-soft); color:var(--accent-strong); font-size:12px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; }
-		.hero h2 { margin:18px 0 14px; font-size:40px; line-height:1.05; letter-spacing:-.04em; max-width:720px; }
-		.hero p { margin:0; max-width:680px; color:#353a3d; font-size:18px; line-height:1.8; }
-		.hero-actions { display:flex; gap:12px; flex-wrap:wrap; margin-top:24px; }
-		.sidebar-stack, .sidebar { display:grid; gap:18px; align-content:start; }
-		.side-card { padding:24px; }
-		.side-card h3 { margin:0 0 12px; font-size:21px; }
-		.side-card p { margin:0; color:var(--muted); line-height:1.7; }
+		.page { max-width:1160px; margin:0 auto; padding:26px 20px 76px; }
+		.masthead { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:24px; align-items:end; padding-bottom:22px; border-bottom:1px solid var(--line); }
+		.brand-word { display:inline-block; font-size:72px; line-height:.86; letter-spacing:-.075em; font-weight:800; }
+		.brand-word::after { content:""; display:block; width:84px; height:7px; margin-top:14px; border-radius:999px; background:linear-gradient(90deg,var(--accent),rgba(154,79,45,.18)); }
+		.masthead p { margin:18px 0 0; max-width:650px; color:#5f554b; font-size:18px; line-height:1.65; }
+		.nav { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+		.nav a, .button { display:inline-flex; align-items:center; justify-content:center; min-height:40px; padding:0 15px; border-radius:999px; border:1px solid var(--line); background:rgba(255,250,241,.66); color:#3c352e; font-size:14px; font-weight:700; }
+		.button.solid { border-color:transparent; background:var(--accent); color:#fff8f1; box-shadow:0 13px 28px rgba(105,52,30,.18); }
+		.front-grid { display:grid; grid-template-columns:minmax(0,1fr) 310px; gap:20px; margin-top:26px; align-items:start; }
+		.feature, .side-card, .post-row { background:rgba(255,250,241,.88); border:1px solid var(--line); box-shadow:var(--shadow); }
+		.feature { position:relative; overflow:hidden; min-height:430px; padding:42px; border-radius:34px; display:flex; flex-direction:column; justify-content:space-between; }
+		.feature::before { content:""; position:absolute; inset:22px 22px auto auto; width:116px; height:116px; border:1px solid rgba(154,79,45,.18); border-radius:50%; background:radial-gradient(circle, rgba(154,79,45,.12), transparent 66%); }
+		.feature.empty { min-height:360px; }
+		.meta { display:flex; gap:10px; flex-wrap:wrap; align-items:center; color:var(--muted); font-size:14px; }
+		.tag { display:inline-flex; align-items:center; min-height:27px; padding:0 11px; border-radius:999px; background:var(--accent-soft); color:var(--accent-dark); font-size:12px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; }
+		.feature h1 { position:relative; max-width:760px; margin:26px 0 18px; font-size:52px; line-height:1; letter-spacing:-.055em; }
+		.feature p { position:relative; max-width:720px; margin:0; color:#373029; font-size:19px; line-height:1.82; }
+		.feature-foot { display:flex; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-top:34px; padding-top:18px; border-top:1px solid rgba(68,54,39,.13); color:var(--muted); font-size:14px; }
+		.side-stack, .sidebar { display:grid; gap:18px; align-content:start; }
+		.side-card { padding:24px; border-radius:28px; }
+		.side-card.profile { background:linear-gradient(180deg,#fffaf1,#f2e3d0); }
+		.side-card h3 { margin:0 0 12px; font-size:22px; line-height:1.1; letter-spacing:-.025em; }
+		.side-card p { margin:0; color:var(--muted); line-height:1.72; }
+		.profile-sign { margin-top:16px; color:var(--accent-dark); font-weight:800; }
 		.info-line { display:flex; gap:10px; flex-wrap:wrap; margin-top:16px; color:var(--muted); font-size:14px; }
 		.chips { display:flex; gap:10px; flex-wrap:wrap; }
-		.chips span { display:inline-flex; align-items:center; min-height:32px; padding:0 12px; border:1px solid var(--line); border-radius:999px; color:#574a41; background:rgba(255,255,255,.6); font-size:14px; }
-		.layout { display:grid; grid-template-columns:minmax(0,1fr) 320px; gap:18px; }
-		.feed { display:grid; gap:18px; }
-		.story-card { padding:24px 26px; }
-		.story-card h2 { margin:14px 0 12px; font-size:31px; line-height:1.12; letter-spacing:-.03em; }
-		.story-card p { margin:0; color:#3d4347; line-height:1.8; }
-		.story-bottom { display:flex; justify-content:space-between; align-items:center; gap:14px; margin-top:18px; color:var(--muted); font-size:14px; }
-		.story-bottom a { color:var(--accent); font-weight:700; }
-		.story-empty { display:grid; place-items:center; min-height:220px; text-align:center; }
-		.story-empty h2 { margin:0 0 12px; }
+		.chips span { display:inline-flex; align-items:center; min-height:32px; padding:0 12px; border:1px solid var(--line); border-radius:999px; color:#4f473f; background:rgba(255,255,255,.58); font-size:14px; }
+		.archive { margin-top:22px; }
+		.archive-head { display:flex; justify-content:space-between; gap:14px; align-items:end; margin:0 0 14px; padding:0 4px; }
+		.archive-head h2 { margin:0; font-size:28px; letter-spacing:-.035em; }
+		.archive-head span { color:var(--muted); font-size:14px; }
+		.feed { display:grid; gap:14px; }
+		.post-row { display:grid; grid-template-columns:128px minmax(0,1fr); gap:22px; padding:24px 26px; border-radius:26px; }
+		.post-date { color:var(--green); font-weight:800; line-height:1.35; }
+		.post-row h2 { margin:9px 0 10px; font-size:30px; line-height:1.12; letter-spacing:-.035em; }
+		.post-row p { margin:0; color:#453d35; line-height:1.78; }
+		.read-more { display:inline-flex; margin-top:16px; color:var(--accent-dark); font-weight:800; }
+		.empty-note { padding:26px; border-radius:26px; border:1px dashed rgba(68,54,39,.22); color:var(--muted); background:rgba(255,250,241,.55); line-height:1.7; }
 		.mini-list { list-style:none; padding:0; margin:0; display:grid; gap:12px; }
 		.mini-list li { padding-bottom:12px; border-bottom:1px solid rgba(103,78,54,.10); }
 		.mini-list li:last-child { padding-bottom:0; border-bottom:none; }
@@ -271,150 +309,134 @@ func blogIndexHTML(articles []Article) string {
 		.mini-list span { display:block; margin-top:4px; color:var(--muted); font-size:14px; }
 		.text-link { color:var(--accent); font-weight:700; }
 		@media (max-width: 980px) {
-			.hero, .layout { grid-template-columns:1fr; }
-			.topbar { flex-direction:column; }
-			.hero h2 { font-size:34px; }
+			.masthead, .front-grid { grid-template-columns:1fr; }
+			.nav { justify-content:flex-start; }
+			.feature h1 { font-size:42px; }
 		}
 		@media (max-width: 640px) {
-			.shell { padding:20px 16px 54px; }
-			.brand h1 { font-size:42px; }
-			.hero-main, .side-card, .story-card { border-radius:24px; }
-			.hero-main { padding:26px; }
-			.story-card { padding:22px; }
-			.story-card h2 { font-size:26px; }
+			.page { padding:20px 16px 54px; }
+			.brand-word { font-size:50px; }
+			.feature, .side-card, .post-row { border-radius:24px; }
+			.feature { min-height:0; padding:28px; }
+			.feature h1 { font-size:34px; }
+			.post-row { grid-template-columns:1fr; padding:22px; }
+			.post-row h2 { font-size:25px; }
 		}
 	</style>
 </head>
 <body>
-	<div class="shell">
-		<header class="topbar">
-			<div class="brand">
-				<span class="eyebrow">Блог</span>
-				<h1><a href="/">Статьи и заметки</a></h1>
-				<p>Свежие публикации, длинные тексты, обзоры и аккуратно собранный архив материалов.</p>
+	<div class="page">
+		<header class="masthead">
+			<div>
+				<a class="brand-word" href="/">` + html.EscapeString(profile.Title) + `</a>
+				<p>` + html.EscapeString(profile.Subtitle) + `</p>
 			</div>
-			<div class="actions">
-				<a class="button ghost" href="/login">Войти</a>
+			<nav class="nav" aria-label="Навигация">
+				<a href="/">Лента</a>
+				<a href="#archive">Архив</a>
+				<a href="/login">Войти</a>
 				<a class="button solid" href="/register">Регистрация</a>
-			</div>
+			</nav>
 		</header>
 
-		<section class="hero">`)
+		<section class="front-grid">`)
 
 	if len(articles) == 0 {
-		b.WriteString(`<article class="hero-main">
-				<div class="hero-kicker">
-					<span class="tag">Новые публикации</span>
-					<span>Лента обновляется</span>
+		b.WriteString(`<article class="feature empty">
+				<div>
+					<div class="meta">
+						<span class="tag">Черновики</span>
+						<span>скоро</span>
+					</div>
+					<h1>Здесь пока тихо</h1>
+					<p>Первые записи ещё готовятся. Когда в ленте появятся материалы, здесь будет главная публикация и аккуратный архив.</p>
 				</div>
-				<h2>Новые материалы готовятся к публикации</h2>
-				<p>Здесь будут появляться новые тексты, разборы, заметки и подборки без лишнего визуального шума.</p>
-				<div class="hero-actions">
-					<a class="button solid" href="/login">Войти</a>
+				<div class="feature-foot">
+					<span>новая лента</span>
+					<span>архив готовится</span>
 				</div>
 			</article>
-			<div class="sidebar-stack">
-				<section class="side-card">
-					<h3>Рубрики</h3>
-					<div class="chips">
-						<span>Заметки</span>
-						<span>Разборы</span>
-						<span>Материалы</span>
-					</div>
-				</section>
-			</div>`)
+			<aside class="side-stack">`)
+		b.WriteString(blogSidebarHTML(articles, hints))
+		b.WriteString(`</aside>`)
 	} else {
 		featured := articles[0]
-		fmt.Fprintf(&b, `<article class="hero-main">
-				<div class="hero-kicker">
-					<span class="tag">%s</span>
-					<span>%s</span>
-					<span>%s</span>
-				</div>
-				<h2><a href="/article/%d">%s</a></h2>
-				<p>%s</p>
-				<div class="hero-actions">
-					<a class="button solid" href="/article/%d">Читать материал</a>
-					<a class="button ghost" href="/login">Обсудить</a>
-				</div>
-			</article>
-			<div class="sidebar-stack">
-				<section class="side-card">
-					<h3>Материал дня</h3>
-					<p>%s</p>
-					<div class="info-line">
+		fmt.Fprintf(&b, `<article class="feature">
+				<div>
+					<div class="meta">
+						<span class="tag">%s</span>
 						<span>%s</span>
 						<span>%s</span>
 					</div>
-				</section>
-				<section class="side-card">
-					<h3>Рубрики</h3>
-					<div class="chips">%s</div>
-				</section>
-			</div>`,
+					<h1><a href="/article/%d">%s</a></h1>
+					<p>%s</p>
+				</div>
+				<div class="feature-foot">
+					<span>%s</span>
+					<span>%s</span>
+					<a class="read-more" href="/article/%d">читать дальше</a>
+				</div>
+			</article>
+			<aside class="side-stack">`,
 			html.EscapeString(articleCategory(featured)),
 			html.EscapeString(formatDate(featured.CreatedAt)),
 			html.EscapeString(articleReadingTimeLabel(featured.Content)),
 			featured.ID,
 			html.EscapeString(featured.Title),
 			safeSnippet(featured.Content, 360),
-			featured.ID,
-			html.EscapeString(articleSourceLabel(featured.Link)),
+			html.EscapeString(blogEntryLabel(featured)),
 			html.EscapeString(formatDateTime(featured.CreatedAt)),
-			html.EscapeString(articleReadingTimeLabel(featured.Content)),
-			blogSectionChipsHTML(articles, 5))
+			featured.ID)
+		b.WriteString(blogSidebarHTML(articles, hints))
+		b.WriteString(`</aside>`)
 	}
 
 	b.WriteString(`</section>
 
-		<main class="layout">
-			<section class="feed">`)
+		<section class="archive" id="archive">
+			<div class="archive-head">
+				<h2>Последние записи</h2>
+				<span>`)
+	b.WriteString(html.EscapeString(articleCountLabel(len(articles))))
+	b.WriteString(`</span>
+			</div>
+			<div class="feed">`)
 
 	if len(articles) <= 1 {
-		b.WriteString(`<article class="story-card story-empty">
-				<div>
-					<h2>Архив пополняется</h2>
-					<p>На этой странице будут собираться заметки, разборы и новые материалы без лишнего визуального шума.</p>
-				</div>
-			</article>`)
+		b.WriteString(`<div class="empty-note">Новые записи появятся здесь по мере публикации. Архив пополняется постепенно и без отдельного расписания.</div>`)
 	} else {
 		for _, a := range articles[1:] {
-			fmt.Fprintf(&b, `<article class="story-card">
-					<div class="story-kicker">
-						<span class="tag">%s</span>
-						<span>%s</span>
-						<span>%s</span>
-					</div>
-					<h2><a href="/article/%d">%s</a></h2>
-					<p>%s</p>
-					<div class="story-bottom">
-						<span>%s</span>
-						<a href="/article/%d">Открыть</a>
+			fmt.Fprintf(&b, `<article class="post-row">
+					<div class="post-date">%s</div>
+					<div>
+						<div class="meta">
+							<span class="tag">%s</span>
+							<span>%s</span>
+						</div>
+						<h2><a href="/article/%d">%s</a></h2>
+						<p>%s</p>
+						<a class="read-more" href="/article/%d">читать дальше</a>
 					</div>
 				</article>`,
-				html.EscapeString(articleCategory(a)),
 				html.EscapeString(formatDate(a.CreatedAt)),
+				html.EscapeString(articleCategory(a)),
 				html.EscapeString(articleReadingTimeLabel(a.Content)),
 				a.ID,
 				html.EscapeString(a.Title),
-				safeSnippet(a.Content, 220),
-				html.EscapeString(articleSourceLabel(a.Link)),
+				safeSnippet(a.Content, 230),
 				a.ID)
 		}
 	}
 
-	b.WriteString(`</section>
-			<aside class="sidebar">`)
-	b.WriteString(blogSidebarHTML(articles))
-	b.WriteString(`</aside>
-		</main>
+	b.WriteString(`</div>
+		</section>
 	</div>
 </body>
 </html>`)
 	return b.String()
 }
 
-func forumIndexHTML(articles []Article) string {
+func forumIndexHTML(articles []Article, hints FallbackSiteHints) string {
 	var b strings.Builder
 	b.WriteString(`<!DOCTYPE html>
 <html lang="ru">
@@ -490,7 +512,7 @@ func forumIndexHTML(articles []Article) string {
 			<div class="brand">
 				<small>Форум</small>
 				<h1><a href="/">Форум обсуждений</a></h1>
-				<p>Открытая лента тем, вопросов, заметок и рабочих обсуждений без перегруженного оформления.</p>
+				<p>` + html.EscapeString(forumSubtitle(articles, hints)) + `</p>
 			</div>
 			<div class="actions">
 				<a class="button ghost" href="/login">Войти</a>
@@ -507,7 +529,7 @@ func forumIndexHTML(articles []Article) string {
 				</div>`)
 
 	if len(articles) == 0 {
-		b.WriteString(`<div class="empty">Список тем пополнится после очередного обновления. Здесь останутся только содержательные обсуждения без лишнего шума.</div>`)
+		b.WriteString(`<div class="empty">Список тем пока пуст. Первые обсуждения появятся после публикации новых заметок.</div>`)
 	} else {
 		for _, a := range articles {
 			fmt.Fprintf(&b, `<div class="board-row">
@@ -528,7 +550,7 @@ func forumIndexHTML(articles []Article) string {
 				</div>`,
 				html.EscapeString(articleInitial(a)),
 				html.EscapeString(articleCategory(a)),
-				html.EscapeString(articleSourceLabel(a.Link)),
+				html.EscapeString(articleReadingTimeLabel(a.Content)),
 				a.ID,
 				html.EscapeString(a.Title),
 				safeSnippet(a.Content, 150),
@@ -541,7 +563,7 @@ func forumIndexHTML(articles []Article) string {
 
 	b.WriteString(`</section>
 			<aside class="sidebar">`)
-	b.WriteString(forumSidebarHTML(articles))
+	b.WriteString(forumSidebarHTML(articles, hints))
 	b.WriteString(`</aside>
 		</div>
 	</div>
@@ -559,59 +581,59 @@ func blogArticleHTML(article *Article, commentURL string) string {
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>` + html.EscapeString(article.Title) + `</title>
 	<style>
-		:root { color-scheme: light; --bg:#f4efe7; --panel:rgba(255,251,245,.92); --ink:#1f2428; --muted:#666d6c; --line:rgba(103,78,54,.16); --accent:#96482a; --accent-strong:#78331b; --accent-soft:#f1dfd3; --shadow:0 24px 60px rgba(62,38,21,.08); }
+		:root { color-scheme: light; --paper:#f7f1e6; --panel:#fffaf1; --ink:#23201b; --muted:#746b5f; --line:rgba(68,54,39,.16); --accent:#9a4f2d; --accent-dark:#69341e; --accent-soft:#ead4c3; --green:#66765b; --shadow:0 24px 70px rgba(80,61,38,.10); }
 		* { box-sizing:border-box; }
-		body { margin:0; font-family:"Iowan Old Style","Palatino Linotype","Book Antiqua",Georgia,serif; color:var(--ink); background:radial-gradient(circle at top left, rgba(191,133,90,.18), transparent 28%), linear-gradient(180deg,#eee3d4 0,#f7f3ec 32%,#f4efe7 100%); }
+		body { margin:0; font-family:"Literata","Iowan Old Style","Palatino Linotype",Georgia,serif; color:var(--ink); background:radial-gradient(circle at 14% 8%, rgba(154,79,45,.14), transparent 30%), radial-gradient(circle at 88% 0, rgba(102,118,91,.12), transparent 26%), linear-gradient(180deg,#efe5d5 0,#f7f1e6 36%,#f4ecde 100%); }
 		a { color:inherit; text-decoration:none; }
-		.shell { max-width:1180px; margin:0 auto; padding:24px 20px 72px; }
-		.topbar { display:flex; justify-content:space-between; align-items:flex-start; gap:18px; margin-bottom:24px; }
-		.back { color:#7b634d; font-size:14px; letter-spacing:.04em; text-transform:uppercase; }
-		.actions { display:flex; gap:12px; flex-wrap:wrap; }
-		.button { display:inline-flex; align-items:center; justify-content:center; min-height:44px; padding:0 18px; border-radius:999px; font-size:15px; font-weight:700; }
-		.button.solid { background:var(--accent); color:#fff8f3; box-shadow:0 14px 30px rgba(120,51,27,.18); }
-		.button.ghost { border:1px solid var(--line); background:rgba(255,251,245,.72); }
-		.header, .article-card, .side-card { background:var(--panel); border:1px solid var(--line); border-radius:28px; box-shadow:var(--shadow); }
-		.header { padding:32px; }
-		.kicker { display:flex; gap:12px; flex-wrap:wrap; align-items:center; color:var(--muted); font-size:14px; }
-		.tag { display:inline-flex; align-items:center; min-height:28px; padding:0 12px; border-radius:999px; background:var(--accent-soft); color:var(--accent-strong); font-size:12px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; }
-		.header h1 { margin:18px 0 14px; font-size:46px; line-height:1.05; letter-spacing:-.04em; max-width:760px; }
-		.lead { margin:0; max-width:760px; color:#393f44; font-size:19px; line-height:1.8; }
-		.layout { display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:18px; margin-top:18px; }
-		.article-card { padding:32px; }
-		.article-body { font-size:19px; line-height:1.85; color:#252b30; }
-		.article-body p { margin:0 0 1.25em; }
+		.page { max-width:1120px; margin:0 auto; padding:24px 20px 76px; }
+		.article-nav { display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; align-items:center; padding-bottom:18px; border-bottom:1px solid var(--line); color:#5a5047; font-size:14px; font-weight:800; }
+		.nav-links { display:flex; gap:8px; flex-wrap:wrap; }
+		.nav-links a { display:inline-flex; align-items:center; min-height:38px; padding:0 14px; border:1px solid var(--line); border-radius:999px; background:rgba(255,250,241,.66); }
+		.hero, .prose, .side-card { background:rgba(255,250,241,.90); border:1px solid var(--line); border-radius:30px; box-shadow:var(--shadow); }
+		.hero { position:relative; overflow:hidden; margin-top:24px; padding:42px; }
+		.hero::after { content:""; position:absolute; right:26px; top:26px; width:118px; height:118px; border:1px solid rgba(154,79,45,.16); border-radius:50%; background:radial-gradient(circle, rgba(154,79,45,.11), transparent 66%); }
+		.kicker { position:relative; display:flex; gap:10px; flex-wrap:wrap; align-items:center; color:var(--muted); font-size:14px; }
+		.tag { display:inline-flex; align-items:center; min-height:27px; padding:0 11px; border-radius:999px; background:var(--accent-soft); color:var(--accent-dark); font-size:12px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; }
+		.hero h1 { position:relative; max-width:820px; margin:24px 0 16px; font-size:56px; line-height:.98; letter-spacing:-.058em; }
+		.lead { position:relative; max-width:760px; margin:0; color:#3b342d; font-size:20px; line-height:1.78; }
+		.byline { display:flex; gap:12px; flex-wrap:wrap; margin-top:30px; padding-top:18px; border-top:1px solid rgba(68,54,39,.13); color:var(--muted); font-size:14px; }
+		.article-layout { display:grid; grid-template-columns:minmax(0,760px) 300px; gap:20px; align-items:start; margin-top:20px; }
+		.prose { padding:42px; }
+		.article-body { font-size:20px; line-height:1.9; color:#2e2923; }
+		.article-body p { margin:0 0 1.35em; }
+		.article-body p:first-child::first-letter { float:left; margin:.1em .12em 0 0; font-size:4.1em; line-height:.74; color:var(--accent-dark); font-weight:800; }
 		.article-body p:last-child { margin-bottom:0; }
 		.sidebar { display:grid; gap:18px; align-content:start; }
 		.side-card { padding:24px; }
-		.side-card h2 { margin:0 0 12px; font-size:21px; }
+		.side-card h2 { margin:0 0 12px; font-size:22px; line-height:1.1; letter-spacing:-.025em; }
 		.side-card p { margin:0; color:var(--muted); line-height:1.7; }
-		.meta-line { display:grid; gap:8px; color:var(--muted); font-size:14px; margin-top:16px; }
-		.text-link { color:var(--accent); font-weight:700; }
+		.note-line { display:grid; gap:8px; color:var(--muted); font-size:14px; margin-top:16px; }
+		.text-link { color:var(--accent-dark); font-weight:800; }
 		@media (max-width: 980px) {
-			.layout { grid-template-columns:1fr; }
-			.topbar { flex-direction:column; }
-			.header h1 { font-size:38px; }
+			.article-layout { grid-template-columns:1fr; }
+			.hero h1 { font-size:42px; }
 		}
 		@media (max-width: 640px) {
-			.shell { padding:20px 16px 54px; }
-			.header, .article-card, .side-card { border-radius:24px; }
-			.header, .article-card { padding:24px; }
-			.header h1 { font-size:32px; }
+			.page { padding:20px 16px 54px; }
+			.hero, .prose, .side-card { border-radius:24px; }
+			.hero, .prose { padding:26px; }
+			.hero h1 { font-size:34px; }
 			.article-body { font-size:18px; }
+			.article-body p:first-child::first-letter { float:none; margin:0; font-size:inherit; line-height:inherit; color:inherit; font-weight:inherit; }
 		}
 	</style>
 </head>
 <body>
-	<div class="shell">
-		<div class="topbar">
-			<a class="back" href="/">← На главную</a>
-			<div class="actions">
-				<a class="button ghost" href="/login">Войти</a>
-				<a class="button solid" href="/register">Регистрация</a>
+	<div class="page">
+		<nav class="article-nav" aria-label="Навигация">
+			<a href="/">← на главную</a>
+			<div class="nav-links">
+				<a href="/">лента</a>
+				<a href="/login">войти</a>
 			</div>
-		</div>
+		</nav>
 
-		<header class="header">
+		<header class="hero">
 			<div class="kicker">
 				<span class="tag">` + html.EscapeString(articleCategory(*article)) + `</span>
 				<span>` + html.EscapeString(formatDate(article.CreatedAt)) + `</span>
@@ -619,31 +641,30 @@ func blogArticleHTML(article *Article, commentURL string) string {
 			</div>
 			<h1>` + html.EscapeString(article.Title) + `</h1>
 			<p class="lead">` + articleLeadSnippet(article.Content, 280) + `</p>
+			<div class="byline">
+				<span>` + html.EscapeString(blogEntryLabel(*article)) + `</span>
+				<span>` + html.EscapeString(formatDateTime(article.CreatedAt)) + `</span>
+			</div>
 		</header>
 
-		<div class="layout">
-			<article class="article-card">
+		<div class="article-layout">
+			<article class="prose">
 				<div class="article-body">` + safeHTML(article.Content) + `</div>
 			</article>
 			<aside class="sidebar">
 				<section class="side-card">
-					<h2>Публикация</h2>
-					<p>Материал оформлен для спокойного чтения без лишних декоративных элементов.</p>
-					<div class="meta-line">
+					<h2>В блокноте</h2>
+					<p>` + html.EscapeString(articleNotebookLine(*article)) + `</p>
+					<div class="note-line">
 						<span>Раздел: ` + html.EscapeString(articleCategory(*article)) + `</span>
-						<span>Источник: ` + html.EscapeString(articleSourceLabel(article.Link)) + `</span>
 						<span>Опубликовано: ` + html.EscapeString(formatDateTime(article.CreatedAt)) + `</span>
 					</div>
 				</section>
 				<section class="side-card">
 					<h2>Обсуждение</h2>
-					<p>Чтобы участвовать в обсуждении, войдите в аккаунт.</p>
-					<div class="meta-line">
+					<p>Комментарии открыты для зарегистрированных читателей. Ответы остаются рядом с записью и не смешиваются с общей лентой.</p>
+					<div class="note-line">
 						<a class="text-link" href="` + html.EscapeString(commentURL) + `">Перейти к обсуждению</a>`)
-
-	if article.Link != "" {
-		b.WriteString(`<a class="text-link" href="` + html.EscapeString(article.Link) + `" target="_blank" rel="noreferrer">Открыть источник</a>`)
-	}
 
 	b.WriteString(`</div>
 				</section>
@@ -726,7 +747,7 @@ func forumThreadHTML(article *Article, commentURL string) string {
 				<div class="post-top">
 					<span class="badge">` + html.EscapeString(articleCategory(*article)) + `</span>
 					<span>` + html.EscapeString(formatDate(article.CreatedAt)) + `</span>
-					<span>` + html.EscapeString(articleSourceLabel(article.Link)) + `</span>
+					<span>` + html.EscapeString(articleReadingTimeLabel(article.Content)) + `</span>
 				</div>
 				<h1>` + html.EscapeString(article.Title) + `</h1>
 				<div class="post-meta">` + html.EscapeString(forumAuthorName(article.ID)) + ` · ` + html.EscapeString(formatDateTime(forumLastActivity(*article))) + ` · ` + fmt.Sprintf("%d ответов", forumReplyCount(*article)) + `</div>
@@ -738,10 +759,6 @@ func forumThreadHTML(article *Article, commentURL string) string {
 					<p>Чтобы написать сообщение в этой теме, войдите в аккаунт.</p>
 					<div class="meta-list">
 						<a class="text-link" href="` + html.EscapeString(commentURL) + `">Написать ответ</a>`)
-
-	if article.Link != "" {
-		b.WriteString(`<a class="text-link" href="` + html.EscapeString(article.Link) + `" target="_blank" rel="noreferrer">Открыть источник</a>`)
-	}
 
 	b.WriteString(`</div>
 				</section>
@@ -921,6 +938,123 @@ func articleReadingTimeLabel(content string) string {
 	return fmt.Sprintf("%d мин", minutes)
 }
 
+type blogProfile struct {
+	Title    string
+	Subtitle string
+}
+
+func blogSiteProfile(articles []Article, hints FallbackSiteHints) blogProfile {
+	titles := []string{
+		"На полях",
+		"Записано рядом",
+		"Тихая лента",
+		"Между делом",
+		"Поля и страницы",
+		"Наблюдения",
+	}
+
+	title := titles[blogContentSignature(articles, hints)%len(titles)]
+	topics := blogVisibleTopics(articles, hints, 3)
+	if len(topics) == 0 {
+		return blogProfile{
+			Title:    title,
+			Subtitle: "Небольшой журнал для заметок, длинных записей и материалов, которые удобно держать в одном месте.",
+		}
+	}
+
+	return blogProfile{
+		Title:    title,
+		Subtitle: "В ленте лежат заметки, наблюдения и длинные записи по темам: " + strings.ToLower(strings.Join(topics, ", ")) + ".",
+	}
+}
+
+func blogContentSignature(articles []Article, hints FallbackSiteHints) int {
+	signature := len(articles) * 17
+	for _, r := range hints.Domain {
+		signature += int(r)
+	}
+	for _, keyword := range hints.Keywords {
+		for _, r := range keyword {
+			signature += int(r)
+		}
+	}
+	for _, article := range articles {
+		for _, r := range article.Title {
+			signature += int(r)
+		}
+		signature += article.ID * 31
+	}
+	if signature < 0 {
+		return -signature
+	}
+	return signature
+}
+
+func blogVisibleTopics(articles []Article, hints FallbackSiteHints, limit int) []string {
+	if limit <= 0 {
+		return nil
+	}
+	if len(hints.Keywords) > 0 {
+		if len(hints.Keywords) < limit {
+			limit = len(hints.Keywords)
+		}
+		return append([]string(nil), hints.Keywords[:limit]...)
+	}
+	return topCategories(articles, limit)
+}
+
+func forumSubtitle(articles []Article, hints FallbackSiteHints) string {
+	topics := blogVisibleTopics(articles, hints, 3)
+	if len(topics) == 0 {
+		return "Разговоры вокруг опубликованных записей, вопросов и коротких заметок из общей ленты."
+	}
+	return "Разговоры вокруг записей по темам: " + strings.ToLower(strings.Join(topics, ", ")) + "."
+}
+
+func blogEntryLabel(article Article) string {
+	category := strings.ToLower(articleCategory(article))
+	if category == "" {
+		return "запись в ленте"
+	}
+	return "запись: " + category
+}
+
+func articleNotebookLine(article Article) string {
+	lines := []string{
+		"Эта запись оставлена рядом с другими материалами по теме.",
+		"Заметка из тех, к которым удобно возвращаться через пару недель.",
+		"Главные тезисы собраны здесь, чтобы не терять их в общей ленте.",
+		"Эта тема всплывает в разговорах чаще, чем кажется с первого раза.",
+		"Запись оставлена как заметка, без попытки закрыть вопрос навсегда.",
+	}
+	index := article.ID - 1
+	if index < 0 {
+		index = 0
+	}
+	return lines[index%len(lines)]
+}
+
+func articleCountLabel(count int) string {
+	abs := count
+	if abs < 0 {
+		abs = -abs
+	}
+
+	lastTwo := abs % 100
+	if lastTwo >= 11 && lastTwo <= 14 {
+		return fmt.Sprintf("%d записей", count)
+	}
+
+	switch abs % 10 {
+	case 1:
+		return fmt.Sprintf("%d запись", count)
+	case 2, 3, 4:
+		return fmt.Sprintf("%d записи", count)
+	default:
+		return fmt.Sprintf("%d записей", count)
+	}
+}
+
 func articleCategory(article Article) string {
 	text := strings.ToLower(article.Title + " " + article.Content)
 
@@ -940,29 +1074,6 @@ func articleCategory(article Article) string {
 	default:
 		return "Заметки"
 	}
-}
-
-func articleSourceLabel(link string) string {
-	host := articleSourceHost(link)
-	if host == "" {
-		return "редакционная подборка"
-	}
-	return host
-}
-
-func articleSourceHost(link string) string {
-	if strings.TrimSpace(link) == "" {
-		return ""
-	}
-
-	parsed, err := url.Parse(link)
-	if err != nil {
-		return ""
-	}
-
-	host := strings.TrimSpace(parsed.Hostname())
-	host = strings.TrimPrefix(host, "www.")
-	return host
 }
 
 func contentParagraphs(s string) []string {
@@ -1023,8 +1134,8 @@ func normalizeContentBreaks(s string) string {
 	return strings.TrimSpace(strings.Join(out, "\n"))
 }
 
-func blogSectionChipsHTML(articles []Article, limit int) string {
-	categories := topCategories(articles, limit)
+func blogSectionChipsHTML(articles []Article, hints FallbackSiteHints, limit int) string {
+	categories := blogVisibleTopics(articles, hints, limit)
 	if len(categories) == 0 {
 		categories = []string{"Заметки", "Разборы", "Материалы"}
 	}
@@ -1036,22 +1147,24 @@ func blogSectionChipsHTML(articles []Article, limit int) string {
 	return b.String()
 }
 
-func blogSidebarHTML(articles []Article) string {
+func blogSidebarHTML(articles []Article, hints FallbackSiteHints) string {
+	profile := blogSiteProfile(articles, hints)
 	var b strings.Builder
-	b.WriteString(`<section class="side-card">
-			<h3>О сайте</h3>
-			<p>Свежие публикации, длинные тексты, короткие заметки и аккуратно собранный архив материалов.</p>
+	b.WriteString(`<section class="side-card profile">
+			<h3>О журнале</h3>
+			<p>` + html.EscapeString(profile.Subtitle) + `</p>
+			<div class="profile-sign">` + html.EscapeString(profile.Title) + `</div>
 		</section>
 		<section class="side-card">
-			<h3>Рубрики</h3>
+			<h3>На столе</h3>
 			<div class="chips">`)
-	b.WriteString(blogSectionChipsHTML(articles, 6))
+	b.WriteString(blogSectionChipsHTML(articles, hints, 6))
 	b.WriteString(`</div>
 		</section>`)
 
 	if len(articles) > 0 {
 		b.WriteString(`<section class="side-card">
-				<h3>Свежие материалы</h3>
+				<h3>Недавно</h3>
 				<ul class="mini-list">`)
 		for index, article := range articles {
 			if index >= 4 {
@@ -1069,7 +1182,7 @@ func blogSidebarHTML(articles []Article) string {
 
 	b.WriteString(`<section class="side-card">
 			<h3>Комментарии</h3>
-			<p>Чтобы оставлять комментарии и сохранять материалы, войдите в аккаунт.</p>
+			<p>Комментарии доступны после входа. Регистрация может быть закрыта приглашением, если сайт ведётся в узком круге.</p>
 			<div class="info-line">
 				<a class="text-link" href="/register">Регистрация</a>
 			</div>
@@ -1078,12 +1191,12 @@ func blogSidebarHTML(articles []Article) string {
 	return b.String()
 }
 
-func forumSidebarHTML(articles []Article) string {
+func forumSidebarHTML(articles []Article, hints FallbackSiteHints) string {
 	var b strings.Builder
 	b.WriteString(`<section class="side-card">
 			<h3>Рубрики</h3>
 			<div class="chips">`)
-	b.WriteString(blogSectionChipsHTML(articles, 6))
+	b.WriteString(blogSectionChipsHTML(articles, hints, 6))
 	b.WriteString(`</div>
 		</section>`)
 

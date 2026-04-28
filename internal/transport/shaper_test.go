@@ -12,13 +12,13 @@ type mockConn struct {
 	buf bytes.Buffer
 }
 
-func (m *mockConn) Read(p []byte) (n int, err error) { return m.buf.Read(p) }
-func (m *mockConn) Write(p []byte) (n int, err error) { return m.buf.Write(p) }
-func (m *mockConn) Close() error { return nil }
-func (m *mockConn) LocalAddr() net.Addr { return nil }
-func (m *mockConn) RemoteAddr() net.Addr { return nil }
-func (m *mockConn) SetDeadline(t time.Time) error { return nil }
-func (m *mockConn) SetReadDeadline(t time.Time) error { return nil }
+func (m *mockConn) Read(p []byte) (n int, err error)   { return m.buf.Read(p) }
+func (m *mockConn) Write(p []byte) (n int, err error)  { return m.buf.Write(p) }
+func (m *mockConn) Close() error                       { return nil }
+func (m *mockConn) LocalAddr() net.Addr                { return nil }
+func (m *mockConn) RemoteAddr() net.Addr               { return nil }
+func (m *mockConn) SetDeadline(t time.Time) error      { return nil }
+func (m *mockConn) SetReadDeadline(t time.Time) error  { return nil }
 func (m *mockConn) SetWriteDeadline(t time.Time) error { return nil }
 
 func TestTrafficShaperDistribution(t *testing.T) {

@@ -15,11 +15,11 @@ const (
 )
 
 const (
-	StatusOK           = 0x00
-	StatusUnreachable  = 0x01
-	StatusConnRefused  = 0x02
-	StatusNetUnreach   = 0x03
-	StatusInternalErr  = 0xFF
+	StatusOK          = 0x00
+	StatusUnreachable = 0x01
+	StatusConnRefused = 0x02
+	StatusNetUnreach  = 0x03
+	StatusInternalErr = 0xFF
 )
 
 // PPStreamHeader represents the initial request sent on an smux stream.

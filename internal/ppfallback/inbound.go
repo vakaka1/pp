@@ -101,7 +101,10 @@ func NewInbound(inb config.InboundConfig, log *zap.Logger, streamHandler func(*s
 		contentLoader = NewContentLoader(db, settings, inboundLog)
 	}
 
-	fallbackHandler, err := NewFallbackHandler(settings.Type, settings.ProxyAddress, settings.InviteCode, db)
+	fallbackHandler, err := NewFallbackHandler(settings.Type, settings.ProxyAddress, settings.InviteCode, db, FallbackSiteHints{
+		Domain:   settings.Domain,
+		Keywords: settings.ScraperKeywords,
+	})
 	if err != nil {
 		return nil, err
 	}

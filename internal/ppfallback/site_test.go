@@ -72,7 +72,20 @@ func TestPublicPagesDoNotExposeInternalTerminology(t *testing.T) {
 		{name: "forum thread", siteType: "forum", path: "/thread/1"},
 	}
 
-	forbidden := []string{"fallback", "tunnel", "гостевой", "клуб"}
+	forbidden := []string{
+		"fallback",
+		"tunnel",
+		"гостевой",
+		"клуб",
+		"источник",
+		"открыть источник",
+		"материал оформлен",
+		"парсер",
+		"https://example.com/post",
+		"илья",
+		"меня зовут",
+		"инфраструктурой",
+	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -96,6 +109,36 @@ func TestPublicPagesDoNotExposeInternalTerminology(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestBlogIndexUsesConfiguredTopics(t *testing.T) {
+	db, err := InitFallbackDB("")
+	if err != nil {
+		t.Fatalf("InitFallbackDB() error = %v", err)
+	}
+
+	handler, err := NewFallbackHandler("blog", "", "", db, FallbackSiteHints{
+		Domain:   "forest.example",
+		Keywords: []string{"Жизнь в лесу", "Новые технологии"},
+	})
+	if err != nil {
+		t.Fatalf("NewFallbackHandler() error = %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+
+	body := rec.Body.String()
+	for _, topic := range []string{"Жизнь в лесу", "Новые технологии"} {
+		if !strings.Contains(body, topic) {
+			t.Fatalf("expected configured topic %q in public blog page, got %q", topic, body)
+		}
 	}
 }
 

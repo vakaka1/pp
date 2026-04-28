@@ -37,35 +37,35 @@ type Session struct {
 }
 
 type Connection struct {
-	ID        int64            `json:"id"`
-	Name      string           `json:"name"`
-	Tag       string           `json:"tag"`
-	Protocol  string           `json:"protocol"`
-	Listen    string           `json:"listen"`
+	ID        int64             `json:"id"`
+	Name      string            `json:"name"`
+	Tag       string            `json:"tag"`
+	Protocol  string            `json:"protocol"`
+	Listen    string            `json:"listen"`
 	TLS       *config.TLSConfig `json:"tls,omitempty"`
-	Enabled   bool             `json:"enabled"`
-	Settings  map[string]any   `json:"settings"`
-	CreatedAt time.Time        `json:"createdAt"`
-	UpdatedAt time.Time        `json:"updatedAt"`
+	Enabled   bool              `json:"enabled"`
+	Settings  map[string]any    `json:"settings"`
+	CreatedAt time.Time         `json:"createdAt"`
+	UpdatedAt time.Time         `json:"updatedAt"`
 }
 
 type ConnectionInput struct {
-	Name     string           `json:"name"`
-	Tag      string           `json:"tag"`
-	Protocol string           `json:"protocol"`
-	Listen   string           `json:"listen"`
+	Name     string            `json:"name"`
+	Tag      string            `json:"tag"`
+	Protocol string            `json:"protocol"`
+	Listen   string            `json:"listen"`
 	TLS      *config.TLSConfig `json:"tls,omitempty"`
-	Enabled  bool             `json:"enabled"`
-	Settings map[string]any   `json:"settings"`
+	Enabled  bool              `json:"enabled"`
+	Settings map[string]any    `json:"settings"`
 }
 
 type Client struct {
-	ID           int64     `json:"id"`
-	ConnectionID int64     `json:"connection_id"`
-	Name         string    `json:"name"`
+	ID           int64  `json:"id"`
+	ConnectionID int64  `json:"connection_id"`
+	Name         string `json:"name"`
 	// PSK is the client's unique pre-shared key, returned only on creation and config download.
-	PSK          string    `json:"psk,omitempty"`
-	CreatedAt    time.Time `json:"createdAt"`
+	PSK       string    `json:"psk,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
 }
 
 type AppSettings struct {

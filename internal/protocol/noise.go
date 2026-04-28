@@ -31,12 +31,12 @@ func PerformNoiseNKHandshake(conn net.Conn, cfg *NoiseConfig) (*noise.CipherStat
 
 	if cfg.IsClient {
 		hs, err = noise.NewHandshakeState(noise.Config{
-			CipherSuite:   suite,
-			Random:        nil,
-			Pattern:       noise.HandshakeNK,
-			Initiator:     true,
-			Prologue:      prologueHash[:],
-			PeerStatic:    cfg.ServerPublic,
+			CipherSuite: suite,
+			Random:      nil,
+			Pattern:     noise.HandshakeNK,
+			Initiator:   true,
+			Prologue:    prologueHash[:],
+			PeerStatic:  cfg.ServerPublic,
 		})
 		if err != nil {
 			return nil, nil, err

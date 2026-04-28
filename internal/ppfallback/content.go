@@ -123,6 +123,9 @@ func (l *ContentLoader) Run(ctx context.Context) {
 		zap.Duration("max_delay", l.publishMaxDelay),
 	)
 
+	// Publish an initial batch immediately so the site isn't empty after restart
+	l.publishCycle(ctx, "initial")
+
 	for {
 		select {
 		case <-ctx.Done():

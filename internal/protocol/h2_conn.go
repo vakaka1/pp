@@ -11,13 +11,13 @@ import (
 )
 
 type H2Stream struct {
-	conn       net.Conn
-	framer     *http2.Framer
-	writeMut   sync.Mutex
-	readBuf    bytes.Buffer
-	readCond   *sync.Cond
-	closed     bool
-	readErr    error
+	conn     net.Conn
+	framer   *http2.Framer
+	writeMut sync.Mutex
+	readBuf  bytes.Buffer
+	readCond *sync.Cond
+	closed   bool
+	readErr  error
 
 	sendCond     *sync.Cond
 	connWindow   int32

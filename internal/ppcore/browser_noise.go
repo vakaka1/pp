@@ -106,6 +106,7 @@ func (b *browserNoiseRunner) runPreConnectScenario(ctx context.Context) {
 		return
 	}
 
+	b.log.Info("browser noise pre-connect scenario completed successfully")
 	_ = b.pause(ctx, b.randomDuration(browserNoiseBackgroundThinkMin, browserNoiseBackgroundThinkMax))
 }
 

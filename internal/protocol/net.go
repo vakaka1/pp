@@ -58,7 +58,7 @@ func (c *NoiseConn) Write(b []byte) (n int, err error) {
 		if chunkSize > maxPlaintext {
 			chunkSize = maxPlaintext
 		}
-		
+
 		chunk := b[:chunkSize]
 		ciphertext, err := c.sendCipher.Encrypt(nil, nil, chunk)
 		if err != nil {
@@ -72,7 +72,7 @@ func (c *NoiseConn) Write(b []byte) (n int, err error) {
 		if err := WriteGRPCFrame(c.Conn, noiseFrame); err != nil {
 			return n, err
 		}
-		
+
 		b = b[chunkSize:]
 		n += chunkSize
 	}
@@ -104,8 +104,8 @@ func (c *HttpConn) Close() error {
 	}
 	return nil
 }
-func (c *HttpConn) LocalAddr() net.Addr { return &net.TCPAddr{} }
-func (c *HttpConn) RemoteAddr() net.Addr { return &net.TCPAddr{} }
-func (c *HttpConn) SetDeadline(t time.Time) error { return nil }
-func (c *HttpConn) SetReadDeadline(t time.Time) error { return nil }
+func (c *HttpConn) LocalAddr() net.Addr                { return &net.TCPAddr{} }
+func (c *HttpConn) RemoteAddr() net.Addr               { return &net.TCPAddr{} }
+func (c *HttpConn) SetDeadline(t time.Time) error      { return nil }
+func (c *HttpConn) SetReadDeadline(t time.Time) error  { return nil }
 func (c *HttpConn) SetWriteDeadline(t time.Time) error { return nil }

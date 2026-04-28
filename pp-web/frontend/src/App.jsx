@@ -2400,7 +2400,7 @@ function ConnectionEditor({ connection, protocols, onClose, onSaved, onNotice })
                   </div>
 
                   <div className="input-group">
-                    <label>Теги для парсера</label>
+                    <label>Теги публикаций</label>
                     <TagInput
                       value={form.settings.scraper_keywords || []}
                       onChange={(keywords) =>
@@ -2411,7 +2411,7 @@ function ConnectionEditor({ connection, protocols, onClose, onSaved, onNotice })
                       }
                       placeholder="Жизнь в лесу, новые технологии"
                     />
-                    <p className="muted-caption">Запятая или Enter фиксируют тег. Статьи будут подбираться по этим тегам.</p>
+                    <p className="muted-caption">Запятая или Enter фиксируют тег. Новые статьи будут подбираться по этим тегам.</p>
                   </div>
 
                   <div className="input-group">

@@ -41,6 +41,19 @@ func DialTLSWithALPN(targetAddr string, serverName string, profile string, timeo
 	helloID := GetTLSProfile(profile)
 	uConn := utls.UClient(rawConn, uTLSConfig, helloID)
 
+	if len(nextProtos) > 0 {
+		if err := uConn.BuildHandshakeState(); err != nil {
+			rawConn.Close()
+			return nil, fmt.Errorf("utls build handshake failed: %w", err)
+		}
+		for _, ext := range uConn.Extensions {
+			if a, ok := ext.(*utls.ALPNExtension); ok {
+				a.AlpnProtocols = nextProtos
+				break
+			}
+		}
+	}
+
 	if err := uConn.Handshake(); err != nil {
 		rawConn.Close()
 		return nil, fmt.Errorf("utls handshake failed: %w", err)
