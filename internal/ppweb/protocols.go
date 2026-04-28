@@ -150,7 +150,6 @@ func (fallbackProtocol) Descriptor() ProtocolDescriptor {
 				Fields: []ProtocolField{
 					selectField("type", "Тип", true, "blog", []ProtocolOption{
 						{Value: "blog", Label: "Блог"},
-						{Value: "forum", Label: "Форум"},
 					}),
 					textField("domain", "Домен", true, "example.com", ""),
 					tagsField("scraper_keywords", "Теги", false, []string{"go", "linux"}, ""),

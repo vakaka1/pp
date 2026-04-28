@@ -26,11 +26,6 @@ const NAV_ITEMS = [
     path: "/app/settings",
     label: "Настройки",
     shortLabel: "Настр."
-  },
-  {
-    path: "/app/about",
-    label: "О программе",
-    shortLabel: "О PP"
   }
 ];
 
@@ -112,6 +107,12 @@ function getPanelHost(bootstrap) {
 
 function createStatusTone(good) {
   return good ? "good" : "bad";
+}
+
+function getSiteTypeLabel(type) {
+  if (type === "forum") return "Форум";
+  if (type === "proxy") return "Прокси";
+  return "Блог";
 }
 
 function getUpdateIndicator(aboutData, aboutError) {
@@ -223,6 +224,24 @@ async function copyToClipboard(value) {
   } catch {
     return false;
   }
+}
+
+function dedupeTags(values) {
+  const seen = new Set();
+  const result = [];
+
+  values.forEach((value) => {
+    const normalized = value.trim();
+    if (!normalized) return;
+
+    const key = normalized.toLowerCase();
+    if (seen.has(key)) return;
+
+    seen.add(key);
+    result.push(normalized);
+  });
+
+  return result;
 }
 
 export default function App() {
@@ -1017,13 +1036,7 @@ function ConnectionsPage({ onNotice }) {
                     </div>
                     <div className="connection-fact">
                       <span>Тип</span>
-                      <strong>
-                        {connection.settings?.type === "forum"
-                          ? "Форум"
-                          : connection.settings?.type === "blog"
-                            ? "Блог"
-                            : "—"}
-                      </strong>
+                      <strong>{getSiteTypeLabel(connection.settings?.type)}</strong>
                     </div>
                     <div className="connection-fact">
                       <span>Tag</span>
@@ -1134,12 +1147,12 @@ function ConnectionsPage({ onNotice }) {
 function HTTPSChoiceModal({ connection, onClose, onNotice, onUpdated, onShowNginx }) {
   const [busy, setBusy] = useState(false);
 
-  async function handleApply(type) {
+  async function handleApply() {
     setBusy(true);
 
     try {
-      await api.setupHTTPS(connection.id, type);
-      onNotice({ tone: "success", message: `HTTPS (${type}) успешно настроен.` });
+      await api.setupHTTPS(connection.id, "lets-encrypt");
+      onNotice({ tone: "success", message: "HTTPS через Let's Encrypt успешно настроен." });
       await onUpdated();
       onClose();
       onShowNginx(connection);
@@ -1165,17 +1178,14 @@ function HTTPSChoiceModal({ connection, onClose, onNotice, onUpdated, onShowNgin
 
         <div className="modal-body">
           <p className="modal-intro">
-            Профиль создан. Можно сразу включить HTTPS для домена <strong>{connection.settings.domain}</strong>.
+            Профиль создан. Можно сразу выпустить сертификат Let's Encrypt для домена{" "}
+            <strong>{connection.settings.domain}</strong>.
           </p>
 
-          <div className="choice-grid">
-            <button className="choice-card" onClick={() => handleApply("self-signed")} disabled={busy}>
-              <h4>Самоподписанный</h4>
-              <p>Быстрый тестовый сценарий. Браузер покажет предупреждение, но запуск будет мгновенным.</p>
-            </button>
-            <button className="choice-card" onClick={() => handleApply("lets-encrypt")} disabled={busy}>
+          <div className="choice-grid choice-grid--single">
+            <button className="choice-card" onClick={handleApply} disabled={busy}>
               <h4>Let's Encrypt</h4>
-              <p>Бесплатный боевой сертификат. Для проверки нужен доступный 80 порт.</p>
+              <p>Боевой сертификат. Для проверки нужен доступный 80 порт и настроенный DNS на этот сервер.</p>
             </button>
           </div>
         </div>
@@ -1755,13 +1765,49 @@ function PPSettingsPage({ onNotice }) {
 
 function SettingsPage({ user, build, bootstrap, theme, onThemeChange, onNotice }) {
   const [panelDomain, setPanelDomain] = useState("");
+  const [panelHTTPS, setPanelHTTPS] = useState(false);
+  const [panelCertPath, setPanelCertPath] = useState("");
+  const [panelKeyPath, setPanelKeyPath] = useState("");
   const [showPanelNginx, setShowPanelNginx] = useState(false);
 
   const publicHost = getPanelHost(bootstrap);
-  const panelUrl = `http://${publicHost}:4090`;
-  const panelNginxConfig = `server {
-    server_name ${panelDomain || publicHost};
+  const trimmedPanelDomain = panelDomain.trim();
+  const panelServerName = trimmedPanelDomain || publicHost;
+  const directPanelUrl = `http://${publicHost}:4090`;
+  const defaultPanelCertPath = trimmedPanelDomain
+    ? `/etc/letsencrypt/live/${trimmedPanelDomain}/fullchain.pem`
+    : "/etc/ssl/certs/panel.crt";
+  const defaultPanelKeyPath = trimmedPanelDomain
+    ? `/etc/letsencrypt/live/${trimmedPanelDomain}/privkey.pem`
+    : "/etc/ssl/private/panel.key";
+  const resolvedPanelCertPath = panelCertPath.trim() || defaultPanelCertPath;
+  const resolvedPanelKeyPath = panelKeyPath.trim() || defaultPanelKeyPath;
+  const publicPanelUrl = `${panelHTTPS ? "https" : "http"}://${panelServerName}`;
+  const panelNginxConfig = panelHTTPS
+    ? `server {
     listen 80;
+    server_name ${panelServerName};
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name ${panelServerName};
+
+    ssl_certificate ${resolvedPanelCertPath};
+    ssl_certificate_key ${resolvedPanelKeyPath};
+
+    location / {
+        proxy_pass http://127.0.0.1:4090;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}`
+    : `server {
+    listen 80;
+    server_name ${panelServerName};
 
     location / {
         proxy_pass http://127.0.0.1:4090;
@@ -1794,14 +1840,17 @@ function SettingsPage({ user, build, bootstrap, theme, onThemeChange, onNotice }
           </div>
 
           <div className="address-display">
-            <code className="big-address">{panelUrl}</code>
-            <button className="ghost-button" onClick={() => handleCopy(panelUrl, "Адрес панели скопирован.")}>
+            <div className="address-display__copy">
+              <span className="eyebrow">Прямой адрес</span>
+              <code className="big-address">{directPanelUrl}</code>
+            </div>
+            <button className="ghost-button" onClick={() => handleCopy(directPanelUrl, "Адрес панели скопирован.")}>
               Копировать
             </button>
           </div>
 
           <div className="nginx-hint-box">
-            <h4>Красивый домен для панели</h4>
+            <h4>Публичный домен и HTTPS</h4>
 
             <div className="input-group">
               <label>Домен панели</label>
@@ -1812,6 +1861,55 @@ function SettingsPage({ user, build, bootstrap, theme, onThemeChange, onNotice }
                 onChange={(event) => setPanelDomain(event.target.value)}
               />
             </div>
+
+            <div className="checkbox-group checkbox-group--tight-top">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={panelHTTPS}
+                  onChange={(event) => setPanelHTTPS(event.target.checked)}
+                />
+                <span>Показывать конфиг панели с HTTPS</span>
+              </label>
+            </div>
+
+            {panelHTTPS ? (
+              <div className="settings-panel-https-grid">
+                <div className="input-group">
+                  <label>Путь к сертификату</label>
+                  <input
+                    type="text"
+                    placeholder={defaultPanelCertPath}
+                    value={panelCertPath}
+                    onChange={(event) => setPanelCertPath(event.target.value)}
+                  />
+                </div>
+
+                <div className="input-group">
+                  <label>Путь к ключу</label>
+                  <input
+                    type="text"
+                    placeholder={defaultPanelKeyPath}
+                    value={panelKeyPath}
+                    onChange={(event) => setPanelKeyPath(event.target.value)}
+                  />
+                </div>
+              </div>
+            ) : null}
+
+            <div className="address-display address-display--compact">
+              <div className="address-display__copy">
+                <span className="eyebrow">Публичный адрес</span>
+                <code className="big-address">{publicPanelUrl}</code>
+              </div>
+              <button className="ghost-button" onClick={() => handleCopy(publicPanelUrl, "Публичный адрес панели скопирован.")}>
+                Копировать адрес
+              </button>
+            </div>
+
+            <p className="muted-caption">
+              Если HTTPS включён, конфиг сразу добавит редирект с `80` на `443` и SSL-пути для панели.
+            </p>
 
             <div className="button-group button-group--wrap">
               <button
@@ -2002,6 +2100,92 @@ function RoutingRulesEditor({ routing, onChange }) {
   );
 }
 
+function TagInput({ value, onChange, placeholder }) {
+  const [draft, setDraft] = useState("");
+
+  function commitTags(rawValue) {
+    const nextTags = dedupeTags([...value, rawValue]);
+    if (nextTags.length === value.length) {
+      return false;
+    }
+
+    onChange(nextTags);
+    return true;
+  }
+
+  function handleInputChange(event) {
+    const rawValue = event.target.value;
+    if (!rawValue.includes(",")) {
+      setDraft(rawValue);
+      return;
+    }
+
+    const parts = rawValue.split(",");
+    const pending = parts.pop() ?? "";
+    const completed = dedupeTags(parts);
+
+    if (completed.length) {
+      onChange(dedupeTags([...value, ...completed]));
+    }
+
+    setDraft(pending.replace(/^\s+/, ""));
+  }
+
+  function handleKeyDown(event) {
+    if ((event.key === "Enter" || event.key === "Tab") && draft.trim()) {
+      event.preventDefault();
+      if (commitTags(draft)) {
+        setDraft("");
+      }
+      return;
+    }
+
+    if (event.key === "Backspace" && !draft && value.length) {
+      event.preventDefault();
+      onChange(value.slice(0, -1));
+    }
+  }
+
+  function handleBlur() {
+    if (!draft.trim()) {
+      setDraft("");
+      return;
+    }
+
+    if (commitTags(draft)) {
+      setDraft("");
+    }
+  }
+
+  function handleRemove(index) {
+    onChange(value.filter((_, tagIndex) => tagIndex !== index));
+  }
+
+  return (
+    <div className="tag-editor">
+      <div className="tag-editor__shell">
+        {value.map((tag, index) => (
+          <span className="tag-editor__tag" key={`${tag}-${index}`}>
+            <span>{tag}</span>
+            <button type="button" onClick={() => handleRemove(index)} aria-label={`Удалить тег ${tag}`}>
+              ×
+            </button>
+          </span>
+        ))}
+
+        <input
+          type="text"
+          value={draft}
+          onChange={handleInputChange}
+          onKeyDown={handleKeyDown}
+          onBlur={handleBlur}
+          placeholder={value.length ? "Добавьте ещё тег" : placeholder}
+        />
+      </div>
+    </div>
+  );
+}
+
 function ConnectionEditor({ connection, protocols, onClose, onSaved, onNotice }) {
   const defaultRouting = {
     default_policy: "proxy",
@@ -2026,6 +2210,13 @@ function ConnectionEditor({ connection, protocols, onClose, onSaved, onNotice })
   const [showRouting, setShowRouting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [portStatus, setPortStatus] = useState(null);
+  const legacySiteType = form.settings.type && form.settings.type !== "blog" ? form.settings.type : null;
+  const siteTypeOptions = legacySiteType
+    ? [
+        { value: legacySiteType, label: `${getSiteTypeLabel(legacySiteType)} (устарел)`, disabled: true },
+        { value: "blog", label: "Блог" }
+      ]
+    : [{ value: "blog", label: "Блог" }];
 
   async function handleCheckPort() {
     if (!form.port) return;
@@ -2176,29 +2367,33 @@ function ConnectionEditor({ connection, protocols, onClose, onSaved, onNotice })
                         })
                       }
                     >
-                      <option value="blog">Блог</option>
-                      <option value="forum">Форум</option>
+                      {siteTypeOptions.map((option) => (
+                        <option key={option.value} value={option.value} disabled={option.disabled}>
+                          {option.label}
+                        </option>
+                      ))}
                     </select>
+                    {legacySiteType ? (
+                      <p className="muted-caption">
+                        Для этого подключения сохранён устаревший тип «{getSiteTypeLabel(legacySiteType)}».
+                        {" "}После переключения обратно выбрать его уже нельзя.
+                      </p>
+                    ) : null}
                   </div>
 
                   <div className="input-group">
                     <label>Теги для парсера</label>
-                    <input
-                      type="text"
-                      value={(form.settings.scraper_keywords || []).join(", ")}
-                      onChange={(event) => {
-                        const keywords = event.target.value
-                          .split(",")
-                          .map((keyword) => keyword.trim())
-                          .filter(Boolean);
+                    <TagInput
+                      value={form.settings.scraper_keywords || []}
+                      onChange={(keywords) =>
                         setForm({
                           ...form,
                           settings: { ...form.settings, scraper_keywords: keywords }
-                        });
-                      }}
+                        })
+                      }
                       placeholder="Жизнь в лесу, новые технологии"
                     />
-                    <p className="muted-caption">Статьи будут подбираться по этим тегам.</p>
+                    <p className="muted-caption">Запятая или Enter фиксируют тег. Статьи будут подбираться по этим тегам.</p>
                   </div>
                 </>
               ) : null}

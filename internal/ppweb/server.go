@@ -575,17 +575,6 @@ func (s *Server) handleSetupHTTPS(w http.ResponseWriter, r *http.Request, _ *Adm
 	revertStagedSite := false
 
 	switch payload.Mode {
-	case "self-signed":
-		certDir := s.certDirectory(connection.Tag)
-		certPath := filepath.Join(certDir, "cert.pem")
-		keyPath := filepath.Join(certDir, "key.pem")
-		if err := crypto.GenerateSelfSignedCert(domain, certPath, keyPath); err != nil {
-			writeError(w, http.StatusInternalServerError, "failed to generate cert: "+err.Error())
-			return
-		}
-		tlsConfig.CertFile = certPath
-		tlsConfig.KeyFile = keyPath
-
 	case "lets-encrypt":
 		s.log.Info("requesting lets-encrypt certificate", zap.String("domain", domain))
 		if !s.serviceUnitExists("nginx") {
@@ -644,7 +633,7 @@ func (s *Server) handleSetupHTTPS(w http.ResponseWriter, r *http.Request, _ *Adm
 		tlsConfig.KeyFile = fmt.Sprintf("/etc/letsencrypt/live/%s/privkey.pem", domain)
 
 	default:
-		writeError(w, http.StatusBadRequest, "invalid mode")
+		writeError(w, http.StatusBadRequest, "only lets-encrypt mode is supported")
 		return
 	}
 

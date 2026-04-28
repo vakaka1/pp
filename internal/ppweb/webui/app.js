@@ -278,7 +278,7 @@ function renderDashboard() {
                 <label>
                   Fallback type
                   <select name="type">
-                    ${selectOptions(["blog", "forum", "proxy"], formDefaults.settings.type)}
+                    ${selectOptions(connectionTypeOptions(formDefaults.settings.type), formDefaults.settings.type)}
                   </select>
                 </label>
                 <label>
@@ -460,7 +460,6 @@ function renderConnectionCard(connection) {
           <button class="subtle" data-edit-connection="${connection.id}">Edit</button>
           <button class="subtle" data-load-clients="${connection.id}">Clients</button>
           <button class="ghost" data-create-client="${connection.id}">New client</button>
-          <button class="ghost" data-https-mode="self-signed" data-connection-id="${connection.id}">Self-signed TLS</button>
           <button class="ghost" data-https-mode="lets-encrypt" data-connection-id="${connection.id}">Let's Encrypt</button>
           <button class="danger" data-delete-connection="${connection.id}">Delete</button>
         </div>
@@ -655,9 +654,12 @@ async function deleteClient(clientId) {
 }
 
 async function setupHTTPS(connectionId, mode) {
-  const message = mode === "lets-encrypt"
-    ? "Issue a Let's Encrypt certificate now? DNS for the domain must already point to this server."
-    : "Generate a self-signed certificate now?";
+  if (mode !== "lets-encrypt") {
+    showNotice("Only Let's Encrypt certificates are supported now.", "error");
+    return;
+  }
+
+  const message = "Issue a Let's Encrypt certificate now? DNS for the domain must already point to this server.";
 
   if (!window.confirm(message)) {
     return;
@@ -777,8 +779,26 @@ function buildConnectionDraft(connection) {
   };
 }
 
+function connectionTypeOptions(currentValue) {
+  const options = [
+    { value: "blog", label: "blog" },
+    { value: "proxy", label: "proxy" },
+  ];
+
+  if (currentValue === "forum") {
+    return [{ value: "forum", label: "forum (legacy)", disabled: true }, ...options];
+  }
+
+  return options;
+}
+
 function selectOptions(values, currentValue) {
-  return values.map((value) => `<option value="${value}" ${value === currentValue ? "selected" : ""}>${escapeHTML(value)}</option>`).join("");
+  return values.map((entry) => {
+    const value = typeof entry === "string" ? entry : entry.value;
+    const label = typeof entry === "string" ? entry : entry.label;
+    const disabled = typeof entry === "string" || !entry.disabled ? "" : " disabled";
+    return `<option value="${escapeHTML(value)}" ${value === currentValue ? "selected" : ""}${disabled}>${escapeHTML(label)}</option>`;
+  }).join("");
 }
 
 function splitList(value) {
