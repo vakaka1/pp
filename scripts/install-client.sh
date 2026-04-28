@@ -1,34 +1,71 @@
 #!/bin/bash
 # =============================================================================
 #  PP Client Installer — https://github.com/vakaka1/pp
-#  Назначение: только установить клиентские инструменты PP.
-#  Подключение создаётся отдельно командой: pp-client-connect --config client.json
 # =============================================================================
 set -euo pipefail
 
-RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
-info()  { echo -e "${CYAN}[INFO]${NC}  $*"; }
-ok()    { echo -e "${GREEN}[OK]${NC}    $*"; }
-warn()  { echo -e "${YELLOW}[WARN]${NC}  $*"; }
-die()   { echo -e "${RED}[ERROR]${NC} $*" >&2; exit 1; }
+# ---------- Цвета и оформление ----------
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+DIM='\033[2m'
+NC='\033[0m'
+
+info()  { echo -e "${CYAN}ℹ${NC} $*"; }
+ok()    { echo -e "${GREEN}✔${NC} $*"; }
+warn()  { echo -e "${YELLOW}⚠${NC} $*"; }
+die()   { echo -e "${RED}✖${NC} $*" >&2; exit 1; }
+step()  { echo -e "\n${BOLD}${BLUE}▶${NC} ${BOLD}$*${NC}"; }
+
+run_with_spinner() {
+    local msg="$1"
+    shift
+    local pid
+    local temp_log
+    temp_log=$(mktemp)
+    
+    "$@" >"$temp_log" 2>&1 &
+    pid=$!
+
+    local frames=("⠋" "⠙" "⠹" "⠸" "⠼" "⠴" "⠦" "⠧" "⠇" "⠏")
+    local i=0
+    while kill -0 "$pid" 2>/dev/null; do
+        printf "\r\033[K${CYAN}%s${NC} %s" "${frames[i]}" "$msg"
+        i=$(((i + 1) % 10))
+        sleep 0.1
+    done
+    
+    wait "$pid"
+    local exit_code=$?
+    
+    printf "\r\033[K"
+    if [ $exit_code -eq 0 ]; then
+        echo -e "${GREEN}✔${NC} ${msg}"
+    else
+        echo -e "${RED}✖${NC} ${msg} (ошибка)"
+        echo -e "${DIM}" >&2
+        cat "$temp_log" >&2
+        echo -e "${NC}" >&2
+        rm -f "$temp_log"
+        exit $exit_code
+    fi
+    rm -f "$temp_log"
+}
 
 usage() {
-    cat <<'EOF'
+    cat <<'USAGE'
 Использование: install-client.sh
 
-Скрипт только устанавливает клиент PP:
-- бинарник `pp`
-- helper-команду `pp-client`
-- helper-команду `pp-client-tun`
-- helper-команду `pp-client-connect`
+Скрипт устанавливает клиентские инструменты PP:
+- pp (основной бинарник)
+- pp-client (запуск обычного режима)
+- pp-client-tun (запуск режима full-tunnel)
+- pp-client-connect (управление конфигурацией)
 - GeoIP / GeoSite базы
-
-Подключение создаётся отдельно:
-  pp-client-connect --config client.json
-  pp-client-connect tun --config client.json
-
-Старые аргументы `--config`, `--socks5-port`, `--http-port` больше не поддерживаются.
-EOF
+USAGE
 }
 
 if [ "$EUID" -eq 0 ]; then
@@ -64,41 +101,16 @@ LEGACY_HTTP_PORT=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --config|-c)
-            LEGACY_CONFIG="${2:-}"
-            shift 2
-            ;;
-        --socks5-port)
-            LEGACY_SOCKS5_PORT="${2:-}"
-            shift 2
-            ;;
-        --http-port)
-            LEGACY_HTTP_PORT="${2:-}"
-            shift 2
-            ;;
-        --help|-h)
-            usage
-            exit 0
-            ;;
-        *)
-            die "Неизвестный аргумент: $1"
-            ;;
+        --config|-c) LEGACY_CONFIG="${2:-}"; shift 2 ;;
+        --socks5-port) LEGACY_SOCKS5_PORT="${2:-}"; shift 2 ;;
+        --http-port) LEGACY_HTTP_PORT="${2:-}"; shift 2 ;;
+        --help|-h) usage; exit 0 ;;
+        *) die "Неизвестный аргумент: $1" ;;
     esac
 done
 
 if [ -n "$LEGACY_CONFIG" ] || [ -n "$LEGACY_SOCKS5_PORT" ] || [ -n "$LEGACY_HTTP_PORT" ]; then
-    cat >&2 <<EOF
-Скрипт install-client.sh больше не создаёт подключение.
-
-Правильный сценарий:
-  1. Установить клиент:
-     curl -fsSL https://raw.githubusercontent.com/${GITHUB_REPO}/main/scripts/install-client.sh | bash
-  2. Применить конфиг:
-     pp-client-connect --config client.json
-
-Порты теперь задаются только в самом клиентском JSON.
-EOF
-    exit 1
+    die "Параметры портов и конфига при установке больше не поддерживаются.\nИспользуйте pp-client-connect --config client.json после установки."
 fi
 
 ARCH="$(uname -m)"
@@ -109,62 +121,83 @@ case "$ARCH" in
 esac
 OS="linux"
 
-info "Создание директорий..."
-mkdir -p "$INSTALL_PREFIX/bin" "$PP_DATA_SUBDIR" "$PP_CONFIG_DIR"
-ok "Директории созданы"
+clear
+echo ""
+echo -e "${BOLD}${CYAN}╔══════════════════════════════════════════════════════╗${NC}"
+echo -e "${BOLD}${CYAN}║                 PP Client Installer                  ║${NC}"
+echo -e "${BOLD}${CYAN}╚══════════════════════════════════════════════════════╝${NC}"
+echo -e "  GitHub:      ${CYAN}github.com/${GITHUB_REPO}${NC}"
+echo -e "  Архитектура: ${CYAN}${OS}/${GOARCH}${NC}"
+echo ""
 
-info "Загрузка бинарника pp ($OS/$GOARCH)..."
-
+# Определение версии
+info "Получение информации о релизе..."
 if [ -n "$BIN_URL" ]; then
-    DOWNLOAD_URL="$BIN_URL"
+    VERSION_TO_INSTALL="custom"
 else
     if [ "$RELEASE_TAG" = "latest" ]; then
-        DOWNLOAD_URL="https://github.com/${GITHUB_REPO}/releases/latest/download/pp_${OS}_${GOARCH}"
+        LATEST_TAG=$(curl -fsSL "https://api.github.com/repos/${GITHUB_REPO}/releases/latest" | grep '"tag_name":' | head -n 1 | sed -E 's/.*"([^"]+)".*/\1/' || echo "latest")
+        VERSION_TO_INSTALL="$LATEST_TAG"
     else
-        DOWNLOAD_URL="https://github.com/${GITHUB_REPO}/releases/download/${RELEASE_TAG}/pp_${OS}_${GOARCH}"
+        VERSION_TO_INSTALL="$RELEASE_TAG"
     fi
 fi
+ok "Версия для установки: ${BOLD}${VERSION_TO_INSTALL}${NC}"
 
-TMP_BIN="$(mktemp)"
-if ! curl -fsSL --connect-timeout 30 --retry 3 --retry-delay 2 -o "$TMP_BIN" "$DOWNLOAD_URL"; then
-    rm -f "$TMP_BIN"
-    die "Не удалось загрузить бинарник с $DOWNLOAD_URL"
-fi
+step "Подготовка файловой системы"
+create_dirs() {
+    mkdir -p "$INSTALL_PREFIX/bin" "$PP_DATA_SUBDIR" "$PP_CONFIG_DIR"
+}
+run_with_spinner "Создание директорий ($INSTALL_PREFIX, $PP_DATA_DIR)" create_dirs
 
-if ! file "$TMP_BIN" | grep -q "ELF"; then
-    warn "Загруженный файл не является ELF-бинарником:"
-    head -c 200 "$TMP_BIN" >&2
-    rm -f "$TMP_BIN"
-    die "Загрузка бинарника не удалась — проверьте DOWNLOAD_URL"
-fi
+step "Загрузка компонентов"
 
-install -m 755 "$TMP_BIN" "$PP_BIN"
-rm -f "$TMP_BIN"
-ok "Бинарник установлен: $PP_BIN ($("$PP_BIN" version 2>/dev/null || echo 'ok'))"
+download_pp() {
+    if [ -n "$BIN_URL" ]; then
+        DOWNLOAD_URL="$BIN_URL"
+    else
+        if [ "$VERSION_TO_INSTALL" = "latest" ]; then
+            DOWNLOAD_URL="https://github.com/${GITHUB_REPO}/releases/latest/download/pp_${OS}_${GOARCH}"
+        else
+            DOWNLOAD_URL="https://github.com/${GITHUB_REPO}/releases/download/${VERSION_TO_INSTALL}/pp_${OS}_${GOARCH}"
+        fi
+    fi
 
-info "Загрузка GeoIP и GeoSite баз данных..."
+    local tmp
+    tmp="$(mktemp)"
+    curl -fsSL --connect-timeout 30 --retry 3 --retry-delay 2 -o "$tmp" "$DOWNLOAD_URL" || return 1
+    if ! file "$tmp" | grep -q "ELF"; then
+        return 1
+    fi
+    install -m 755 "$tmp" "$PP_BIN"
+    rm -f "$tmp"
+}
 
-GEOIP_FILE="$PP_DATA_SUBDIR/geoip.dat"
-GEOSITE_FILE="$PP_DATA_SUBDIR/geosite.dat"
+run_with_spinner "Загрузка бинарника pp" download_pp
 
-if [ -f "$GEOIP_FILE" ] && [ "$(stat -c%s "$GEOIP_FILE" 2>/dev/null || echo 0)" -gt 1000000 ]; then
-    ok "geoip.dat уже существует — пропускаем"
-else
-    info "Загрузка geoip.dat (~23 MB)..."
-    curl -fsSL --connect-timeout 30 --retry 3 --retry-delay 2 -o "$GEOIP_FILE" "$GEO_IP_URL" \
-        || { warn "Не удалось загрузить geoip.dat — geoip-правила будут отключены"; rm -f "$GEOIP_FILE"; }
-fi
+# Вывод версии установленного бинарника
+INSTALLED_VER=$("$PP_BIN" version 2>/dev/null || echo "неизвестно")
+ok "Установлена версия: ${CYAN}${INSTALLED_VER}${NC}"
 
-if [ -f "$GEOSITE_FILE" ] && [ "$(stat -c%s "$GEOSITE_FILE" 2>/dev/null || echo 0)" -gt 100000 ]; then
-    ok "geosite.dat уже существует — пропускаем"
-else
-    info "Загрузка geosite.dat (~2 MB)..."
-    curl -fsSL --connect-timeout 30 --retry 3 --retry-delay 2 -o "$GEOSITE_FILE" "$GEO_SITE_URL" \
-        || { warn "Не удалось загрузить geosite.dat — geosite-правила будут отключены"; rm -f "$GEOSITE_FILE"; }
-fi
-ok "Geo-данные готовы"
+download_geo() {
+    local geoip_file="$PP_DATA_SUBDIR/geoip.dat"
+    local geosite_file="$PP_DATA_SUBDIR/geosite.dat"
 
-cat > "$PP_RUNNER" <<EOF
+    if ! [ -f "$geoip_file" ] || [ "$(stat -c%s "$geoip_file" 2>/dev/null || echo 0)" -lt 1000000 ]; then
+        curl -fsSL --connect-timeout 30 --retry 3 --retry-delay 2 -o "$geoip_file" "$GEO_IP_URL" || return 1
+    fi
+
+    if ! [ -f "$geosite_file" ] || [ "$(stat -c%s "$geosite_file" 2>/dev/null || echo 0)" -lt 100000 ]; then
+        curl -fsSL --connect-timeout 30 --retry 3 --retry-delay 2 -o "$geosite_file" "$GEO_SITE_URL" || return 1
+    fi
+}
+
+run_with_spinner "Загрузка GeoIP / GeoSite баз" download_geo
+
+step "Настройка скриптов запуска"
+
+setup_scripts() {
+    cat > "$PP_RUNNER" <<RUNNER_EOF
 #!/bin/bash
 set -euo pipefail
 
@@ -172,24 +205,23 @@ PP_BIN="$PP_BIN"
 PP_DATA_DIR="$PP_DATA_DIR"
 PP_CONFIG="$PP_CONFIG_DIR/client.json"
 
-if [ ! -x "$PP_BIN" ]; then
-    echo "pp binary not found: $PP_BIN" >&2
+if [ ! -x "\$PP_BIN" ]; then
+    echo "pp binary not found: \$PP_BIN" >&2
     exit 1
 fi
 
-if [ ! -f "$PP_CONFIG" ]; then
-    echo "Client config not found: $PP_CONFIG" >&2
+if [ ! -f "\$PP_CONFIG" ]; then
+    echo "Client config not found: \$PP_CONFIG" >&2
     echo "Run: pp-client-connect --config client.json" >&2
     exit 1
 fi
 
-cd "$PP_DATA_DIR"
-exec "$PP_BIN" client --config "$PP_CONFIG" "$@"
-EOF
-chmod 755 "$PP_RUNNER"
-ok "Команда запуска установлена: $PP_RUNNER"
+cd "\$PP_DATA_DIR"
+exec "\$PP_BIN" client --config "\$PP_CONFIG" "\$@"
+RUNNER_EOF
+    chmod 755 "$PP_RUNNER"
 
-cat > "$PP_TUN_RUNNER" <<EOF
+    cat > "$PP_TUN_RUNNER" <<TUN_RUNNER_EOF
 #!/bin/bash
 set -euo pipefail
 
@@ -198,35 +230,34 @@ PP_DATA_DIR="$PP_DATA_DIR"
 PP_CONFIG="$PP_CONFIG_DIR/client.json"
 PP_TRANSPARENT_LISTEN="$PP_TRANSPARENT_LISTEN"
 
-if [ ! -x "$PP_BIN" ]; then
-    echo "pp binary not found: $PP_BIN" >&2
+if [ ! -x "\$PP_BIN" ]; then
+    echo "pp binary not found: \$PP_BIN" >&2
     exit 1
 fi
 
-if [ ! -f "$PP_CONFIG" ]; then
-    echo "Client config not found: $PP_CONFIG" >&2
+if [ ! -f "\$PP_CONFIG" ]; then
+    echo "Client config not found: \$PP_CONFIG" >&2
     echo "Run: pp-client-connect tun --config client.json" >&2
     exit 1
 fi
 
-cd "$PP_DATA_DIR"
-exec "$PP_BIN" client --config "$PP_CONFIG" --transparent-listen "$PP_TRANSPARENT_LISTEN" "$@"
-EOF
-chmod 755 "$PP_TUN_RUNNER"
-ok "Команда full-tunnel запуска установлена: $PP_TUN_RUNNER"
+cd "\$PP_DATA_DIR"
+exec "\$PP_BIN" client --config "\$PP_CONFIG" --transparent-listen "\$PP_TRANSPARENT_LISTEN" "\$@"
+TUN_RUNNER_EOF
+    chmod 755 "$PP_TUN_RUNNER"
 
-cat > "$PP_CONNECT" <<'CONNECT'
+    cat > "$PP_CONNECT" <<'CONNECT'
 #!/bin/bash
 set -euo pipefail
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
-info()  { echo -e "${CYAN}[INFO]${NC}  $*"; }
-ok()    { echo -e "${GREEN}[OK]${NC}    $*"; }
-warn()  { echo -e "${YELLOW}[WARN]${NC}  $*"; }
-die()   { echo -e "${RED}[ERROR]${NC} $*" >&2; exit 1; }
+info()  { echo -e "${CYAN}ℹ${NC} $*"; }
+ok()    { echo -e "${GREEN}✔${NC} $*"; }
+warn()  { echo -e "${YELLOW}⚠${NC} $*"; }
+die()   { echo -e "${RED}✖${NC} $*" >&2; exit 1; }
 
 usage() {
-    cat <<'EOF'
+    cat <<'USAGE_EOF'
 Использование:
   pp-client-connect --config client.json
   pp-client-connect tun --config client.json
@@ -234,11 +265,8 @@ usage() {
 Команда:
 - сохраняет клиентский конфиг как активный
 - в обычном режиме запускает `pp-client` в текущем терминале
-- в режиме `tun` включает Linux system-wide TCP full-tunnel через transparent redirect
-- в обоих режимах пишет логи прямо в текущий терминал до `Ctrl+C`
-
-Чтобы переключить подключение, просто запустите команду ещё раз с другим JSON.
-EOF
+- в режиме `tun` включает Linux system-wide TCP full-tunnel
+USAGE_EOF
 }
 
 PP_BIN="__PP_BIN__"
@@ -262,25 +290,15 @@ fi
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --config|-c)
-            CONFIG_FILE="${2:-}"
-            shift 2
-            ;;
-        --help|-h)
-            usage
-            exit 0
-            ;;
-        *)
-            die "Неизвестный аргумент: $1"
-            ;;
+        --config|-c) CONFIG_FILE="${2:-}"; shift 2 ;;
+        --help|-h) usage; exit 0 ;;
+        *) die "Неизвестный аргумент: $1" ;;
     esac
 done
 
 [ -n "$CONFIG_FILE" ] || die "Укажите --config client.json"
 [ -f "$CONFIG_FILE" ] || die "Файл конфига не найден: $CONFIG_FILE"
-[ -x "$PP_BIN" ] || die "pp не найден: $PP_BIN. Сначала выполните install-client.sh"
-[ -x "$PP_RUNNER" ] || die "pp-client launcher не найден: $PP_RUNNER. Повторите установку клиента."
-[ "$MODE" != "tun" ] || [ -x "$PP_TUN_RUNNER" ] || die "pp-client-tun launcher не найден: $PP_TUN_RUNNER. Повторите установку клиента."
+[ -x "$PP_BIN" ] || die "Бинарник pp не найден: $PP_BIN"
 
 ensure_paths() {
     if [ "$EUID" -eq 0 ]; then
@@ -322,61 +340,58 @@ if [ "$MODE" = "tun" ]; then
     command -v iptables >/dev/null 2>&1 || die "Для tun-режима требуется iptables"
 
     write_active_config
-    ok "Активный конфиг full-tunnel обновлён: $PP_CONFIG"
-    info "Поднимаю transparent redirect и запускаю pp-client-tun в foreground..."
+    ok "Конфиг full-tunnel обновлён"
+    info "Поднимаю transparent redirect..."
 
     cleanup_tun
     trap cleanup_tun EXIT
 
     "$PP_BIN" full-tunnel up --config "$PP_CONFIG" --transparent-listen "$PP_TRANSPARENT_LISTEN" --owner root
 
-    echo "  Режим:   tun (system-wide TCP full-tunnel)"
-    echo "  Listen:  $PP_TRANSPARENT_LISTEN"
-    echo "  Конфиг:  $PP_CONFIG"
-    echo "  Логи:    в этом терминале"
-    echo "  Стоп:    Ctrl+C"
-    echo "  Примечание: UDP и IPv6 в этом режиме пока не туннелируются"
-    echo ""
+    echo -e "\n  ${CYAN}Режим:${NC}   tun (system-wide TCP full-tunnel)"
+    echo -e "  ${CYAN}Listen:${NC}  $PP_TRANSPARENT_LISTEN"
+    echo -e "  ${CYAN}Конфиг:${NC}  $PP_CONFIG"
+    echo -e "  ${CYAN}Стоп:${NC}    Ctrl+C\n"
     "$PP_TUN_RUNNER"
 else
     write_active_config
-    ok "Активный конфиг proxy-режима обновлён: $PP_CONFIG"
-    echo "  Режим:   proxy (SOCKS5/HTTP listeners)"
-    echo "  Конфиг:  $PP_CONFIG"
-    echo "  Логи:    в этом терминале"
-    echo "  Стоп:    Ctrl+C"
-    echo ""
+    ok "Конфиг proxy-режима обновлён"
+    echo -e "\n  ${CYAN}Режим:${NC}   proxy (SOCKS5/HTTP listeners)"
+    echo -e "  ${CYAN}Конфиг:${NC}  $PP_CONFIG"
+    echo -e "  ${CYAN}Стоп:${NC}    Ctrl+C\n"
     exec "$PP_RUNNER"
 fi
 CONNECT
-sed -i \
-    -e "s|__PP_BIN__|$PP_BIN|g" \
-    -e "s|__PP_RUNNER__|$PP_RUNNER|g" \
-    -e "s|__PP_TUN_RUNNER__|$PP_TUN_RUNNER|g" \
-    -e "s|__PP_DATA_DIR__|$PP_DATA_DIR|g" \
-    -e "s|__PP_CONFIG_DIR__|$PP_CONFIG_DIR|g" \
-    -e "s|__PP_CONFIG__|$PP_CONFIG|g" \
-    -e "s|__PP_DATA_SUBDIR__|$PP_DATA_SUBDIR|g" \
-    -e "s|__PP_INSTALL_UID__|$PP_INSTALL_UID|g" \
-    -e "s|__PP_INSTALL_GID__|$PP_INSTALL_GID|g" \
-    "$PP_CONNECT"
-chmod 755 "$PP_CONNECT"
-ok "Команда подключения установлена: $PP_CONNECT"
+    sed -i \
+        -e "s|__PP_BIN__|$PP_BIN|g" \
+        -e "s|__PP_RUNNER__|$PP_RUNNER|g" \
+        -e "s|__PP_TUN_RUNNER__|$PP_TUN_RUNNER|g" \
+        -e "s|__PP_DATA_DIR__|$PP_DATA_DIR|g" \
+        -e "s|__PP_CONFIG_DIR__|$PP_CONFIG_DIR|g" \
+        -e "s|__PP_CONFIG__|$PP_CONFIG|g" \
+        -e "s|__PP_DATA_SUBDIR__|$PP_DATA_SUBDIR|g" \
+        -e "s|__PP_INSTALL_UID__|$PP_INSTALL_UID|g" \
+        -e "s|__PP_INSTALL_GID__|$PP_INSTALL_GID|g" \
+        "$PP_CONNECT"
+    chmod 755 "$PP_CONNECT"
+}
+
+run_with_spinner "Генерация лаунчеров (pp-client, pp-client-tun, pp-client-connect)" setup_scripts
 
 echo ""
-echo -e "${GREEN}============================================================${NC}"
-echo -e "${GREEN}  PP Client установлен${NC}"
-echo -e "${GREEN}============================================================${NC}"
+echo -e "${BOLD}${GREEN}╔══════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${BOLD}${GREEN}║                Установка клиента завершена!                  ║${NC}"
+echo -e "${BOLD}${GREEN}╚══════════════════════════════════════════════════════════════╝${NC}"
 echo ""
-echo "  Бинарник:      $PP_BIN"
-echo "  Данные:        $PP_DATA_DIR"
-echo "  Geo-базы:      $PP_DATA_SUBDIR"
-echo "  Launcher:      $PP_RUNNER"
-echo "  Full-tunnel:   $PP_TUN_RUNNER"
-echo "  Подключение:   $PP_CONNECT --config client.json"
-echo "  Full-tunnel:   $PP_CONNECT tun --config client.json"
+echo -e "  ${BOLD}Пути:${NC}"
+echo -e "    Бинарник:    ${CYAN}$PP_BIN${NC}"
+echo -e "    Данные:      ${CYAN}$PP_DATA_DIR${NC}"
+echo -e "    Geo-базы:    ${CYAN}$PP_DATA_SUBDIR${NC}"
+echo ""
+echo -e "  ${BOLD}Использование:${NC}"
+echo -e "    Подключение:     ${CYAN}$PP_CONNECT --config client.json${NC}"
+echo -e "    Full-tunnel:     ${CYAN}$PP_CONNECT tun --config client.json${NC}"
 echo ""
 if [[ ":$PATH:" != *":$INSTALL_PREFIX/bin:"* ]]; then
-    warn "Каталог $INSTALL_PREFIX/bin не найден в PATH"
+    warn "Каталог $INSTALL_PREFIX/bin не найден в PATH. Возможно, потребуется добавить его."
 fi
-echo -e "${GREEN}============================================================${NC}"
