@@ -591,20 +591,25 @@ func blogArticleHTML(article *Article, commentURL string) string {
 		.nav-links a { display:inline-flex; align-items:center; min-height:38px; padding:0 14px; border:1px solid var(--line); border-radius:999px; background:rgba(255,250,241,.66); }
 		.hero, .prose, .side-card { background:rgba(255,250,241,.90); border:1px solid var(--line); border-radius:30px; box-shadow:var(--shadow); }
 		.hero { position:relative; overflow:hidden; margin-top:24px; padding:42px; }
-		.hero::after { content:""; position:absolute; right:26px; top:26px; width:118px; height:118px; border:1px solid rgba(154,79,45,.16); border-radius:50%; background:radial-gradient(circle, rgba(154,79,45,.11), transparent 66%); }
 		.kicker { position:relative; display:flex; gap:10px; flex-wrap:wrap; align-items:center; color:var(--muted); font-size:14px; }
 		.tag { display:inline-flex; align-items:center; min-height:27px; padding:0 11px; border-radius:999px; background:var(--accent-soft); color:var(--accent-dark); font-size:12px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; }
 		.hero h1 { position:relative; max-width:820px; margin:24px 0 16px; font-size:56px; line-height:.98; letter-spacing:-.058em; }
-		.lead { position:relative; max-width:760px; margin:0; color:#3b342d; font-size:20px; line-height:1.78; }
 		.byline { display:flex; gap:12px; flex-wrap:wrap; margin-top:30px; padding-top:18px; border-top:1px solid rgba(68,54,39,.13); color:var(--muted); font-size:14px; }
 		.article-layout { display:grid; grid-template-columns:minmax(0,760px) 300px; gap:20px; align-items:start; margin-top:20px; }
+		.article-main { display:grid; gap:18px; min-width:0; }
 		.prose { padding:42px; }
 		.article-body { font-size:20px; line-height:1.9; color:#2e2923; }
 		.article-body p { margin:0 0 1.35em; }
 		.article-body p:first-child::first-letter { float:left; margin:.1em .12em 0 0; font-size:4.1em; line-height:.74; color:var(--accent-dark); font-weight:800; }
 		.article-body p:last-child { margin-bottom:0; }
+		.article-body a { color:var(--accent-dark); font-weight:700; text-decoration:underline; text-decoration-thickness:1px; text-underline-offset:.18em; }
+		.article-body figure { margin:2em 0; }
+		.article-body figure:first-child { margin-top:0; }
+		.article-body img { display:block; width:100%; max-width:100%; height:auto; border-radius:22px; border:1px solid rgba(68,54,39,.14); box-shadow:0 18px 46px rgba(80,61,38,.12); background:#efe5d5; }
+		.article-body figcaption { margin-top:10px; color:var(--muted); font-size:14px; line-height:1.5; text-align:center; }
 		.sidebar { display:grid; gap:18px; align-content:start; }
 		.side-card { padding:24px; }
+		.comment-card { padding:28px; }
 		.side-card h2 { margin:0 0 12px; font-size:22px; line-height:1.1; letter-spacing:-.025em; }
 		.side-card p { margin:0; color:var(--muted); line-height:1.7; }
 		.note-line { display:grid; gap:8px; color:var(--muted); font-size:14px; margin-top:16px; }
@@ -619,6 +624,7 @@ func blogArticleHTML(article *Article, commentURL string) string {
 			.hero, .prose { padding:26px; }
 			.hero h1 { font-size:34px; }
 			.article-body { font-size:18px; }
+			.article-body img { border-radius:18px; }
 			.article-body p:first-child::first-letter { float:none; margin:0; font-size:inherit; line-height:inherit; color:inherit; font-weight:inherit; }
 		}
 	</style>
@@ -640,7 +646,6 @@ func blogArticleHTML(article *Article, commentURL string) string {
 				<span>` + html.EscapeString(articleReadingTimeLabel(article.Content)) + `</span>
 			</div>
 			<h1>` + html.EscapeString(article.Title) + `</h1>
-			<p class="lead">` + articleLeadSnippet(article.Content, 280) + `</p>
 			<div class="byline">
 				<span>` + html.EscapeString(blogEntryLabel(*article)) + `</span>
 				<span>` + html.EscapeString(formatDateTime(article.CreatedAt)) + `</span>
@@ -648,9 +653,18 @@ func blogArticleHTML(article *Article, commentURL string) string {
 		</header>
 
 		<div class="article-layout">
-			<article class="prose">
-				<div class="article-body">` + safeHTML(article.Content) + `</div>
-			</article>
+			<main class="article-main">
+				<article class="prose">
+					<div class="article-body">` + safeHTML(article.Content, article.Title) + `</div>
+				</article>
+				<section class="side-card comment-card">
+					<h2>Обсуждение</h2>
+					<p>Комментарии открыты для зарегистрированных читателей. Ответы остаются рядом с записью и не смешиваются с общей лентой.</p>
+					<div class="note-line">
+						<a class="text-link" href="` + html.EscapeString(commentURL) + `">Перейти к обсуждению</a>
+					</div>
+				</section>
+			</main>
 			<aside class="sidebar">
 				<section class="side-card">
 					<h2>В блокноте</h2>
@@ -659,14 +673,6 @@ func blogArticleHTML(article *Article, commentURL string) string {
 						<span>Раздел: ` + html.EscapeString(articleCategory(*article)) + `</span>
 						<span>Опубликовано: ` + html.EscapeString(formatDateTime(article.CreatedAt)) + `</span>
 					</div>
-				</section>
-				<section class="side-card">
-					<h2>Обсуждение</h2>
-					<p>Комментарии открыты для зарегистрированных читателей. Ответы остаются рядом с записью и не смешиваются с общей лентой.</p>
-					<div class="note-line">
-						<a class="text-link" href="` + html.EscapeString(commentURL) + `">Перейти к обсуждению</a>`)
-
-	b.WriteString(`</div>
 				</section>
 			</aside>
 		</div>
@@ -751,7 +757,7 @@ func forumThreadHTML(article *Article, commentURL string) string {
 				</div>
 				<h1>` + html.EscapeString(article.Title) + `</h1>
 				<div class="post-meta">` + html.EscapeString(forumAuthorName(article.ID)) + ` · ` + html.EscapeString(formatDateTime(forumLastActivity(*article))) + ` · ` + fmt.Sprintf("%d ответов", forumReplyCount(*article)) + `</div>
-				<div class="post-body">` + safeHTML(article.Content) + `</div>
+				<div class="post-body">` + safeHTML(article.Content, article.Title) + `</div>
 			</article>
 			<aside class="sidebar">
 				<section class="side-card">
@@ -894,17 +900,157 @@ func safeSnippet(s string, limit int) string {
 	return string(runes[:limit]) + "..."
 }
 
-func safeHTML(s string) string {
-	paragraphs := contentParagraphs(s)
-	if len(paragraphs) == 0 {
+func safeHTML(s string, omittedLeadingTitles ...string) string {
+	blocks := contentBlocks(s)
+	if len(blocks) == 0 {
+		return `<p>Материал обновляется.</p>`
+	}
+
+	blocks = dropLeadingTitleBlocks(blocks, omittedLeadingTitles...)
+	if len(blocks) == 0 {
 		return `<p>Материал обновляется.</p>`
 	}
 
 	var b strings.Builder
-	for _, paragraph := range paragraphs {
-		fmt.Fprintf(&b, `<p>%s</p>`, html.EscapeString(paragraph))
+	for _, block := range blocks {
+		if src, alt, ok := parseMarkdownImageBlock(block); ok {
+			fmt.Fprintf(&b, `<figure><img src="%s" alt="%s" loading="lazy" decoding="async">`,
+				html.EscapeString(src),
+				html.EscapeString(alt))
+			if alt != "" {
+				fmt.Fprintf(&b, `<figcaption>%s</figcaption>`, html.EscapeString(alt))
+			}
+			b.WriteString(`</figure>`)
+			continue
+		}
+		fmt.Fprintf(&b, `<p>%s</p>`, safeInlineHTML(block))
 	}
 	return b.String()
+}
+
+func safeInlineHTML(s string) string {
+	var b strings.Builder
+	last := 0
+	for i := 0; i < len(s); i++ {
+		if s[i] != '[' {
+			continue
+		}
+		label, href, end, ok := parseMarkdownLinkAt(s, i)
+		if !ok {
+			continue
+		}
+		b.WriteString(html.EscapeString(s[last:i]))
+		fmt.Fprintf(&b, `<a href="%s" target="_blank" rel="noreferrer">%s</a>`,
+			html.EscapeString(href),
+			html.EscapeString(label))
+		i = end - 1
+		last = end
+	}
+	b.WriteString(html.EscapeString(s[last:]))
+	return b.String()
+}
+
+func markdownLinksToText(s string) string {
+	var b strings.Builder
+	for i := 0; i < len(s); {
+		if s[i] == '[' {
+			label, _, end, ok := parseMarkdownLinkAt(s, i)
+			if ok {
+				b.WriteString(label)
+				i = end
+				continue
+			}
+		}
+		b.WriteByte(s[i])
+		i++
+	}
+	return strings.Join(strings.Fields(b.String()), " ")
+}
+
+func parseMarkdownLinkAt(s string, start int) (label string, href string, end int, ok bool) {
+	if start > 0 && s[start-1] == '!' {
+		return "", "", 0, false
+	}
+	closeLabelRel := strings.Index(s[start+1:], "](")
+	if closeLabelRel < 0 {
+		return "", "", 0, false
+	}
+	closeLabel := start + 1 + closeLabelRel
+	urlStart := closeLabel + 2
+	closeURLRel := strings.IndexByte(s[urlStart:], ')')
+	if closeURLRel < 0 {
+		return "", "", 0, false
+	}
+	urlEnd := urlStart + closeURLRel
+	label = strings.TrimSpace(s[start+1 : closeLabel])
+	href = strings.TrimSpace(s[urlStart:urlEnd])
+	if label == "" || !isSafePublicURL(href) {
+		return "", "", 0, false
+	}
+	return label, href, urlEnd + 1, true
+}
+
+func parseMarkdownImageBlock(block string) (src string, alt string, ok bool) {
+	block = strings.TrimSpace(block)
+	if !strings.HasPrefix(block, "![") || !strings.HasSuffix(block, ")") {
+		return "", "", false
+	}
+	closeAlt := strings.Index(block, "](")
+	if closeAlt < 2 {
+		return "", "", false
+	}
+	alt = strings.TrimSpace(block[2:closeAlt])
+	src = strings.TrimSpace(block[closeAlt+2 : len(block)-1])
+	if !isSafePublicURL(src) {
+		return "", "", false
+	}
+	return src, alt, true
+}
+
+func isSafePublicURL(rawURL string) bool {
+	if strings.ContainsAny(rawURL, "\x00\r\n\t ") {
+		return false
+	}
+	parsed, err := url.Parse(rawURL)
+	if err != nil || !parsed.IsAbs() {
+		return false
+	}
+	return parsed.Scheme == "http" || parsed.Scheme == "https"
+}
+
+func dropLeadingTitleBlocks(blocks []string, titles ...string) []string {
+	if len(blocks) == 0 || len(titles) == 0 {
+		return blocks
+	}
+	start := 0
+	for start < len(blocks) {
+		if _, _, ok := parseMarkdownImageBlock(blocks[start]); ok {
+			break
+		}
+		if !matchesAnyNormalizedTitle(blocks[start], titles) {
+			break
+		}
+		start++
+	}
+	return blocks[start:]
+}
+
+func matchesAnyNormalizedTitle(block string, titles []string) bool {
+	block = normalizeComparableText(markdownLinksToText(block))
+	if block == "" {
+		return false
+	}
+	for _, title := range titles {
+		if block == normalizeComparableText(title) {
+			return true
+		}
+	}
+	return false
+}
+
+func normalizeComparableText(s string) string {
+	s = strings.ToLower(strings.Join(strings.Fields(s), " "))
+	return strings.Trim(s, " \t\n\r.,:;!?—-–\"'«»()[]")
 }
 
 func formatDateTime(t time.Time) string {
@@ -912,14 +1058,6 @@ func formatDateTime(t time.Time) string {
 		return "недавно"
 	}
 	return fmt.Sprintf("%s, %02d:%02d", formatDate(t), t.Hour(), t.Minute())
-}
-
-func articleLeadSnippet(content string, limit int) string {
-	paragraphs := contentParagraphs(content)
-	if len(paragraphs) == 0 {
-		return safeSnippet(content, limit)
-	}
-	return safeSnippet(paragraphs[0], limit)
 }
 
 func articleReadingTimeLabel(content string) string {
@@ -1076,16 +1214,28 @@ func articleCategory(article Article) string {
 	}
 }
 
-func contentParagraphs(s string) []string {
+func contentBlocks(s string) []string {
 	s = strings.TrimSpace(normalizeContentBreaks(s))
 	if s == "" {
 		return nil
 	}
 
-	rawParagraphs := strings.Split(s, "\n\n")
-	paragraphs := make([]string, 0, len(rawParagraphs))
-	for _, rawParagraph := range rawParagraphs {
-		lines := strings.Split(rawParagraph, "\n")
+	rawBlocks := strings.Split(s, "\n\n")
+	blocks := make([]string, 0, len(rawBlocks))
+	for _, rawBlock := range rawBlocks {
+		rawBlock = strings.TrimSpace(rawBlock)
+		if rawBlock == "" {
+			continue
+		}
+		if isTrailingArticleMetadataBlock(markdownLinksToText(rawBlock)) {
+			break
+		}
+		if _, _, ok := parseMarkdownImageBlock(rawBlock); ok {
+			blocks = append(blocks, rawBlock)
+			continue
+		}
+
+		lines := strings.Split(rawBlock, "\n")
 		cleanedLines := make([]string, 0, len(lines))
 		for _, line := range lines {
 			line = strings.Join(strings.Fields(line), " ")
@@ -1096,7 +1246,26 @@ func contentParagraphs(s string) []string {
 		if len(cleanedLines) == 0 {
 			continue
 		}
-		paragraphs = append(paragraphs, strings.Join(cleanedLines, " "))
+		blocks = append(blocks, strings.Join(cleanedLines, " "))
+	}
+	return blocks
+}
+
+func contentParagraphs(s string) []string {
+	blocks := contentBlocks(s)
+	if len(blocks) == 0 {
+		return nil
+	}
+
+	paragraphs := make([]string, 0, len(blocks))
+	for _, block := range blocks {
+		if _, _, ok := parseMarkdownImageBlock(block); ok {
+			continue
+		}
+		block = markdownLinksToText(block)
+		if block != "" {
+			paragraphs = append(paragraphs, block)
+		}
 	}
 	return paragraphs
 }

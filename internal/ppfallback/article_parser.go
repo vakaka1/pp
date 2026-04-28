@@ -2,6 +2,7 @@ package ppfallback
 
 import (
 	stdhtml "html"
+	"net/url"
 	"strings"
 
 	"golang.org/x/net/html"
@@ -16,22 +17,35 @@ var articleBodyHints = []string{
 }
 
 func extractArticleTextFromHTML(doc *html.Node) string {
+	return extractArticleTextFromHTMLWithBase(doc, "")
+}
+
+func extractArticleTextFromHTMLWithBase(doc *html.Node, baseURL string) string {
 	root := findArticleRoot(doc)
 	if root == nil {
 		root = doc
 	}
 
 	blocks := make([]string, 0, 32)
+	stopAtMetadata := false
 	var walk func(*html.Node)
 	walk = func(node *html.Node) {
-		if node == nil {
+		if node == nil || stopAtMetadata {
 			return
 		}
 		if shouldSkipNode(node) {
 			return
 		}
+		if block := imageMarkdownBlock(node, baseURL); block != "" {
+			blocks = append(blocks, block)
+			return
+		}
 		if isTextBlock(node) {
-			block := normalizeBlockText(extractInlineText(node))
+			block := normalizeBlockText(extractInlineMarkdown(node, baseURL))
+			if isTrailingArticleMetadataBlock(block) {
+				stopAtMetadata = true
+				return
+			}
 			if block != "" {
 				blocks = append(blocks, block)
 			}
@@ -44,7 +58,7 @@ func extractArticleTextFromHTML(doc *html.Node) string {
 	walk(root)
 
 	if len(blocks) == 0 {
-		return normalizeBlockText(extractInlineText(root))
+		return normalizeBlockText(extractInlineMarkdown(root, baseURL))
 	}
 
 	return strings.Join(dedupeAdjacent(blocks), "\n\n")
@@ -100,13 +114,30 @@ func shouldSkipNode(node *html.Node) bool {
 	}
 
 	switch node.Data {
-	case "script", "style", "noscript", "svg", "img", "picture", "source", "figure", "video", "iframe", "form", "button":
+	case "script", "style", "noscript", "svg", "video", "iframe", "form", "button":
 		return true
 	}
 
 	for _, attr := range node.Attr {
-		if attr.Key == "class" && (strings.Contains(attr.Val, "banner") || strings.Contains(attr.Val, "advert") || strings.Contains(attr.Val, "tm-sticky-column")) {
-			return true
+		if attr.Key != "class" && attr.Key != "id" {
+			continue
+		}
+		value := strings.ToLower(attr.Val)
+		for _, marker := range []string{
+			"banner",
+			"advert",
+			"tm-sticky-column",
+			"tm-article-snippet__hubs",
+			"tm-tags-list",
+			"tm-article-presenter__footer",
+			"tm-article-presenter__meta",
+			"tm-votes",
+			"tm-user-info",
+			"tm-comment",
+		} {
+			if strings.Contains(value, marker) {
+				return true
+			}
 		}
 	}
 
@@ -119,13 +150,60 @@ func isTextBlock(node *html.Node) bool {
 	}
 
 	switch node.Data {
-	case "p", "li", "blockquote", "pre", "h1", "h2", "h3", "h4", "h5", "h6":
+	case "p", "li", "blockquote", "pre", "h2", "h3", "h4", "h5", "h6":
 		return true
 	}
 	return false
 }
 
-func extractInlineText(node *html.Node) string {
+func imageMarkdownBlock(node *html.Node, baseURL string) string {
+	image := firstImageNode(node)
+	if image == nil {
+		return ""
+	}
+
+	src := resolveArticleURL(firstNonEmptyAttr(image, "data-src", "src"), baseURL)
+	if src == "" {
+		return ""
+	}
+
+	alt := sanitizeMarkdownLabel(firstNonEmptyAttr(image, "alt", "title"))
+	return "![" + alt + "](" + src + ")"
+}
+
+func firstImageNode(node *html.Node) *html.Node {
+	if node == nil {
+		return nil
+	}
+	if node.Type == html.ElementNode && node.Data == "img" {
+		return node
+	}
+	if node.Type == html.ElementNode && node.Data != "figure" && node.Data != "picture" {
+		return nil
+	}
+	for child := node.FirstChild; child != nil; child = child.NextSibling {
+		if found := firstImageNode(child); found != nil {
+			return found
+		}
+	}
+	return nil
+}
+
+func firstNonEmptyAttr(node *html.Node, keys ...string) string {
+	if node == nil {
+		return ""
+	}
+	for _, key := range keys {
+		for _, attr := range node.Attr {
+			if attr.Key == key && strings.TrimSpace(attr.Val) != "" {
+				return strings.TrimSpace(attr.Val)
+			}
+		}
+	}
+	return ""
+}
+
+func extractInlineMarkdown(node *html.Node, baseURL string) string {
 	var b strings.Builder
 	var walk func(*html.Node)
 	walk = func(current *html.Node) {
@@ -140,8 +218,27 @@ func extractInlineText(node *html.Node) string {
 		case html.TextNode:
 			b.WriteString(current.Data)
 		case html.ElementNode:
-			if current.Data == "br" {
+			switch current.Data {
+			case "br":
 				b.WriteString("\n")
+				return
+			case "img", "figure", "picture":
+				return
+			case "a":
+				label := normalizeBlockText(extractPlainInlineText(current))
+				href := resolveArticleURL(firstNonEmptyAttr(current, "href"), baseURL)
+				if label == "" {
+					return
+				}
+				if href == "" {
+					b.WriteString(label)
+					return
+				}
+				b.WriteString("[")
+				b.WriteString(sanitizeMarkdownLabel(label))
+				b.WriteString("](")
+				b.WriteString(href)
+				b.WriteString(")")
 				return
 			}
 			for child := current.FirstChild; child != nil; child = child.NextSibling {
@@ -156,6 +253,86 @@ func extractInlineText(node *html.Node) string {
 
 	walk(node)
 	return b.String()
+}
+
+func extractPlainInlineText(node *html.Node) string {
+	var b strings.Builder
+	var walk func(*html.Node)
+	walk = func(current *html.Node) {
+		if current == nil || shouldSkipNode(current) {
+			return
+		}
+		switch current.Type {
+		case html.TextNode:
+			b.WriteString(current.Data)
+		case html.ElementNode:
+			if current.Data == "br" {
+				b.WriteString("\n")
+				return
+			}
+			if current.Data == "img" || current.Data == "figure" || current.Data == "picture" {
+				return
+			}
+			for child := current.FirstChild; child != nil; child = child.NextSibling {
+				walk(child)
+			}
+		default:
+			for child := current.FirstChild; child != nil; child = child.NextSibling {
+				walk(child)
+			}
+		}
+	}
+	walk(node)
+	return b.String()
+}
+
+func resolveArticleURL(rawURL string, baseURL string) string {
+	rawURL = strings.TrimSpace(stdhtml.UnescapeString(rawURL))
+	if rawURL == "" || strings.HasPrefix(rawURL, "#") {
+		return ""
+	}
+	if strings.HasPrefix(rawURL, "//") {
+		return "https:" + rawURL
+	}
+
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return ""
+	}
+	if parsed.IsAbs() {
+		if parsed.Scheme == "http" || parsed.Scheme == "https" {
+			return parsed.String()
+		}
+		return ""
+	}
+	if strings.TrimSpace(baseURL) == "" {
+		return ""
+	}
+
+	base, err := url.Parse(baseURL)
+	if err != nil {
+		return ""
+	}
+	resolved := base.ResolveReference(parsed)
+	if resolved.Scheme != "http" && resolved.Scheme != "https" {
+		return ""
+	}
+	return resolved.String()
+}
+
+func sanitizeMarkdownLabel(label string) string {
+	label = strings.Join(strings.Fields(label), " ")
+	replacer := strings.NewReplacer("[", " ", "]", " ", "(", " ", ")", " ")
+	label = replacer.Replace(label)
+	return strings.Join(strings.Fields(label), " ")
+}
+
+func isTrailingArticleMetadataBlock(block string) bool {
+	normalized := strings.Trim(strings.ToLower(strings.Join(strings.Fields(block), " ")), " :")
+	return normalized == "теги" ||
+		normalized == "хабы" ||
+		strings.HasPrefix(normalized, "теги:") ||
+		strings.HasPrefix(normalized, "хабы:")
 }
 
 func normalizeBlockText(raw string) string {

@@ -250,7 +250,7 @@ func (l *ContentLoader) fetchArticleBody(ctx context.Context, articleURL string)
 		return "", err
 	}
 
-	body := extractArticleTextFromHTML(doc)
+	body := extractArticleTextFromHTMLWithBase(doc, articleURL)
 	if body == "" {
 		return "", fmt.Errorf("article body is empty after parsing")
 	}

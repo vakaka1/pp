@@ -13,7 +13,7 @@ import (
 	"golang.org/x/net/html"
 )
 
-func TestExtractArticleTextFromHTMLRemovesImages(t *testing.T) {
+func TestExtractArticleTextFromHTMLPreservesImagesLinksAndSkipsHabrMeta(t *testing.T) {
 	doc, err := html.Parse(strings.NewReader(`
 <!doctype html>
 <html>
@@ -23,10 +23,14 @@ func TestExtractArticleTextFromHTMLRemovesImages(t *testing.T) {
 				<h1>Заголовок</h1>
 				<p>Первый абзац.</p>
 				<figure>
-					<img src="/cover.png" alt="cover">
+					<img src="https://habrastorage.org/webt/a/b/cover.png" alt="Схема">
 					<figcaption>Подпись, которая тоже не должна попасть.</figcaption>
 				</figure>
-				<p>Второй <strong>абзац</strong> со <a href="#">ссылкой</a>.</p>
+				<p>Второй <strong>абзац</strong> со <a href="/ru/articles/2/">ссылкой</a>.</p>
+				<h2>Хабы</h2>
+				<ul><li>Go</li><li>Инфраструктура</li></ul>
+				<h2>Теги</h2>
+				<ul><li>backend</li></ul>
 			</div>
 		</main>
 	</body>
@@ -35,16 +39,24 @@ func TestExtractArticleTextFromHTMLRemovesImages(t *testing.T) {
 		t.Fatalf("html.Parse() error = %v", err)
 	}
 
-	text := extractArticleTextFromHTML(doc)
+	text := extractArticleTextFromHTMLWithBase(doc, "https://habr.com/ru/articles/1/")
 
-	if strings.Contains(text, "cover") || strings.Contains(text, "Подпись") {
-		t.Fatalf("expected parser to skip images and captions, got %q", text)
+	if strings.Contains(text, "Заголовок") || strings.Contains(text, "Подпись") {
+		t.Fatalf("expected parser to skip title and captions, got %q", text)
 	}
 	if !strings.Contains(text, "Первый абзац.") {
 		t.Fatalf("expected first paragraph in parsed text, got %q", text)
 	}
-	if !strings.Contains(text, "Второй абзац со ссылкой.") {
-		t.Fatalf("expected second paragraph in parsed text, got %q", text)
+	if !strings.Contains(text, "![Схема](https://habrastorage.org/webt/a/b/cover.png)") {
+		t.Fatalf("expected Habr image URL in parsed text, got %q", text)
+	}
+	if !strings.Contains(text, "[ссылкой](https://habr.com/ru/articles/2/)") {
+		t.Fatalf("expected article link in parsed text, got %q", text)
+	}
+	for _, forbidden := range []string{"Хабы", "Теги", "backend", "Инфраструктура"} {
+		if strings.Contains(text, forbidden) {
+			t.Fatalf("expected parser to skip Habr metadata %q, got %q", forbidden, text)
+		}
 	}
 }
 

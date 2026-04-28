@@ -142,6 +142,54 @@ func TestBlogIndexUsesConfiguredTopics(t *testing.T) {
 	}
 }
 
+func TestBlogArticleRendersImagesLinksAndCommentsBelowArticle(t *testing.T) {
+	db, err := InitFallbackDB("")
+	if err != nil {
+		t.Fatalf("InitFallbackDB() error = %v", err)
+	}
+
+	content := "Пост о сетях\n\nПервый абзац со [ссылкой](https://example.org/page).\n\n![Схема](https://habrastorage.org/webt/a/b/cover.png)\n\nХабы\n\nGo\n\nТеги\n\nbackend"
+	if _, err := db.InsertArticle("Пост о сетях", content, "https://example.com/post", time.Now()); err != nil {
+		t.Fatalf("InsertArticle() error = %v", err)
+	}
+
+	handler, err := NewFallbackHandler("blog", "", "", db)
+	if err != nil {
+		t.Fatalf("NewFallbackHandler() error = %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/article/1", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+
+	body := rec.Body.String()
+	if strings.Contains(body, `<p>Пост о сетях</p>`) {
+		t.Fatalf("article body must not duplicate title paragraph: %q", body)
+	}
+	for _, want := range []string{
+		`href="https://example.org/page"`,
+		`src="https://habrastorage.org/webt/a/b/cover.png"`,
+		`class="article-main"`,
+		`class="side-card comment-card"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("expected %q in article body, got %q", want, body)
+		}
+	}
+	if strings.Index(body, `class="side-card comment-card"`) < strings.Index(body, `</article>`) {
+		t.Fatalf("comment card must be rendered below article content, got %q", body)
+	}
+	for _, forbidden := range []string{"Хабы", "Теги", "backend"} {
+		if strings.Contains(body, forbidden) {
+			t.Fatalf("article body must not render Habr metadata %q: %q", forbidden, body)
+		}
+	}
+}
+
 func TestLoginPageDoesNotRenderInviteField(t *testing.T) {
 	db, err := InitFallbackDB("")
 	if err != nil {
