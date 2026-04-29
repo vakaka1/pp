@@ -92,6 +92,14 @@ function formatDateTime(isoString) {
   }).format(date);
 }
 
+function formatBytes(bytes) {
+  if (bytes === 0 || !bytes) return "0 B";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB", "TB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+}
+
 function formatBuildDate(buildDate) {
   if (!buildDate) return "—";
   return buildDate.split("T")[0];
@@ -1407,9 +1415,33 @@ function ClientsModal({ connection, onClose, onNotice }) {
             <div className="client-list">
               {clients.map((client) => (
                 <div className="client-row" key={client.id}>
-                  <div className="client-info">
-                    <strong>{client.name}</strong>
-                    <p className="muted-caption">Создан: {formatDateTime(client.createdAt)}</p>
+                  <div className="client-info" style={{ flex: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginBottom: "0.2rem" }}>
+                      <span
+                        style={{
+                          display: "inline-block",
+                          width: "8px",
+                          height: "8px",
+                          borderRadius: "50%",
+                          background: client.online ? "var(--good-color, #10b981)" : "var(--border-color, #d1d5db)",
+                          boxShadow: client.online ? "0 0 0 2px rgba(16, 185, 129, 0.2)" : "none"
+                        }}
+                        title={client.online ? "В сети" : "Офлайн"}
+                      />
+                      <strong style={{ fontSize: "1rem", lineHeight: "1" }}>{client.name}</strong>
+                    </div>
+                    <p className="muted-caption" style={{ marginLeft: "0.9rem" }}>Создан: {formatDateTime(client.createdAt)}</p>
+                  </div>
+
+                  <div className="client-stats" style={{ flex: 1.2, display: "flex", gap: "1.5rem" }}>
+                    <div>
+                      <span className="muted-caption" style={{ display: "block", fontSize: "0.65rem", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.1rem" }}>Активность</span>
+                      <strong style={{ fontSize: "0.85rem", color: "var(--text-strong)" }}>{client.online ? "Сейчас" : (client.lastSeen ? formatDateTime(client.lastSeen) : "—")}</strong>
+                    </div>
+                    <div>
+                      <span className="muted-caption" style={{ display: "block", fontSize: "0.65rem", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.1rem" }}>Трафик</span>
+                      <strong style={{ fontSize: "0.85rem", color: "var(--text-strong)" }}>{formatBytes(client.bytesUsed)}</strong>
+                    </div>
                   </div>
 
                   <div className="client-actions">
