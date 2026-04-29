@@ -1,10 +1,8 @@
 # Compiled binaries / build artifacts
 /dist/
 /pp
+/bin/
 /pp-web-frontend.tar.gz
-
-# Release binaries in bin/ ARE committed (download via scripts/download-geo.sh)
-# Only ignore any extra test dumps at root level
 
 # Go build cache
 *.test
@@ -23,6 +21,8 @@
 # Client configs with real keys — никогда не коммитить!
 client.json
 /etc/pp/
+*.example.json
+!configs/*.example.json
 
 # Frontend build artifacts
 /pp-web/frontend/dist/
@@ -47,3 +47,16 @@ Thumbs.db
 
 # Local development cache
 /.cache/
+
+# Temporary files and logs
+*.log
+*.zip
+release.json
+runs.json
+tag_msg*.txt
+test-*.sh
+rewrite.py
+
+# Misplaced documentation and completions
+/completions/
+/manpages/
