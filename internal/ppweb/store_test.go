@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/user/pp/internal/config"
+	"github.com/vakaka1/pp/internal/config"
 )
 
 func TestSaveConnectionPreservesTLSWhenUpdateOmitsIt(t *testing.T) {

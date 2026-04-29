@@ -15,8 +15,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/user/pp/internal/config"
-	"github.com/user/pp/internal/crypto"
+	"github.com/vakaka1/pp/internal/config"
+	"github.com/vakaka1/pp/internal/crypto"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 )

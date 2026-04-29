@@ -5,7 +5,7 @@ package fulltunnel
 import (
 	"fmt"
 
-	"github.com/user/pp/internal/config"
+	"github.com/vakaka1/pp/internal/config"
 )
 
 func Up(cfg *config.ClientConfig, transparentListen string, owner string) error {

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	ppconfig "github.com/user/pp/internal/config"
-	ppcrypto "github.com/user/pp/internal/crypto"
+	ppconfig "github.com/vakaka1/pp/internal/config"
+	ppcrypto "github.com/vakaka1/pp/internal/crypto"
 )
 
 type protocolDriver interface {

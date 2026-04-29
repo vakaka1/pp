@@ -3,7 +3,7 @@ package ppweb
 import (
 	"time"
 
-	"github.com/user/pp/internal/config"
+	"github.com/vakaka1/pp/internal/config"
 )
 
 type BuildInfo struct {

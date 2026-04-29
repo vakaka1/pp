@@ -9,9 +9,9 @@ import (
 	"syscall"
 
 	"github.com/spf13/cobra"
-	"github.com/user/pp/internal/config"
-	"github.com/user/pp/internal/crypto"
-	"github.com/user/pp/internal/ppcore"
+	"github.com/vakaka1/pp/internal/config"
+	"github.com/vakaka1/pp/internal/crypto"
+	"github.com/vakaka1/pp/internal/ppcore"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )

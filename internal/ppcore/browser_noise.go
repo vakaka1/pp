@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/user/pp/internal/config"
-	"github.com/user/pp/internal/transport"
+	"github.com/vakaka1/pp/internal/config"
+	"github.com/vakaka1/pp/internal/transport"
 	"go.uber.org/zap"
 	"golang.org/x/net/html"
 )

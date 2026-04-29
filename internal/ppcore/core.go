@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/user/pp/internal/config"
-	"github.com/user/pp/internal/ppfallback"
+	"github.com/vakaka1/pp/internal/config"
+	"github.com/vakaka1/pp/internal/ppfallback"
 	"go.uber.org/zap"
 )
 

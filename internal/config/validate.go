@@ -7,7 +7,7 @@ import (
 	"net"
 	"strings"
 
-	"github.com/user/pp/internal/crypto"
+	"github.com/vakaka1/pp/internal/crypto"
 )
 
 // Validate checks the loaded configuration for errors.

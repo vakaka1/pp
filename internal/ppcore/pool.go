@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/user/pp/internal/config"
-	"github.com/user/pp/internal/protocol"
+	"github.com/vakaka1/pp/internal/config"
+	"github.com/vakaka1/pp/internal/protocol"
 	"github.com/xtaci/smux"
 	"go.uber.org/zap"
 )

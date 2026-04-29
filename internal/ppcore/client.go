@@ -5,9 +5,9 @@ import (
 	"net"
 	"time"
 
-	"github.com/user/pp/internal/config"
-	"github.com/user/pp/internal/proxy"
-	"github.com/user/pp/internal/routing"
+	"github.com/vakaka1/pp/internal/config"
+	"github.com/vakaka1/pp/internal/proxy"
+	"github.com/vakaka1/pp/internal/routing"
 	"go.uber.org/zap"
 )
 

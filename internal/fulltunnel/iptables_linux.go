@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/user/pp/internal/config"
+	"github.com/vakaka1/pp/internal/config"
 )
 
 const chainName = "PP_FULL_TUNNEL"

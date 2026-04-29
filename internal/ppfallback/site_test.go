@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/user/pp/internal/config"
+	"github.com/vakaka1/pp/internal/config"
 	"go.uber.org/zap"
 )
 

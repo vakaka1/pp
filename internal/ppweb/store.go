@@ -13,7 +13,7 @@ import (
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/user/pp/internal/config"
+	"github.com/vakaka1/pp/internal/config"
 )
 
 const sqliteDriverName = "sqlite3"

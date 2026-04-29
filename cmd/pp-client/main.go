@@ -8,10 +8,10 @@ import (
 	"syscall"
 
 	"github.com/spf13/cobra"
-	"github.com/user/pp/internal/config"
-	"github.com/user/pp/internal/fulltunnel"
-	"github.com/user/pp/internal/ppcore"
-	"github.com/user/pp/internal/routing"
+	"github.com/vakaka1/pp/internal/config"
+	"github.com/vakaka1/pp/internal/fulltunnel"
+	"github.com/vakaka1/pp/internal/ppcore"
+	"github.com/vakaka1/pp/internal/routing"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )

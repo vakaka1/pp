@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/user/pp/internal/config"
-	"github.com/user/pp/internal/routing"
+	"github.com/vakaka1/pp/internal/config"
+	"github.com/vakaka1/pp/internal/routing"
 	"github.com/xtaci/smux"
 	"go.uber.org/zap"
 )
