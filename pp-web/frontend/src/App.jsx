@@ -82,7 +82,7 @@ function getRouteMeta(route) {
 }
 
 function formatDateTime(isoString) {
-  if (!isoString) return "—";
+  if (!isoString || isoString.startsWith("0001-01-01")) return "—";
   const date = new Date(isoString);
   if (Number.isNaN(date.getTime())) return "—";
 

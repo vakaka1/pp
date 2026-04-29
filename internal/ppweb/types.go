@@ -66,9 +66,9 @@ type Client struct {
 	// PSK is the client's unique pre-shared key, returned only on creation and config download.
 	PSK       string    `json:"psk,omitempty"`
 	CreatedAt time.Time `json:"createdAt"`
-	Online    bool      `json:"online"`
-	BytesUsed int64     `json:"bytesUsed"`
-	LastSeen  time.Time `json:"lastSeen,omitempty"`
+	Online    bool       `json:"online"`
+	BytesUsed int64      `json:"bytesUsed"`
+	LastSeen  *time.Time `json:"lastSeen,omitempty"`
 }
 
 type AppSettings struct {
