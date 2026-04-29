@@ -30,7 +30,7 @@ curl -fsSL https://raw.githubusercontent.com/vakaka1/pp/main/scripts/install-cli
 
 **Запуск прокси:**
 ```bash
-pp-client-connect --config client.json
+pp-client start --config client.json
 ```
 После запуска будут доступны локальные прокси: **SOCKS5** (`127.0.0.1:1080`) и **HTTP** (`127.0.0.1:8080`).
 
