@@ -86,7 +86,7 @@ func applyReleaseUpdate(request releaseApplyRequest) error {
 		return err
 	}
 
-	ppAssetName := fmt.Sprintf("pp_linux_%s", runtime.GOARCH)
+	ppAssetName := fmt.Sprintf("pp-core_linux_%s", runtime.GOARCH)
 	ppWebAssetName := fmt.Sprintf("pp-web_linux_%s", runtime.GOARCH)
 	frontendAssetName := "pp-web-frontend.tar.gz"
 

@@ -38,16 +38,32 @@ Behavior:
 EOF
 }
 
-build_pp() {
-    info "Cleaning $BIN_DIR/pp"
-    rm -f "$BIN_DIR/pp"
+build_pp_core() {
+    info "Cleaning $BIN_DIR/pp-core"
+    rm -f "$BIN_DIR/pp-core"
 
-    info "Building pp"
-    (
-        cd "$ROOT_DIR"
-        GOCACHE="$GOCACHE_DIR" CGO_ENABLED=0 go build -ldflags="$LDFLAGS" -o "$BIN_DIR/pp" ./cmd/pp
-    )
-    ok "Built $BIN_DIR/pp"
+    info "Building pp-core"
+    cd "$ROOT_DIR"
+    if [ "$VERBOSE" = "true" ]; then
+        GOCACHE="$GOCACHE_DIR" CGO_ENABLED=0 go build -v -ldflags="$LDFLAGS" -o "$BIN_DIR/pp-core" ./cmd/pp-core
+    else
+        GOCACHE="$GOCACHE_DIR" CGO_ENABLED=0 go build -ldflags="$LDFLAGS" -o "$BIN_DIR/pp-core" ./cmd/pp-core
+    fi
+    ok "Built $BIN_DIR/pp-core"
+}
+
+build_pp_client() {
+    info "Cleaning $BIN_DIR/pp-client"
+    rm -f "$BIN_DIR/pp-client"
+
+    info "Building pp-client"
+    cd "$ROOT_DIR"
+    if [ "$VERBOSE" = "true" ]; then
+        GOCACHE="$GOCACHE_DIR" CGO_ENABLED=0 go build -v -ldflags="$LDFLAGS" -o "$BIN_DIR/pp-client" ./cmd/pp-client
+    else
+        GOCACHE="$GOCACHE_DIR" CGO_ENABLED=0 go build -ldflags="$LDFLAGS" -o "$BIN_DIR/pp-client" ./cmd/pp-client
+    fi
+    ok "Built $BIN_DIR/pp-client"
 }
 
 build_pp_web() {
@@ -64,24 +80,29 @@ build_pp_web() {
 
 mkdir -p "$BIN_DIR" "$GOCACHE_DIR"
 
-build_core=false
+BUILD_CORE=false
+BUILD_CLIENT=false
 build_web=false
 
 if [ "$#" -eq 0 ]; then
-    build_core=true
+    BUILD_CORE=true
     build_web=true
 fi
 
 for target in "$@"; do
     case "$target" in
-        pp)
-            build_core=true
+        pp-core)
+            BUILD_CORE=true
+            ;;
+        pp-client)
+            BUILD_CLIENT=true
             ;;
         pp-web|web)
             build_web=true
             ;;
         all)
-            build_core=true
+            BUILD_CORE=true
+            BUILD_CLIENT=true
             build_web=true
             ;;
         -h|--help)
@@ -95,12 +116,17 @@ for target in "$@"; do
     esac
 done
 
-if [ "$build_core" = true ]; then
-    build_pp
+if [ "$BUILD_CORE" = "true" ]; then
+    build_pp_core
     if systemctl is-active --quiet pp-core; then
         info "Restarting pp-core"
         sudo systemctl restart pp-core
+        ok "Restarted pp-core"
     fi
+fi
+
+if [ "$BUILD_CLIENT" = "true" ]; then
+    build_pp_client
 fi
 
 if [ "$build_web" = true ]; then

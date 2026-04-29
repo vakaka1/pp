@@ -11,7 +11,8 @@ LDFLAGS := -s -w \
 	-X main.gitCommit=$(COMMIT)
 
 build:
-	GOCACHE=$(GOCACHE) CGO_ENABLED=0 go build -ldflags="$(LDFLAGS)" -o bin/pp ./cmd/pp
+	GOCACHE=$(GOCACHE) CGO_ENABLED=0 go build -ldflags="$(LDFLAGS)" -o bin/pp-core ./cmd/pp-core
+	GOCACHE=$(GOCACHE) CGO_ENABLED=0 go build -ldflags="$(LDFLAGS)" -o bin/pp-client ./cmd/pp-client
 
 build-web:
 	GOCACHE=$(GOCACHE) CGO_ENABLED=1 go build -ldflags="$(LDFLAGS)" -o bin/pp-web ./cmd/pp-web
@@ -38,7 +39,7 @@ release:
 	goreleaser release --clean
 
 clean-bin:
-	rm -f bin/pp bin/pp-web
+	rm -f bin/pp-core bin/pp-client bin/pp-web
 
 clean:
 	rm -rf bin/ dist/ pp-web/frontend/dist

@@ -9,10 +9,24 @@ before:
 
 # ─── Сборка бинарников ────────────────────────────────────────────────────────
 builds:
-  # pp (core + client) — CGO_ENABLED=0, чистая кросс-компиляция
-  - id: pp
-    main: ./cmd/pp
-    binary: pp
+  - id: pp-core
+    main: ./cmd/pp-core
+    binary: pp-core
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.buildDate={{.Date}}
+      - -X main.gitCommit={{.Commit}}
+  - id: pp-client
+    main: ./cmd/pp-client
+    binary: pp-client
     env:
       - CGO_ENABLED=0
     goos:
@@ -43,12 +57,15 @@ builds:
 
 # ─── Архивы (то, что попадёт в GitHub Release) ───────────────────────────────
 archives:
-  - id: pp-archive
+  - id: pp-core-archive
     ids:
-      - pp
-    # Формат: pp_linux_amd64  — именно это ожидают install-server.sh и install-client.sh
-    name_template: "pp_{{ .Os }}_{{ .Arch }}"
-    # Распространяем как голый бинарник (без tar.gz) — проще качать через curl
+      - pp-core
+    name_template: "pp-core_{{ .Os }}_{{ .Arch }}"
+    formats: ["binary"]
+  - id: pp-client-archive
+    ids:
+      - pp-client
+    name_template: "pp-client_{{ .Os }}_{{ .Arch }}"
     formats: ["binary"]
   - id: pp-web-archive
     ids:

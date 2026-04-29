@@ -47,8 +47,10 @@ jobs:
           BUILD_DATE="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
           GIT_COMMIT="$(git rev-parse --verify HEAD)"
           LDFLAGS="-s -w -X main.version=${{ github.ref_name }} -X main.buildDate=${BUILD_DATE} -X main.gitCommit=${GIT_COMMIT}"
-          # Build pp
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "${LDFLAGS}" -o bin/pp_linux_amd64 ./cmd/pp
+          # Build pp-core
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "${LDFLAGS}" -o bin/pp-core_linux_amd64 ./cmd/pp-core
+          # Build pp-client
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "${LDFLAGS}" -o bin/pp-client_linux_amd64 ./cmd/pp-client
           # Build pp-web
           CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -ldflags "${LDFLAGS}" -o bin/pp-web_linux_amd64 ./cmd/pp-web
 
@@ -76,4 +78,4 @@ jobs:
             --title "Release ${{ github.ref_name }}" \
             --notes-file release_notes.txt \
             --generate-notes \
-            bin/pp_linux_amd64 bin/pp-web_linux_amd64 pp-web-frontend.tar.gz
+            bin/pp-core_linux_amd64 bin/pp-client_linux_amd64 bin/pp-web_linux_amd64 pp-web-frontend.tar.gz

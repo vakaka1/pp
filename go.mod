@@ -1,4 +1,4 @@
-module github.com/user/pp
+module github.com/vakaka1/pp
 
 go 1.22
 

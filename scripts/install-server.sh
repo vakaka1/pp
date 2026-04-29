@@ -71,7 +71,7 @@ GITHUB_REPO="${GITHUB_REPO:-vakaka1/pp}"
 RELEASE_TAG="${RELEASE_TAG:-latest}"
 
 PP_USER="pp-server"
-PP_BIN="/usr/local/bin/pp"
+PP_BIN="/usr/local/bin/pp-core"
 PP_WEB_BIN="/usr/local/bin/pp-web"
 
 PP_CONFIG_DIR="/etc/pp"
@@ -168,7 +168,7 @@ download_binary() {
     rm -f "$tmp"
 }
 
-run_with_spinner "Загрузка pp (core)" download_binary "pp" "$PP_BIN"
+run_with_spinner "Загрузка pp-core" download_binary "pp-core" "$PP_BIN"
 run_with_spinner "Загрузка pp-web (панель)" download_binary "pp-web" "$PP_WEB_BIN"
 
 download_frontend() {

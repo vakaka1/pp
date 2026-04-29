@@ -60,8 +60,8 @@ usage() {
 Использование: install-client.sh
 
 Скрипт устанавливает клиентские инструменты PP:
-- pp (основной бинарник)
-- pp-client (запуск обычного режима)
+- pp-client (основной бинарник)
+- pp-client-run (запуск обычного режима)
 - pp-client-tun (запуск режима full-tunnel)
 - pp-client-connect (управление конфигурацией)
 - GeoIP / GeoSite базы
@@ -82,7 +82,7 @@ GITHUB_REPO="${GITHUB_REPO:-vakaka1/pp}"
 RELEASE_TAG="${RELEASE_TAG:-latest}"
 BIN_URL="${BIN_URL:-}"
 
-PP_BIN="$INSTALL_PREFIX/bin/pp"
+PP_BIN="$INSTALL_PREFIX/bin/pp-client"
 PP_RUNNER="$INSTALL_PREFIX/bin/pp-client"
 PP_TUN_RUNNER="$INSTALL_PREFIX/bin/pp-client-tun"
 PP_CONNECT="$INSTALL_PREFIX/bin/pp-client-connect"
@@ -157,9 +157,9 @@ download_pp() {
         DOWNLOAD_URL="$BIN_URL"
     else
         if [ "$VERSION_TO_INSTALL" = "latest" ]; then
-            DOWNLOAD_URL="https://github.com/${GITHUB_REPO}/releases/latest/download/pp_${OS}_${GOARCH}"
+            DOWNLOAD_URL="https://github.com/${GITHUB_REPO}/releases/latest/download/pp-client_${OS}_${GOARCH}"
         else
-            DOWNLOAD_URL="https://github.com/${GITHUB_REPO}/releases/download/${VERSION_TO_INSTALL}/pp_${OS}_${GOARCH}"
+            DOWNLOAD_URL="https://github.com/${GITHUB_REPO}/releases/download/${VERSION_TO_INSTALL}/pp-client_${OS}_${GOARCH}"
         fi
     fi
 
@@ -217,7 +217,7 @@ if [ ! -f "\$PP_CONFIG" ]; then
 fi
 
 cd "\$PP_DATA_DIR"
-exec "\$PP_BIN" client --config "\$PP_CONFIG" "\$@"
+exec "\$PP_BIN" start --config "\$PP_CONFIG" "\$@"
 RUNNER_EOF
     chmod 755 "$PP_RUNNER"
 
@@ -242,7 +242,7 @@ if [ ! -f "\$PP_CONFIG" ]; then
 fi
 
 cd "\$PP_DATA_DIR"
-exec "\$PP_BIN" client --config "\$PP_CONFIG" --transparent-listen "\$PP_TRANSPARENT_LISTEN" "\$@"
+exec "\$PP_BIN" start --config "\$PP_CONFIG" --transparent-listen "\$PP_TRANSPARENT_LISTEN" "\$@"
 TUN_RUNNER_EOF
     chmod 755 "$PP_TUN_RUNNER"
 
@@ -330,7 +330,7 @@ cleanup_tun() {
 
 ensure_paths
 
-if ! VALIDATION_OUTPUT="$("$PP_BIN" validate-config --mode client --config "$CONFIG_FILE" 2>&1)"; then
+if ! VALIDATION_OUTPUT="$("$PP_BIN" validate-config --config "$CONFIG_FILE" 2>&1)"; then
     echo "$VALIDATION_OUTPUT" >&2
     die "Некорректный клиентский конфиг"
 fi
