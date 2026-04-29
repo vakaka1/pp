@@ -83,7 +83,7 @@ RELEASE_TAG="${RELEASE_TAG:-latest}"
 BIN_URL="${BIN_URL:-}"
 
 PP_BIN="$INSTALL_PREFIX/bin/pp-client"
-PP_RUNNER="$INSTALL_PREFIX/bin/pp-client"
+PP_RUNNER="$INSTALL_PREFIX/bin/pp-client-run"
 PP_TUN_RUNNER="$INSTALL_PREFIX/bin/pp-client-tun"
 PP_CONNECT="$INSTALL_PREFIX/bin/pp-client-connect"
 PP_CONFIG="$PP_CONFIG_DIR/client.json"
