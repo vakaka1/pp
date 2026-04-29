@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/spf13/cobra"
@@ -27,6 +29,38 @@ var (
 	fullTunnelOwner   string
 )
 
+// resolveConfigPath attempts to locate the config file
+// given a raw path or name (e.g. "client").
+func resolveConfigPath(name string) (string, error) {
+	if name == "" {
+		return "", fmt.Errorf("config name or path is required")
+	}
+
+	// 1. Check if the exact path exists
+	if info, err := os.Stat(name); err == nil && !info.IsDir() {
+		return name, nil
+	}
+
+	var candidates []string
+	if !strings.HasSuffix(name, ".json") {
+		nameExt := name + ".json"
+		candidates = append(candidates, nameExt)
+		candidates = append(candidates, filepath.Join("configs", nameExt))
+		candidates = append(candidates, filepath.Join("/etc/pp", nameExt))
+	} else {
+		candidates = append(candidates, filepath.Join("configs", name))
+		candidates = append(candidates, filepath.Join("/etc/pp", name))
+	}
+
+	for _, cand := range candidates {
+		if info, err := os.Stat(cand); err == nil && !info.IsDir() {
+			return cand, nil
+		}
+	}
+
+	return "", fmt.Errorf("config file not found for: %s", name)
+}
+
 func main() {
 	rootCmd := &cobra.Command{
 		Use:   "pp-client",
@@ -43,10 +77,19 @@ func main() {
 	}
 
 	validateCmd := &cobra.Command{
-		Use:   "validate-config",
+		Use:   "validate-config [config-name]",
 		Short: "Validate client config",
 		Run: func(cmd *cobra.Command, args []string) {
-			cfg, err := config.LoadConfig(cfgFile)
+			target := cfgFile
+			if target == "" && len(args) > 0 {
+				target = args[0]
+			}
+			resolvedPath, err := resolveConfigPath(target)
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+			cfg, err := config.LoadConfig(resolvedPath)
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
@@ -60,13 +103,21 @@ func main() {
 		},
 	}
 	validateCmd.Flags().StringVar(&cfgFile, "config", "", "Config file")
-	validateCmd.MarkFlagRequired("config")
 
 	clientCmd := &cobra.Command{
-		Use:   "start",
+		Use:   "start [config-name]",
 		Short: "Start client proxy",
 		Run: func(cmd *cobra.Command, args []string) {
-			cfg, err := config.LoadConfig(cfgFile)
+			target := cfgFile
+			if target == "" && len(args) > 0 {
+				target = args[0]
+			}
+			resolvedPath, err := resolveConfigPath(target)
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+			cfg, err := config.LoadConfig(resolvedPath)
 			if err != nil {
 				panic(err)
 			}
@@ -112,7 +163,6 @@ func main() {
 	}
 	clientCmd.Flags().StringVar(&cfgFile, "config", "", "Config file")
 	clientCmd.Flags().StringVar(&transparentListen, "transparent-listen", "", "Transparent TCP listener for redirected full-tunnel traffic")
-	clientCmd.MarkFlagRequired("config")
 
 	fullTunnelCmd := &cobra.Command{
 		Use:    "full-tunnel",
@@ -121,10 +171,19 @@ func main() {
 	}
 
 	fullTunnelUpCmd := &cobra.Command{
-		Use:   "up",
+		Use:   "up [config-name]",
 		Short: "Enable full-tunnel TCP redirection",
 		Run: func(cmd *cobra.Command, args []string) {
-			cfg, err := config.LoadConfig(cfgFile)
+			target := cfgFile
+			if target == "" && len(args) > 0 {
+				target = args[0]
+			}
+			resolvedPath, err := resolveConfigPath(target)
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+			cfg, err := config.LoadConfig(resolvedPath)
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
@@ -145,7 +204,6 @@ func main() {
 	fullTunnelUpCmd.Flags().StringVar(&cfgFile, "config", "", "Config file")
 	fullTunnelUpCmd.Flags().StringVar(&transparentListen, "transparent-listen", "", "Transparent TCP listener for redirected full-tunnel traffic")
 	fullTunnelUpCmd.Flags().StringVar(&fullTunnelOwner, "owner", "", "Username or UID to exempt from redirection")
-	fullTunnelUpCmd.MarkFlagRequired("config")
 
 	fullTunnelDownCmd := &cobra.Command{
 		Use:   "down",
@@ -160,7 +218,7 @@ func main() {
 
 	fullTunnelCmd.AddCommand(fullTunnelUpCmd, fullTunnelDownCmd)
 
-	rootCmd.AddCommand(versionCmd, validateCmd, clientCmd, fullTunnelCmd)
+	rootCmd.AddCommand(versionCmd, validateCmd, clientCmd, fullTunnelCmd, importCmd, listCmd, deleteCmd)
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}

@@ -1540,7 +1540,7 @@ function ClientConfigModal({ preview, onClose, onNotice }) {
               <span className="config-format-badge">JSON</span>
               <div>
                 <strong>Конфигурационный файл</strong>
-                <p className="muted-caption">Запуск: <code>pp client --config файл.json</code></p>
+                <p className="muted-caption">Запуск: <code>pp-client start {preview.name || 'client'}</code></p>
               </div>
             </div>
 
@@ -1554,7 +1554,7 @@ function ClientConfigModal({ preview, onClose, onNotice }) {
             </div>
           </div>
 
-          <pre className="json-panel json-panel--modal">{preview.configJson}</pre>
+          <pre className="json-panel json-panel--modal" style={{ maxHeight: '45vh', overflowY: 'auto' }}>{preview.configJson}</pre>
 
           {preview.uri ? (
             <>
