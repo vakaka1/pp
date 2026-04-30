@@ -61,8 +61,9 @@ https://github.com/vakaka1/pp/releases/latest/download/pp-client_windows_amd64.z
 
 ### `pp-client version`
 Выводит версию, дату сборки, коммит и платформу.
+Пример:
 ```
-PP-Client Version: v1.0.46
+PP-Client Version: v1.0.44
 Build Date: 2026-04-30T09:42:06Z
 Commit: 53e49e4
 OS: windows/amd64
