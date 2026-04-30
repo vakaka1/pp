@@ -53,6 +53,9 @@ jobs:
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "${LDFLAGS}" -o bin/pp-client_linux_amd64 ./cmd/pp-client
           # Build pp-web
           CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -ldflags "${LDFLAGS}" -o bin/pp-web_linux_amd64 ./cmd/pp-web
+          # Build pp-client Windows
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags "${LDFLAGS}" -o bin/pp-client_windows_amd64.exe ./cmd/pp-client
+          zip -j bin/pp-client_windows_amd64.zip bin/pp-client_windows_amd64.exe
 
       - name: Create Release
         env:
@@ -78,4 +81,4 @@ jobs:
             --title "Release ${{ github.ref_name }}" \
             --notes-file release_notes.txt \
             --generate-notes \
-            bin/pp-core_linux_amd64 bin/pp-client_linux_amd64 bin/pp-web_linux_amd64 pp-web-frontend.tar.gz
+            bin/pp-core_linux_amd64 bin/pp-client_linux_amd64 bin/pp-web_linux_amd64 bin/pp-client_windows_amd64.zip pp-web-frontend.tar.gz
