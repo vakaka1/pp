@@ -2,12 +2,10 @@ version: 2
 
 project_name: pp
 
-# Эти переменные прокидываются в ldflags как в Makefile
 before:
   hooks:
     - go mod tidy
 
-# ─── Сборка бинарников ────────────────────────────────────────────────────────
 builds:
   - id: pp-core
     main: ./cmd/pp-core
@@ -24,13 +22,28 @@ builds:
       - -X main.version={{.Version}}
       - -X main.buildDate={{.Date}}
       - -X main.gitCommit={{.Commit}}
-  - id: pp-client
+  - id: pp-client-linux
     main: ./cmd/pp-client
     binary: pp-client
     env:
       - CGO_ENABLED=0
     goos:
       - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.buildDate={{.Date}}
+      - -X main.gitCommit={{.Commit}}
+  - id: pp-client-windows
+    main: ./cmd/pp-client
+    binary: pp-client
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - windows
     goarch:
       - amd64
       - arm64
@@ -55,52 +68,59 @@ builds:
       - -X main.buildDate={{.Date}}
       - -X main.gitCommit={{.Commit}}
 
-# ─── Архивы (то, что попадёт в GitHub Release) ───────────────────────────────
 archives:
   - id: pp-core-archive
     ids:
       - pp-core
     name_template: "pp-core_{{ .Os }}_{{ .Arch }}"
     formats: ["binary"]
-  - id: pp-client-archive
+  - id: pp-client-linux-archive
     ids:
-      - pp-client
+      - pp-client-linux
     name_template: "pp-client_{{ .Os }}_{{ .Arch }}"
     formats: ["binary"]
+  - id: pp-client-windows-archive
+    ids:
+      - pp-client-windows
+    name_template: "pp-client_{{ .Os }}_{{ .Arch }}"
+    formats: ["zip"]
+    files:
+      - none*
   - id: pp-web-archive
     ids:
       - pp-web-amd64
     name_template: "pp-web_{{ .Os }}_{{ .Arch }}"
     formats: ["binary"]
 
-# ─── Чексуммы ────────────────────────────────────────────────────────────────
 checksum:
   name_template: "checksums.txt"
   algorithm: sha256
 
-# ─── GitHub Release ──────────────────────────────────────────────────────────
 release:
   github:
     owner: vakaka1
     name: pp
-  # Черновик пока не нажать «Publish» вручную — удобно для проверки
   draft: false
   prerelease: auto
   name_template: "v{{.Version}}"
   footer: |
     ## Установка
 
-    **Сервер:**
+    **Сервер (Linux):**
     ```bash
-    curl -fsSL https://raw.githubusercontent.com/vakaka1/pp/main/scripts/install-server.sh | sudo bash -s -- your-domain.com
+    curl -fsSL https://raw.githubusercontent.com/vakaka1/pp/main/scripts/install-server.sh | sudo bash
     ```
 
-    **Клиент:**
+    **Клиент (Linux):**
     ```bash
-    curl -fsSL https://raw.githubusercontent.com/vakaka1/pp/main/scripts/install-client.sh | bash -s -- --config client.json
+    curl -fsSL https://raw.githubusercontent.com/vakaka1/pp/main/scripts/install-client.sh | bash
     ```
 
-# ─── Changelog ────────────────────────────────────────────────────────────────
+    **Клиент (Windows — PowerShell):**
+    ```powershell
+    irm https://raw.githubusercontent.com/vakaka1/pp/main/scripts/install-client.ps1 | iex
+    ```
+
 changelog:
   sort: asc
   use: github

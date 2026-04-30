@@ -11,7 +11,8 @@
 *   **Транспорт**: Использование gRPC внутри HTTP/2 (через Nginx или напрямую), что делает трафик трудноотличимым от стандартного веб-серфинга.
 *   **Шифрование**: Многослойная защита трафика с использованием Noise Protocol Framework и TLS.
 *   **Централизованное управление**: Веб-интерфейс для настройки сервера, управления клиентами и автоматического получения SSL-сертификатов (Certbot).
-*   **Full Tunnel (Linux)**: Возможность глобального перенаправления TCP-трафика всей системы через `iptables`.
+*   **Full Tunnel**: Глобальное перенаправление TCP-трафика — через `iptables` на Linux, через маршрутизацию + System Proxy на Windows.
+*   **Кроссплатформенность**: Полная поддержка Linux и Windows (amd64/arm64).
 
 ## Быстрый старт
 
@@ -22,21 +23,32 @@ curl -fsSL https://raw.githubusercontent.com/vakaka1/pp/main/scripts/install-ser
 ```
 После установки веб-панель будет доступна по адресу `http://<IP-сервера>:4090`. Она поможет настроить домен и сгенерировать конфигурации для клиентов.
 
-### Клиентская часть
-Установка инструментов клиента:
+### Клиент — Linux
 ```bash
 curl -fsSL https://raw.githubusercontent.com/vakaka1/pp/main/scripts/install-client.sh | bash
 ```
-
-**Запуск прокси:**
 ```bash
 pp-client start --config client.json
 ```
+
+### Клиент — Windows
+```powershell
+irm https://raw.githubusercontent.com/vakaka1/pp/main/scripts/install-client.ps1 | iex
+```
+```powershell
+pp-client start --config client.json --system-proxy
+```
+
 После запуска будут доступны локальные прокси: **SOCKS5** (`127.0.0.1:1080`) и **HTTP** (`127.0.0.1:8080`).
 
-**Запуск Full Tunnel (весь TCP трафик системы):**
+**Full Tunnel (Linux):**
 ```bash
-sudo pp-client-connect tun --config client.json
+sudo pp-client full-tunnel up --config client.json
+```
+
+**Full Tunnel (Windows — от Администратора):**
+```powershell
+pp-client full-tunnel up --config client.json
 ```
 
 ## Документация

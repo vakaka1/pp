@@ -26,8 +26,7 @@ var bypassCIDRs = []string{
 	"240.0.0.0/4",
 }
 
-// Up enables system-wide TCP redirection for locally generated traffic.
-// It excludes the PP client process itself and the PP server endpoint to avoid loops.
+
 func Up(cfg *config.ClientConfig, transparentListen string, owner string) error {
 	if cfg == nil {
 		return fmt.Errorf("client config is required")
@@ -99,7 +98,7 @@ func Up(cfg *config.ClientConfig, transparentListen string, owner string) error 
 	return nil
 }
 
-// Down removes system-wide TCP redirection rules created by Up.
+
 func Down() error {
 	_ = runIptablesAllowFailure("-t", "nat", "-D", "OUTPUT", "-p", "tcp", "-j", chainName)
 	_ = runIptablesAllowFailure("-t", "nat", "-F", chainName)

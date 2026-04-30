@@ -1,6 +1,7 @@
 package ppweb
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -40,6 +41,51 @@ func TestShouldManageNginx(t *testing.T) {
 	}
 	if server.shouldManageNginx(noTLS) {
 		t.Fatalf("expected connection without HTTPS to skip nginx publishing")
+	}
+}
+
+func TestBuildCoreConfigInjectsTrackedClientsAndStatusPath(t *testing.T) {
+	registry := newProtocolRegistry()
+	secrets, err := registry.GenerateSecrets("pp-fallback")
+	if err != nil {
+		t.Fatalf("GenerateSecrets() error = %v", err)
+	}
+	connection := Connection{
+		ID:       7,
+		Name:     "tracked",
+		Tag:      "tracked",
+		Protocol: "pp-fallback",
+		Listen:   "127.0.0.1:8087",
+		Enabled:  true,
+		Settings: map[string]any{
+			"domain":            "tracked.example.com",
+			"psk":               secrets["psk"],
+			"noise_private_key": secrets["noise_private_key"],
+			"scraper_keywords":  []string{"news"},
+		},
+	}
+	clients := map[int64][]Client{
+		7: {
+			{ID: 101, Name: "Laptop", PSK: secrets["psk"]},
+		},
+	}
+
+	cfg, err := registry.BuildCoreConfig([]Connection{connection}, clients, "/tmp/pp-client-status.json")
+	if err != nil {
+		t.Fatalf("BuildCoreConfig() error = %v", err)
+	}
+	var settings config.FallbackSettings
+	if err := json.Unmarshal(cfg.Inbounds[0].Settings, &settings); err != nil {
+		t.Fatalf("failed to decode settings: %v", err)
+	}
+	if settings.StatusPath != "/tmp/pp-client-status.json" {
+		t.Fatalf("unexpected status path: %q", settings.StatusPath)
+	}
+	if len(settings.Clients) != 1 || settings.Clients[0].ID != 101 || settings.Clients[0].Name != "Laptop" {
+		t.Fatalf("unexpected tracked clients: %#v", settings.Clients)
+	}
+	if settings.PSK != "" || len(settings.PSKs) != 0 {
+		t.Fatalf("expected legacy PSK fields to be cleared when tracked clients are configured")
 	}
 }
 
@@ -98,7 +144,7 @@ func TestBuildCoreConfigDisablesBackendTLSWhenNginxManagesConnection(t *testing.
 		},
 	}
 
-	cfg, err := registry.BuildCoreConfig([]Connection{connection}, nil)
+	cfg, err := registry.BuildCoreConfig([]Connection{connection}, nil, "")
 	if err != nil {
 		t.Fatalf("BuildCoreConfig() error = %v", err)
 	}
@@ -132,7 +178,7 @@ func TestBuildCoreConfigPreservesTLSForDirectHTTPSConnection(t *testing.T) {
 		},
 	}
 
-	cfg, err := registry.BuildCoreConfig([]Connection{connection}, nil)
+	cfg, err := registry.BuildCoreConfig([]Connection{connection}, nil, "")
 	if err != nil {
 		t.Fatalf("BuildCoreConfig() error = %v", err)
 	}

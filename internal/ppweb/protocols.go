@@ -54,11 +54,10 @@ func (r *protocolRegistry) NormalizeConnection(input ConnectionInput) (Connectio
 }
 
 // BuildCoreConfig builds the pp-core JSON config from all enabled connections.
-// clientPSKsByConn maps connection ID to the list of per-client PSKs that
-// should be accepted by that connection's inbound. When the list is non-empty
-// the generated settings will use psks (multi-PSK) instead of the single psk,
-// so pp-fallback can authenticate each client individually.
-func (r *protocolRegistry) BuildCoreConfig(connections []Connection, clientPSKsByConn map[int64][]string) (*ppconfig.Config, error) {
+// clientsByConn maps connection ID to per-client credentials accepted by that
+// connection's inbound. When non-empty, the generated settings track clients
+// individually so pp-fallback can authenticate and report their online status.
+func (r *protocolRegistry) BuildCoreConfig(connections []Connection, clientsByConn map[int64][]Client, statusPath string) (*ppconfig.Config, error) {
 	cfg := &ppconfig.Config{
 		Log: ppconfig.LogConfig{
 			Level:  "info",
@@ -89,12 +88,24 @@ func (r *protocolRegistry) BuildCoreConfig(connections []Connection, clientPSKsB
 			inbound.TLS = connection.TLS
 		}
 
-		// Inject per-client PSKs when available.
-		if psks := clientPSKsByConn[connection.ID]; len(psks) > 0 {
+		// Inject per-client identities when available.
+		if clients := clientsByConn[connection.ID]; len(clients) > 0 {
 			var s ppconfig.FallbackSettings
 			if err := json.Unmarshal(inbound.Settings, &s); err == nil {
-				s.PSKs = psks
+				s.Clients = make([]ppconfig.FallbackClient, 0, len(clients))
+				for _, client := range clients {
+					if client.PSK == "" {
+						continue
+					}
+					s.Clients = append(s.Clients, ppconfig.FallbackClient{
+						ID:   client.ID,
+						Name: client.Name,
+						PSK:  client.PSK,
+					})
+				}
+				s.PSKs = nil
 				s.PSK = "" // clear single PSK – server now uses the list
+				s.StatusPath = statusPath
 				if raw, err := json.Marshal(s); err == nil {
 					inbound.Settings = raw
 				}

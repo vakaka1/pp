@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -17,22 +18,43 @@ type ConfigInfo struct {
 	Meta *config.ConfigMeta `json:"meta,omitempty"`
 }
 
+func configListDirs() []string {
+	var dirs []string
+	if runtime.GOOS == "windows" {
+		appData := os.Getenv("APPDATA")
+		if appData != "" {
+			ppDir := filepath.Join(appData, "pp")
+			if info, err := os.Stat(ppDir); err == nil && info.IsDir() {
+				dirs = append(dirs, ppDir)
+			}
+		}
+		exePath, err := os.Executable()
+		if err == nil {
+			dirs = append(dirs, filepath.Dir(exePath))
+		}
+	} else {
+		if info, err := os.Stat("/etc/pp"); err == nil && info.IsDir() {
+			dirs = append(dirs, "/etc/pp")
+		}
+	}
+	if info, err := os.Stat("configs"); err == nil && info.IsDir() {
+		dirs = append(dirs, "configs")
+	}
+	if len(dirs) == 0 {
+		dirs = append(dirs, ".")
+	}
+	return dirs
+}
+
 var listCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List imported clients",
 	Run: func(cmd *cobra.Command, args []string) {
 		outputJson, _ := cmd.Flags().GetBool("json")
 
-		var searchDirs []string
-		if info, err := os.Stat("/etc/pp"); err == nil && info.IsDir() {
-			searchDirs = append(searchDirs, "/etc/pp")
-		} else if info, err := os.Stat("configs"); err == nil && info.IsDir() {
-			searchDirs = append(searchDirs, "configs")
-		} else {
-			searchDirs = append(searchDirs, ".")
-		}
-
+		searchDirs := configListDirs()
 		var results []ConfigInfo
+		seen := make(map[string]bool)
 
 		for _, dir := range searchDirs {
 			files, err := os.ReadDir(dir)
@@ -44,23 +66,27 @@ var listCmd = &cobra.Command{
 				if f.IsDir() || !strings.HasSuffix(f.Name(), ".json") {
 					continue
 				}
-				// exclude example configs
 				if strings.Contains(f.Name(), "example") {
 					continue
 				}
 
 				fullPath := filepath.Join(dir, f.Name())
+				absPath, _ := filepath.Abs(fullPath)
+				if seen[absPath] {
+					continue
+				}
+
 				cfg, err := config.LoadConfig(fullPath)
 				if err != nil {
 					continue
 				}
 
-				// Check if it's actually a client config
 				if cfg.Client == nil {
 					continue
 				}
 
 				name := strings.TrimSuffix(f.Name(), ".json")
+				seen[absPath] = true
 
 				results = append(results, ConfigInfo{
 					Name: name,

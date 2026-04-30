@@ -361,20 +361,14 @@ func (s *Server) handleOverview(w http.ResponseWriter, r *http.Request, _ *Admin
 		return
 	}
 
-	// Fetch client PSKs for all connections
-	clientPSKsByConn := make(map[int64][]string)
+	// Fetch client identities for all connections.
+	clientsByConn := make(map[int64][]Client)
 	for _, conn := range connections {
 		clients, _ := s.store.ListClientsByConnection(r.Context(), conn.ID)
-		psks := make([]string, 0, len(clients))
-		for _, c := range clients {
-			if c.PSK != "" {
-				psks = append(psks, c.PSK)
-			}
-		}
-		clientPSKsByConn[conn.ID] = psks
+		clientsByConn[conn.ID] = clients
 	}
 
-	cfg, buildErr := s.protocols.BuildCoreConfig(connections, clientPSKsByConn)
+	cfg, buildErr := s.protocols.BuildCoreConfig(connections, clientsByConn, s.clientStatusPath())
 	configPreview := "{}"
 	configValid := false
 	if cfg != nil {
@@ -498,6 +492,9 @@ func (s *Server) handleClientsListOrCreate(w http.ResponseWriter, r *http.Reques
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
+		}
+		if err := s.enrichClientsWithRuntimeStatus(clients); err != nil {
+			s.log.Warn("failed to read client runtime status", zap.Error(err))
 		}
 		// Strip PSK from list – the client-specific config endpoint is used to download it.
 		for i := range clients {
@@ -1053,20 +1050,14 @@ func (s *Server) syncCoreConfig(ctx context.Context) (bool, error) {
 		return false, err
 	}
 
-	// Fetch client PSKs for all connections
-	clientPSKsByConn := make(map[int64][]string)
+	// Fetch client identities for all connections.
+	clientsByConn := make(map[int64][]Client)
 	for _, conn := range connections {
 		clients, _ := s.store.ListClientsByConnection(ctx, conn.ID)
-		psks := make([]string, 0, len(clients))
-		for _, c := range clients {
-			if c.PSK != "" {
-				psks = append(psks, c.PSK)
-			}
-		}
-		clientPSKsByConn[conn.ID] = psks
+		clientsByConn[conn.ID] = clients
 	}
 
-	cfg, err := s.protocols.BuildCoreConfig(connections, clientPSKsByConn)
+	cfg, err := s.protocols.BuildCoreConfig(connections, clientsByConn, s.clientStatusPath())
 	if err != nil {
 		_ = s.store.RecordSyncResult(ctx, time.Now().UTC(), err.Error())
 		return false, err

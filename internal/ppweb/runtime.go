@@ -47,6 +47,10 @@ func (s *Server) applyRuntimeAfterDelete(ctx context.Context, deleted *Connectio
 	return s.reconcileNginxConfigs(ctx, nil, deleted)
 }
 
+func (s *Server) clientStatusPath() string {
+	return filepath.Join(filepath.Dir(s.opts.DatabasePath), "runtime", "client-status.json")
+}
+
 func (s *Server) restartCore() (*coreRestartResult, error) {
 	if s.serviceUnitExists("pp-core") {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)

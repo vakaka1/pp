@@ -1,4 +1,4 @@
-//go:build !linux
+//go:build !linux && !windows
 
 package fulltunnel
 
@@ -12,9 +12,9 @@ func Up(cfg *config.ClientConfig, transparentListen string, owner string) error 
 	_ = cfg
 	_ = transparentListen
 	_ = owner
-	return fmt.Errorf("full-tunnel mode is supported only on Linux")
+	return fmt.Errorf("full-tunnel mode is not supported on this platform")
 }
 
 func Down() error {
-	return fmt.Errorf("full-tunnel mode is supported only on Linux")
+	return fmt.Errorf("full-tunnel mode is not supported on this platform")
 }

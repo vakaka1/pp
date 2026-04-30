@@ -6,12 +6,37 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/vakaka1/pp/internal/config"
 )
+
+func configSaveDir() string {
+	if runtime.GOOS == "windows" {
+		appData := os.Getenv("APPDATA")
+		if appData != "" {
+			dir := filepath.Join(appData, "pp")
+			if err := os.MkdirAll(dir, 0700); err == nil {
+				return dir
+			}
+		}
+		exePath, err := os.Executable()
+		if err == nil {
+			return filepath.Dir(exePath)
+		}
+		return "."
+	}
+	if _, err := os.Stat("/etc/pp"); err == nil {
+		return "/etc/pp"
+	}
+	if _, err := os.Stat("configs"); err == nil {
+		return "configs"
+	}
+	return "."
+}
 
 var importCmd = &cobra.Command{
 	Use:   "import [uri]",
@@ -85,14 +110,7 @@ var importCmd = &cobra.Command{
 		}
 
 		fileName := clientName + ".json"
-		var savePath string
-		if _, err := os.Stat("/etc/pp"); err == nil {
-			savePath = filepath.Join("/etc/pp", fileName)
-		} else if _, err := os.Stat("configs"); err == nil {
-			savePath = filepath.Join("configs", fileName)
-		} else {
-			savePath = fileName
-		}
+		savePath := filepath.Join(configSaveDir(), fileName)
 
 		if err := os.WriteFile(savePath, data, 0600); err != nil {
 			fmt.Printf("Failed to write config to %s: %v\n", savePath, err)

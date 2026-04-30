@@ -56,6 +56,8 @@ type FallbackSettings struct {
 	// PSKs is a list of per-client pre-shared keys. When non-empty, the server
 	// accepts any JWT signed by one of these keys (ignoring the single PSK field).
 	PSKs                   []string         `json:"psks,omitempty"`
+	Clients                []FallbackClient `json:"clients,omitempty"`
+	StatusPath             string           `json:"status_path,omitempty"`
 	ProxyAddress           string           `json:"proxy_address,omitempty"`
 	DBPath                 string           `json:"db_path,omitempty"`
 	RSSSources             []string         `json:"rss_sources,omitempty"`
@@ -71,6 +73,12 @@ type FallbackSettings struct {
 	// When set, the inbound handler enforces these rules for all clients.
 	// Clients themselves send all traffic to the server without local rules.
 	Routing *ServerRoutingConfig `json:"routing,omitempty"`
+}
+
+type FallbackClient struct {
+	ID   int64  `json:"id"`
+	Name string `json:"name,omitempty"`
+	PSK  string `json:"psk"`
 }
 
 // ServerRoutingConfig defines the routing policy enforced server-side for this

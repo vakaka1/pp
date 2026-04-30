@@ -35,6 +35,14 @@ type Inbound struct {
 	fallbackHandler *FallbackHandler
 	httpServer      *http.Server
 	streamHandler   func(*smux.Stream, *zap.Logger)
+	clients         []clientAuth
+	statusStore     *clientStatusStore
+}
+
+type clientAuth struct {
+	id   int64
+	name string
+	psk  []byte
 }
 
 func NewInbound(inb config.InboundConfig, log *zap.Logger, streamHandler func(*smux.Stream, *zap.Logger)) (*Inbound, error) {
@@ -47,15 +55,26 @@ func NewInbound(inb config.InboundConfig, log *zap.Logger, streamHandler func(*s
 		return nil, fmt.Errorf("failed to parse fallback settings: %w", err)
 	}
 
-	// Build the list of accepted PSKs.
-	// If a per-client psks list is provided, use those. Otherwise fall back to single psk.
+	// Build the list of accepted identities.
+	// Prefer tracked clients, then legacy per-client psks, then the single psk.
 	var psks [][]byte
-	if len(settings.PSKs) > 0 {
+	var clients []clientAuth
+	if len(settings.Clients) > 0 {
+		for _, client := range settings.Clients {
+			pskBytes, err := crypto.DecodeKey(client.PSK)
+			if err != nil {
+				return nil, fmt.Errorf("invalid client key %d: %w", client.ID, err)
+			}
+			clients = append(clients, clientAuth{id: client.ID, name: client.Name, psk: pskBytes})
+			psks = append(psks, pskBytes)
+		}
+	} else if len(settings.PSKs) > 0 {
 		for _, pskStr := range settings.PSKs {
 			pskBytes, err := crypto.DecodeKey(pskStr)
 			if err != nil {
 				return nil, fmt.Errorf("invalid key in psks list: %w", err)
 			}
+			clients = append(clients, clientAuth{psk: pskBytes})
 			psks = append(psks, pskBytes)
 		}
 	} else {
@@ -63,6 +82,7 @@ func NewInbound(inb config.InboundConfig, log *zap.Logger, streamHandler func(*s
 		if err != nil {
 			return nil, err
 		}
+		clients = append(clients, clientAuth{psk: pskBytes})
 		psks = [][]byte{pskBytes}
 	}
 
@@ -144,10 +164,16 @@ func NewInbound(inb config.InboundConfig, log *zap.Logger, streamHandler func(*s
 		contentLoader:   contentLoader,
 		fallbackHandler: fallbackHandler,
 		streamHandler:   streamHandler,
+		clients:         clients,
+		statusStore:     newClientStatusStore(settings.StatusPath),
 	}, nil
 }
 
 func (s *Inbound) Start(ctx context.Context) error {
+	for _, client := range s.clients {
+		s.statusStore.MarkOffline(client.id)
+	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc(s.settings.GRPCPath, s.handleGRPC)
 	mux.HandleFunc("/", s.handleFallback)
@@ -201,10 +227,12 @@ func (s *Inbound) handleGRPC(w http.ResponseWriter, r *http.Request) {
 	}
 	token := auth[7:]
 	// Try each accepted PSK; the first successful validation wins.
+	var authenticated clientAuth
 	var jwtValid bool
-	for _, psk := range s.psks {
-		valid, err := protocol.ValidateJWT(token, psk, 15*time.Minute, s.jtiCache.CheckAndAdd)
+	for _, client := range s.clients {
+		valid, err := protocol.ValidateJWT(token, client.psk, 15*time.Minute, s.jtiCache.CheckAndAdd)
 		if valid {
+			authenticated = client
 			jwtValid = true
 			break
 		}
@@ -236,6 +264,8 @@ func (s *Inbound) handleGRPC(w http.ResponseWriter, r *http.Request) {
 		s.log.Debug("smux session failed", zap.Error(err))
 		return
 	}
+	s.statusStore.Mark(authenticated.id, true)
+	defer s.statusStore.Mark(authenticated.id, false)
 
 	for {
 		stream, err := session.AcceptStream()

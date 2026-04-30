@@ -44,8 +44,18 @@ func validateInboundsConfig(inbounds []InboundConfig) error {
 				return fmt.Errorf("inbounds[%d].settings.domain is required for pp-fallback", i)
 			}
 
-			// At least one PSK must be configured: either the single psk or a non-empty psks list.
-			if len(settings.PSKs) > 0 {
+			// At least one PSK must be configured: either the single psk,
+			// a legacy psks list, or tracked per-client entries.
+			if len(settings.Clients) > 0 {
+				for j, client := range settings.Clients {
+					if client.ID <= 0 {
+						return fmt.Errorf("inbounds[%d].settings.clients[%d].id must be positive", i, j)
+					}
+					if err := validateKey(client.PSK, fmt.Sprintf("inbounds[%d].settings.clients[%d].psk", i, j)); err != nil {
+						return err
+					}
+				}
+			} else if len(settings.PSKs) > 0 {
 				for j, psk := range settings.PSKs {
 					if err := validateKey(psk, fmt.Sprintf("inbounds[%d].settings.psks[%d]", i, j)); err != nil {
 						return err

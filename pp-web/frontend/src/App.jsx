@@ -1292,18 +1292,28 @@ function ClientsModal({ connection, onClose, onNotice }) {
 
   useEffect(() => {
     loadClients();
+    const intervalID = window.setInterval(() => {
+      loadClients({ silent: true });
+    }, 5000);
+    return () => window.clearInterval(intervalID);
   }, []);
 
-  async function loadClients() {
-    setLoading(true);
+  async function loadClients(options = {}) {
+    if (!options.silent) {
+      setLoading(true);
+    }
 
     try {
       const result = await api.listClients(connection.id);
       setClients(result.clients || []);
     } catch (error) {
-      onNotice({ tone: "error", message: error.message });
+      if (!options.silent) {
+        onNotice({ tone: "error", message: error.message });
+      }
     } finally {
-      setLoading(false);
+      if (!options.silent) {
+        setLoading(false);
+      }
     }
   }
 
