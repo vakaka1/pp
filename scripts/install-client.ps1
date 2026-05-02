@@ -167,10 +167,11 @@ function Install-PPClient {
     }
     Expand-Archive -Path $zipPath -DestinationPath $extractDir -Force
 
-    $extractedExe = Get-ChildItem -Path $extractDir -Filter "pp-client.exe" -Recurse | Select-Object -First 1
+    $extractedExe = Get-ChildItem -Path $extractDir -Filter "pp-client*.exe" -Recurse | Select-Object -First 1
     if (-not $extractedExe) {
-        Exit-Fatal "pp-client.exe не найден в архиве"
+        Exit-Fatal "pp-client*.exe не найден в архиве"
     }
+    
     Copy-Item -Path $extractedExe.FullName -Destination $exePath -Force
     Remove-Item -Recurse -Force $extractDir -ErrorAction SilentlyContinue
     Remove-Item -Force $zipPath -ErrorAction SilentlyContinue
