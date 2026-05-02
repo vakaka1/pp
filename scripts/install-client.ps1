@@ -17,7 +17,7 @@ $GEO_SITE_URL = "https://github.com/v2fly/domain-list-community/releases/latest/
 function Write-Header {
     Write-Host ""
     Write-Host "  ╔══════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "  ║            PP Client Installer (Windows)            ║" -ForegroundColor Cyan
+    Write-Host "  ║            PP Client Installer                       ║" -ForegroundColor Cyan
     Write-Host "  ╚══════════════════════════════════════════════════════╝" -ForegroundColor Cyan
     Write-Host "  GitHub:      github.com/$GITHUB_REPO" -ForegroundColor Gray
     Write-Host "  Arch:        windows/$script:GoArch" -ForegroundColor Gray
