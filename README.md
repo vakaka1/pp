@@ -25,7 +25,7 @@ curl -fsSL https://raw.githubusercontent.com/vakaka1/pp/main/scripts/install-ser
 
 ### Клиент — Linux
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vakaka1/pp/main/scripts/install-client.sh | bash
+curl -fsSL https://raw.githubusercontent.com/vakaka1/pp/main/scripts/install-client.sh | sudo bash
 ```
 ```bash
 pp-client start --config client.json
