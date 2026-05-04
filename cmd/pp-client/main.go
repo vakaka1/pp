@@ -213,7 +213,10 @@ func main() {
 					owner = "root"
 				}
 				listenAddr := transparentListen
-				if listenAddr == "" {
+				if runtime.GOOS == "windows" {
+					listenAddr = ""
+					cfg.Client.TransparentListen = ""
+				} else if listenAddr == "" {
 					listenAddr = "127.0.0.1:1090"
 					cfg.Client.TransparentListen = listenAddr
 				}

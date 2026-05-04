@@ -646,17 +646,24 @@ func (s *Server) resolvePPCoreBinaryPath() (string, error) {
 
 	executablePath, err := os.Executable()
 	if err == nil {
-		candidate := filepath.Join(filepath.Dir(executablePath), "pp")
-		if _, statErr := os.Stat(candidate); statErr == nil {
-			return candidate, nil
+		candidates := []string{
+			filepath.Join(filepath.Dir(executablePath), "pp"),
+			filepath.Join(filepath.Dir(executablePath), "pp-core"),
+		}
+		for _, candidate := range candidates {
+			if _, statErr := os.Stat(candidate); statErr == nil {
+				return candidate, nil
+			}
 		}
 	}
 
-	if _, err := os.Stat("/usr/local/bin/pp"); err == nil {
-		return "/usr/local/bin/pp", nil
+	for _, p := range []string{"/usr/local/bin/pp", "/usr/local/bin/pp-core", "/usr/bin/pp", "/usr/bin/pp-core"} {
+		if _, err := os.Stat(p); err == nil {
+			return p, nil
+		}
 	}
 
-	return "", errors.New("не удалось определить путь к бинарнику pp")
+	return "", errors.New("не удалось определить путь к бинарнику pp или pp-core")
 }
 
 func (s *Server) updateStatusPath() string {

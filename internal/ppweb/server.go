@@ -176,6 +176,8 @@ func (s *Server) serveAPI(w http.ResponseWriter, r *http.Request) {
 		s.withAdmin(w, r, s.handleSyncCoreConfig)
 	case r.URL.Path == "/api/pp-core/restart" && r.Method == http.MethodPost:
 		s.withAdmin(w, r, s.handleRestartCore)
+	case r.URL.Path == "/api/restart" && r.Method == http.MethodPost:
+		s.withAdmin(w, r, s.handleRestartPanel)
 	default:
 		writeError(w, http.StatusNotFound, "route not found")
 	}
@@ -194,6 +196,14 @@ func (s *Server) withAdmin(w http.ResponseWriter, r *http.Request, handler apiHa
 		return
 	}
 	handler(w, r, admin)
+}
+
+func (s *Server) handleRestartPanel(w http.ResponseWriter, r *http.Request, _ *Admin) {
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+	go func() {
+		time.Sleep(500 * time.Millisecond)
+		os.Exit(0)
+	}()
 }
 
 func (s *Server) currentAdmin(r *http.Request) (*Admin, error) {
@@ -1199,8 +1209,12 @@ func (s *Server) inspectPPCoreBinary() map[string]any {
 
 	candidates := []string{
 		filepath.Join(s.opts.ProjectRoot, "bin", "pp"),
+		filepath.Join(s.opts.ProjectRoot, "bin", "pp-core"),
 	}
 	if path, err := exec.LookPath("pp"); err == nil {
+		candidates = append(candidates, path)
+	}
+	if path, err := exec.LookPath("pp-core"); err == nil {
 		candidates = append(candidates, path)
 	}
 

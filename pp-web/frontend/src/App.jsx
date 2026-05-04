@@ -1371,6 +1371,7 @@ function ClientsModal({ connection, onClose, onNotice }) {
         online: client.online,
         bytesUsed: client.bytesUsed,
         uri: payload.uri || null,
+        config: payload.config,
         configJson: JSON.stringify(payload.config, null, 2)
       };
     } finally {
@@ -1513,8 +1514,39 @@ function ClientsModal({ connection, onClose, onNotice }) {
   );
 }
 
+function ConfigSummary({ config }) {
+  if (!config || !config.client) return null;
+  const { server } = config.client;
+
+  return (
+    <div className="config-summary" style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+      <div className="fact-card">
+        <span className="muted-caption">Адрес сервера</span>
+        <strong>{server?.address || '—'}</strong>
+      </div>
+      <div className="fact-card">
+        <span className="muted-caption">Домен</span>
+        <strong>{server?.domain || '—'}</strong>
+      </div>
+      <div className="fact-card">
+        <span className="muted-caption">Ключ доступа (PSK)</span>
+        <code style={{ fontSize: '0.85rem', color: 'var(--accent-strong)' }}>{server?.psk || '—'}</code>
+      </div>
+      <div className="fact-card">
+        <span className="muted-caption">SOCKS5 прокси</span>
+        <strong>{config.client.socks5_listen || '—'}</strong>
+      </div>
+      <div className="fact-card">
+        <span className="muted-caption">HTTP прокси</span>
+        <strong>{config.client.http_proxy_listen || '—'}</strong>
+      </div>
+    </div>
+  );
+}
+
 function ClientConfigModal({ preview, onClose, onNotice }) {
   const [showUri, setShowUri] = useState(false);
+  const [showJson, setShowJson] = useState(false);
 
   function downloadJson() {
     const blob = new Blob([preview.configJson], { type: "application/json" });
@@ -1550,9 +1582,9 @@ function ClientConfigModal({ preview, onClose, onNotice }) {
       >
         <div className="modal-header">
           <div>
-            <span className="eyebrow">Client config</span>
+            <span className="eyebrow">Настройки клиента</span>
             <h3>{preview.name}</h3>
-            <p className="modal-subtitle">Конфиг pp-fallback клиента</p>
+            <p className="modal-subtitle">Параметры подключения pp-fallback</p>
           </div>
           <button className="icon-button" onClick={onClose}>
             ×
@@ -1571,7 +1603,7 @@ function ClientConfigModal({ preview, onClose, onNotice }) {
 
             <div className="button-group">
               <button className="ghost-button ghost-button--small" onClick={handleCopyJson}>
-                Копировать
+                Копировать JSON
               </button>
               <button className="primary-button primary-button--sm" onClick={downloadJson}>
                 Скачать .json
@@ -1579,33 +1611,45 @@ function ClientConfigModal({ preview, onClose, onNotice }) {
             </div>
           </div>
 
-          <pre className="json-panel json-panel--modal" style={{ maxHeight: '45vh', overflowY: 'auto' }}>{preview.configJson}</pre>
+          <div style={{ marginTop: '1.5rem' }}>
+            {showJson ? (
+              <pre className="json-panel json-panel--modal" style={{ maxHeight: '45vh', overflowY: 'auto' }}>{preview.configJson}</pre>
+            ) : (
+              <ConfigSummary config={preview.config} />
+            )}
+          </div>
 
-          {preview.uri ? (
-            <>
+          <div style={{ display: "flex", gap: "0.5rem", marginTop: "1.5rem", flexWrap: "wrap" }}>
+            {preview.uri ? (
               <button
                 className="ghost-button ghost-button--small"
-                style={{ marginTop: "1.25rem" }}
                 onClick={() => setShowUri(!showUri)}
               >
                 {showUri ? "Скрыть compact URI" : "Показать compact URI"}
               </button>
+            ) : null}
 
-              {showUri ? (
-                <div className="uri-block" style={{ marginTop: "0.75rem" }}>
-                  <div className="uri-label">
-                    <span>ppf:// URI</span>
-                    <button className="ghost-button ghost-button--small" onClick={handleCopyUri}>
-                      Копировать
-                    </button>
-                  </div>
-                  <pre className="uri-value">{preview.uri}</pre>
-                  <p className="uri-note">
-                    Все параметры подключения в одной строке. Импорт URI можно будет легко передавать вручную между устройствами.
-                  </p>
-                </div>
-              ) : null}
-            </>
+            <button
+              className="ghost-button ghost-button--small"
+              onClick={() => setShowJson(!showJson)}
+            >
+              {showJson ? "Показать инфо" : "Просмотреть JSON"}
+            </button>
+          </div>
+
+          {showUri && preview.uri ? (
+            <div className="uri-block" style={{ marginTop: "0.75rem" }}>
+              <div className="uri-label">
+                <span>ppf:// URI</span>
+                <button className="ghost-button ghost-button--small" onClick={handleCopyUri}>
+                  Копировать
+                </button>
+              </div>
+              <pre className="uri-value">{preview.uri}</pre>
+              <p className="uri-note">
+                Все параметры подключения в одной строке. Импорт URI можно будет легко передавать вручную между устройствами.
+              </p>
+            </div>
           ) : null}
         </div>
 
@@ -1720,8 +1764,7 @@ function PPSettingsPage({ onNotice }) {
         <Banner
           notice={{
             tone: "error",
-            message: "Исполняемый файл 'pp' не найден. Без него запуск ядра невозможен."
-          }}
+            message: "Исполняемый файл 'pp' или 'pp-core' не найден. Без него запуск ядра невозможен."          }}
         />
       ) : null}
 
@@ -1847,11 +1890,24 @@ function SettingsPage({ bootstrap, onNotice }) {
     setSubmitting(true);
     try {
       await api.saveSettings(form);
-      onNotice({ tone: "success", message: "Настройки сохранены. Перезапустите панель для применения изменений." });
+      onNotice({ tone: "success", message: "Настройки сохранены. Используйте кнопку ниже для перезапуска панели." });
     } catch (error) {
       onNotice({ tone: "error", message: error.message });
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleRestart() {
+    if (!confirm("Вы уверены, что хотите перезапустить панель? Соединение будет временно разорвано.")) return;
+    try {
+      await api.restartPanel();
+      onNotice({ tone: "success", message: "Панель перезапускается..." });
+      setTimeout(() => {
+        window.location.reload();
+      }, 3000);
+    } catch (error) {
+      onNotice({ tone: "error", message: error.message });
     }
   }
 
@@ -1934,6 +1990,22 @@ function SettingsPage({ bootstrap, onNotice }) {
             <button type="submit" className="primary-button" disabled={submitting}>
               {submitting ? "Сохранение..." : "Сохранить изменения"}
             </button>
+
+            <div style={{ marginTop: "2rem", borderTop: "1px solid var(--border-color)", paddingTop: "1.5rem" }}>
+              <h4>Перезапуск панели</h4>
+              <p className="muted-caption" style={{ marginBottom: "1rem" }}>
+                Нажмите кнопку ниже, чтобы полностью перезапустить веб-интерфейс. 
+                Это необходимо для применения изменений порта, HTTPS или префикса пути.
+              </p>
+              <button 
+                type="button" 
+                className="secondary-button" 
+                onClick={handleRestart}
+                style={{ color: "var(--error-color)" }}
+              >
+                Перезапустить панель
+              </button>
+            </div>
           </form>
         </article>
       </section>

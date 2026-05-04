@@ -112,6 +112,8 @@ func (c *Client) handleClientConn(conn net.Conn, handler func(net.Conn) (*proxy.
 			var rejected *StreamRejectedError
 			if errors.As(err, &rejected) {
 				c.log.Debug("server rejected stream", zap.String("target", target), zap.Uint8("status", rejected.Status))
+			} else if errors.Is(err, errSessionClosed) {
+				c.log.Debug("session is closed, dropping proxied request", zap.String("target", target))
 			} else {
 				c.log.Warn("failed to open stream", zap.String("target", target), zap.Error(err))
 			}

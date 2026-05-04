@@ -89,6 +89,7 @@ PP_INSTALL_GID="$(id -g)"
 
 LEGACY_SOCKS5_PORT=""
 LEGACY_HTTP_PORT=""
+LEGACY_CONFIG=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -201,6 +202,4 @@ echo -e "    Full-tunnel:     ${CYAN}sudo $PP_BIN full-tunnel up --config $PP_CO
 echo ""
 if [[ ":$PATH:" != *":$INSTALL_PREFIX/bin:"* ]]; then
     warn "Каталог $INSTALL_PREFIX/bin не найден в PATH. Возможно, потребуется добавить его."
-fi
-я добавить его."
 fi

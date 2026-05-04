@@ -22,6 +22,7 @@ type ConnectionPool struct {
 	mu    sync.Mutex
 	sess  *smux.Session
 	ready chan struct{}
+	done  bool
 }
 
 func NewConnectionPool(cfg *config.ClientConfig, log *zap.Logger) *ConnectionPool {
@@ -48,6 +49,7 @@ func (p *ConnectionPool) maintainConnection(ctx context.Context) {
 	sess, err := ConnectToServer(ctx, p.cfg, noiseRunner)
 	if err != nil {
 		p.log.Warn("failed to connect to server", zap.Error(err))
+		p.closePool()
 		return
 	}
 
@@ -74,9 +76,11 @@ func (p *ConnectionPool) maintainConnection(ctx context.Context) {
 	}
 
 	p.clearSession(sess)
+	p.closePool()
 }
 
 var errSessionUnavailable = errors.New("session unavailable")
+var errSessionClosed = errors.New("session closed")
 
 type StreamRejectedError struct {
 	Status byte
@@ -94,7 +98,10 @@ func (p *ConnectionPool) OpenStream(target string) (net.Conn, error) {
 
 func (p *ConnectionPool) OpenStreamContext(ctx context.Context, target string) (net.Conn, error) {
 	for {
-		sess, ready := p.currentSession()
+		sess, ready, done := p.currentSession()
+		if done {
+			return nil, errSessionClosed
+		}
 		if sess == nil {
 			if err := waitForSession(ctx, ready); err != nil {
 				return nil, err
@@ -118,17 +125,22 @@ func (p *ConnectionPool) OpenStreamContext(ctx context.Context, target string) (
 	}
 }
 
-func (p *ConnectionPool) currentSession() (*smux.Session, <-chan struct{}) {
+func (p *ConnectionPool) currentSession() (*smux.Session, <-chan struct{}, bool) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	sess := p.sess
 	ready := p.ready
-	return sess, ready
+	done := p.done
+	return sess, ready, done
 }
 
 func (p *ConnectionPool) setSession(sess *smux.Session) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	if p.done {
+		_ = sess.Close()
+		return
+	}
 	p.sess = sess
 	close(p.ready)
 }
@@ -142,6 +154,16 @@ func (p *ConnectionPool) clearSession(sess *smux.Session) {
 	p.sess = nil
 	p.ready = make(chan struct{})
 	_ = sess.Close()
+}
+
+func (p *ConnectionPool) closePool() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.done {
+		return
+	}
+	p.done = true
+	close(p.ready)
 }
 
 func waitForSession(ctx context.Context, ready <-chan struct{}) error {

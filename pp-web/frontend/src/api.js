@@ -104,6 +104,12 @@ export const api = {
       body: JSON.stringify({})
     });
   },
+  restartPanel() {
+    return request("/api/restart", {
+      method: "POST",
+      body: JSON.stringify({})
+    });
+  },
   clientConfig(id) {
     return request(`/api/connections/${id}/client-config`, { method: "GET" });
   },
