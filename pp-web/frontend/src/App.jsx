@@ -1138,7 +1138,6 @@ function ConnectionsPage({ onNotice }) {
           onClose={() => setHttpsChoice(null)}
           onNotice={onNotice}
           onUpdated={loadConnections}
-          onShowNginx={(connection) => setNginxConfigOpen(connection)}
         />
       ) : null}
 
@@ -1153,7 +1152,7 @@ function ConnectionsPage({ onNotice }) {
   );
 }
 
-function HTTPSChoiceModal({ connection, onClose, onNotice, onUpdated, onShowNginx }) {
+function HTTPSChoiceModal({ connection, onClose, onNotice, onUpdated }) {
   const [busy, setBusy] = useState(false);
 
   async function handleApply() {
@@ -1164,7 +1163,6 @@ function HTTPSChoiceModal({ connection, onClose, onNotice, onUpdated, onShowNgin
       onNotice({ tone: "success", message: "HTTPS через Let's Encrypt успешно настроен." });
       await onUpdated();
       onClose();
-      onShowNginx(connection);
     } catch (error) {
       onNotice({ tone: "error", message: error.message });
     } finally {
