@@ -86,7 +86,43 @@ func (s *Server) Close() error {
 	return s.store.Close()
 }
 
+func (s *Server) GetAppSettings(ctx context.Context) (*AppSettings, error) {
+	return s.store.GetAppSettings(ctx, s.opts.CoreConfigPath)
+}
+
+func GeneratePanelCert(domain, certFile, keyFile string) error {
+	return crypto.GenerateSelfSignedCert(domain, certFile, keyFile)
+}
+
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	settings, _ := s.store.GetAppSettings(r.Context(), s.opts.CoreConfigPath)
+	prefix := settings.PanelPrefix
+	if prefix != "" {
+		if !strings.HasPrefix(prefix, "/") {
+			prefix = "/" + prefix
+		}
+		prefix = strings.TrimSuffix(prefix, "/")
+
+		if !strings.HasPrefix(r.URL.Path, prefix) {
+			// Redirect to prefix if not present?
+			// For now, just continue if prefix is empty or matches.
+			// Actually, if we are at / but prefix is /panel, we should probably redirect or 404.
+			if r.URL.Path == "/" || r.URL.Path == "" {
+				http.Redirect(w, r, prefix+"/", http.StatusFound)
+				return
+			}
+		} else {
+			// Strip prefix for internal routing
+			originalPath := r.URL.Path
+			r.URL.Path = strings.TrimPrefix(r.URL.Path, prefix)
+			if r.URL.Path == "" {
+				r.URL.Path = "/"
+			}
+			// Restore path after handling? Not really needed as we return.
+			defer func() { r.URL.Path = originalPath }()
+		}
+	}
+
 	if strings.HasPrefix(r.URL.Path, "/api/") {
 		s.serveAPI(w, r)
 		return
@@ -98,6 +134,8 @@ func (s *Server) serveAPI(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 
 	switch {
+	case r.URL.Path == "/api/settings" && (r.Method == http.MethodGet || r.Method == http.MethodPost):
+		s.withAdmin(w, r, s.handleSettings)
 	case r.URL.Path == "/api/bootstrap" && r.Method == http.MethodGet:
 		s.handleBootstrap(w, r)
 	case r.URL.Path == "/api/setup" && r.Method == http.MethodPost:
@@ -1105,6 +1143,31 @@ func (s *Server) syncCoreConfig(ctx context.Context) (bool, error) {
 	}
 
 	return true, nil
+}
+
+func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request, _ *Admin) {
+	if r.Method == http.MethodGet {
+		settings, err := s.store.GetAppSettings(r.Context(), s.opts.CoreConfigPath)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, settings)
+		return
+	}
+
+	var payload AppSettings
+	if err := decodeJSON(r, &payload); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	if err := s.store.UpdateAppSettings(r.Context(), &payload); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
 func (s *Server) setupRequired(ctx context.Context) (bool, error) {

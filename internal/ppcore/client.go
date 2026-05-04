@@ -2,6 +2,7 @@ package ppcore
 
 import (
 	"context"
+	"errors"
 	"net"
 	"time"
 
@@ -108,7 +109,12 @@ func (c *Client) handleClientConn(conn net.Conn, handler func(net.Conn) (*proxy.
 		// Proxy
 		remote, err = c.pool.OpenStream(target)
 		if err != nil {
-			c.log.Error("failed to open stream", zap.Error(err))
+			var rejected *StreamRejectedError
+			if errors.As(err, &rejected) {
+				c.log.Debug("server rejected stream", zap.String("target", target), zap.Uint8("status", rejected.Status))
+			} else {
+				c.log.Warn("failed to open stream", zap.String("target", target), zap.Error(err))
+			}
 			return
 		}
 	}

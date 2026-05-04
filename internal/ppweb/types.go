@@ -77,6 +77,14 @@ type AppSettings struct {
 	LastSyncAt     time.Time `json:"lastSyncAt"`
 	LastSyncError  string    `json:"lastSyncError"`
 	InitializedAt  time.Time `json:"initializedAt"`
+
+	// Panel configuration
+	PanelHTTPS    bool   `json:"panelHttps"`
+	PanelPort     int    `json:"panelPort"`
+	PanelPrefix   string `json:"panelPrefix"`
+	PanelDomain   string `json:"panelDomain"`
+	PanelCertFile string `json:"panelCertFile"`
+	PanelKeyFile  string `json:"panelKeyFile"`
 }
 
 type ProtocolDescriptor struct {

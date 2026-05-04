@@ -2,6 +2,7 @@ package ppcore
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -16,16 +17,18 @@ import (
 )
 
 type ConnectionPool struct {
-	cfg  *config.ClientConfig
-	log  *zap.Logger
-	mu   sync.Mutex
-	sess *smux.Session
+	cfg   *config.ClientConfig
+	log   *zap.Logger
+	mu    sync.Mutex
+	sess  *smux.Session
+	ready chan struct{}
 }
 
 func NewConnectionPool(cfg *config.ClientConfig, log *zap.Logger) *ConnectionPool {
 	return &ConnectionPool{
-		cfg: cfg,
-		log: log,
+		cfg:   cfg,
+		log:   log,
+		ready: make(chan struct{}),
 	}
 }
 
@@ -35,66 +38,135 @@ func (p *ConnectionPool) Start(ctx context.Context) error {
 }
 
 func (p *ConnectionPool) maintainConnection(ctx context.Context) {
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-		}
-
-		noiseRunner := newBrowserNoiseRunner(p.cfg, p.log)
-		sess, err := ConnectToServer(ctx, p.cfg, noiseRunner)
-		if err != nil {
-			p.log.Warn("failed to connect to server, retrying in 5s", zap.Error(err))
-			time.Sleep(5 * time.Second)
-			continue
-		}
-
-		p.mu.Lock()
-		p.sess = sess
-		p.mu.Unlock()
-		p.log.Info("connected to server successfully")
-
-		presenceCtx, presenceCancel := context.WithCancel(ctx)
-		go noiseRunner.RunPresenceLoop(presenceCtx)
-
-		closedCh := make(chan struct{})
-		go func() {
-			_, _ = sess.AcceptStream()
-			close(closedCh)
-		}()
-
-		select {
-		case <-closedCh:
-			presenceCancel()
-			p.log.Warn("session closed, reconnecting")
-		case <-ctx.Done():
-			presenceCancel()
-			sess.Close()
-			return
-		}
-
-		p.mu.Lock()
-		p.sess = nil
-		p.mu.Unlock()
+	select {
+	case <-ctx.Done():
+		return
+	default:
 	}
+
+	noiseRunner := newBrowserNoiseRunner(p.cfg, p.log)
+	sess, err := ConnectToServer(ctx, p.cfg, noiseRunner)
+	if err != nil {
+		p.log.Warn("failed to connect to server", zap.Error(err))
+		return
+	}
+
+	p.setSession(sess)
+	p.log.Info("connected to server successfully")
+
+	presenceCtx, presenceCancel := context.WithCancel(ctx)
+	go noiseRunner.RunPresenceLoop(presenceCtx)
+
+	closedCh := make(chan struct{})
+	go func() {
+		_, _ = sess.AcceptStream()
+		close(closedCh)
+	}()
+
+	select {
+	case <-closedCh:
+		presenceCancel()
+		p.log.Warn("session closed")
+	case <-ctx.Done():
+		presenceCancel()
+		sess.Close()
+		return
+	}
+
+	p.clearSession(sess)
+}
+
+var errSessionUnavailable = errors.New("session unavailable")
+
+type StreamRejectedError struct {
+	Status byte
+}
+
+func (e *StreamRejectedError) Error() string {
+	return fmt.Sprintf("server rejected stream: status %x", e.Status)
 }
 
 func (p *ConnectionPool) OpenStream(target string) (net.Conn, error) {
-	p.mu.Lock()
-	sess := p.sess
-	p.mu.Unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	return p.OpenStreamContext(ctx, target)
+}
 
-	if sess == nil || sess.IsClosed() {
-		return nil, fmt.Errorf("no active session")
+func (p *ConnectionPool) OpenStreamContext(ctx context.Context, target string) (net.Conn, error) {
+	for {
+		sess, ready := p.currentSession()
+		if sess == nil {
+			if err := waitForSession(ctx, ready); err != nil {
+				return nil, err
+			}
+			continue
+		}
+		if sess.IsClosed() {
+			p.clearSession(sess)
+			continue
+		}
+
+		stream, err := openStreamOnSession(sess, target)
+		if err == nil {
+			return stream, nil
+		}
+		if !errors.Is(err, errSessionUnavailable) {
+			return nil, err
+		}
+
+		p.clearSession(sess)
 	}
+}
+
+func (p *ConnectionPool) currentSession() (*smux.Session, <-chan struct{}) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	sess := p.sess
+	ready := p.ready
+	return sess, ready
+}
+
+func (p *ConnectionPool) setSession(sess *smux.Session) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.sess = sess
+	close(p.ready)
+}
+
+func (p *ConnectionPool) clearSession(sess *smux.Session) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.sess != sess {
+		return
+	}
+	p.sess = nil
+	p.ready = make(chan struct{})
+	_ = sess.Close()
+}
+
+func waitForSession(ctx context.Context, ready <-chan struct{}) error {
+	select {
+	case <-ready:
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("%w: %w", errSessionUnavailable, ctx.Err())
+	}
+}
+
+func openStreamOnSession(sess *smux.Session, target string) (net.Conn, error) {
+	host, portStr, err := net.SplitHostPort(target)
+	if err != nil {
+		return nil, fmt.Errorf("invalid target %q: %w", target, err)
+	}
+	port, err := strconv.Atoi(portStr)
+	if err != nil || port < 1 || port > 65535 {
+		return nil, fmt.Errorf("invalid target port %q", portStr)
+	}
+
 	stream, err := sess.OpenStream()
 	if err != nil {
-		return nil, fmt.Errorf("open stream failed: %w", err)
+		return nil, fmt.Errorf("%w: open stream failed: %w", errSessionUnavailable, err)
 	}
-
-	host, portStr, _ := net.SplitHostPort(target)
-	port, _ := strconv.Atoi(portStr)
 
 	var hdr protocol.PPStreamHeader
 	hdr.Port = uint16(port)
@@ -113,18 +185,18 @@ func (p *ConnectionPool) OpenStream(target string) (net.Conn, error) {
 
 	if err := hdr.Encode(stream); err != nil {
 		stream.Close()
-		return nil, fmt.Errorf("failed to encode stream header: %w", err)
+		return nil, fmt.Errorf("%w: failed to encode stream header: %w", errSessionUnavailable, err)
 	}
 
 	statusBuf := make([]byte, 1)
 	if _, err := io.ReadFull(stream, statusBuf); err != nil {
 		stream.Close()
-		return nil, fmt.Errorf("failed to read stream status: %w", err)
+		return nil, fmt.Errorf("%w: failed to read stream status: %w", errSessionUnavailable, err)
 	}
 
 	if statusBuf[0] != protocol.StatusOK {
 		stream.Close()
-		return nil, fmt.Errorf("server rejected stream: status %x", statusBuf[0])
+		return nil, &StreamRejectedError{Status: statusBuf[0]}
 	}
 
 	return stream, nil

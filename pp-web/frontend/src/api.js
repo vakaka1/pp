@@ -25,6 +25,15 @@ async function request(path, options = {}) {
 }
 
 export const api = {
+  getSettings() {
+    return request("/api/settings", { method: "GET" });
+  },
+  saveSettings(payload) {
+    return request("/api/settings", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+  },
   bootstrap() {
     return request("/api/bootstrap", { method: "GET" });
   },

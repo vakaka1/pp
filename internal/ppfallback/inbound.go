@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -214,6 +215,28 @@ func (s *Inbound) handleFallback(w http.ResponseWriter, r *http.Request) {
 	s.fallbackHandler.ServeHTTP(w, r)
 }
 
+type trackedConn struct {
+	net.Conn
+	clientID    int64
+	statusStore *clientStatusStore
+}
+
+func (c *trackedConn) Read(b []byte) (n int, err error) {
+	n, err = c.Conn.Read(b)
+	if n > 0 && c.statusStore != nil {
+		c.statusStore.AddBytes(c.clientID, int64(n))
+	}
+	return
+}
+
+func (c *trackedConn) Write(b []byte) (n int, err error) {
+	n, err = c.Conn.Write(b)
+	if n > 0 && c.statusStore != nil {
+		c.statusStore.AddBytes(c.clientID, int64(n))
+	}
+	return
+}
+
 func (s *Inbound) handleGRPC(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		s.handleFallback(w, r)
@@ -252,13 +275,19 @@ func (s *Inbound) handleGRPC(w http.ResponseWriter, r *http.Request) {
 	}
 
 	conn := &protocol.HttpConn{R: r.Body, W: w}
-	sendCipher, recvCipher, err := protocol.PerformNoiseNKHandshake(conn, s.noiseCfg)
+	var tracked net.Conn = &trackedConn{
+		Conn:        conn,
+		clientID:    authenticated.id,
+		statusStore: s.statusStore,
+	}
+
+	sendCipher, recvCipher, err := protocol.PerformNoiseNKHandshake(tracked, s.noiseCfg)
 	if err != nil {
 		s.log.Debug("noise handshake failed", zap.Error(err))
 		return
 	}
 
-	noiseConn := protocol.NewNoiseConn(conn, sendCipher, recvCipher)
+	noiseConn := protocol.NewNoiseConn(tracked, sendCipher, recvCipher)
 	session, err := smux.Server(noiseConn, protocol.DefaultSmuxConfig())
 	if err != nil {
 		s.log.Debug("smux session failed", zap.Error(err))

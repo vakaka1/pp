@@ -1691,8 +1691,36 @@ code {
   border-color: var(--border-color);
 }
 
-.settings-copy {
+.settings-section {
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.settings-section:last-of-type {
+  border-bottom: none;
+}
+
+.settings-section h4 {
   margin-bottom: 1rem;
+  font-size: 1.05rem;
+  color: var(--text-color);
+}
+
+.settings-preview {
+  margin: 1.5rem 0;
+  padding: 1.25rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  background: var(--surface-accent);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.settings-preview code {
+  font-size: 1.1rem;
+  color: var(--accent-strong);
+  word-break: break-all;
 }
 
 .theme-preview-grid {

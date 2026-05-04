@@ -1,12 +1,15 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -54,6 +57,20 @@ func main() {
 	}
 	defer server.Close()
 
+	// Load settings to override defaults
+	settings, err := server.GetAppSettings(context.Background())
+	if err != nil {
+		log.Printf("warning: failed to load app settings: %v", err)
+	} else {
+		if settings.PanelPort != 0 {
+			host, _, _ := net.SplitHostPort(*listenAddress)
+			if host == "" {
+				host = "0.0.0.0"
+			}
+			*listenAddress = net.JoinHostPort(host, strconv.Itoa(settings.PanelPort))
+		}
+	}
+
 	httpServer := &http.Server{
 		Addr:              *listenAddress,
 		Handler:           server,
@@ -67,8 +84,31 @@ func main() {
 		_ = httpServer.Close()
 	}()
 
-	log.Printf("pp-web v%s (built %s) listening on http://%s", version, buildDate, *listenAddress)
-	if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Fatalf("pp-web failed: %v", err)
+	if settings != nil && settings.PanelHTTPS {
+		certFile := settings.PanelCertFile
+		keyFile := settings.PanelKeyFile
+		if certFile == "" || keyFile == "" {
+			// Generate self-signed if not configured
+			certDir := filepath.Join(filepath.Dir(*databasePath), "certs")
+			certFile = filepath.Join(certDir, "panel.crt")
+			keyFile = filepath.Join(certDir, "panel.key")
+			domain := settings.PanelDomain
+			if domain == "" {
+				domain = "localhost"
+			}
+			log.Printf("generating self-signed certificate for %s", domain)
+			if err := ppweb.GeneratePanelCert(domain, certFile, keyFile); err != nil {
+				log.Fatalf("failed to generate self-signed cert: %v", err)
+			}
+		}
+		log.Printf("pp-web v%s (built %s) listening on https://%s", version, buildDate, *listenAddress)
+		if err := httpServer.ListenAndServeTLS(certFile, keyFile); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("pp-web failed: %v", err)
+		}
+	} else {
+		log.Printf("pp-web v%s (built %s) listening on http://%s", version, buildDate, *listenAddress)
+		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("pp-web failed: %v", err)
+		}
 	}
 }

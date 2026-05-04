@@ -725,11 +725,7 @@ function Shell({
   } else if (route.startsWith("/app/settings")) {
     content = (
       <SettingsPage
-        user={user}
-        build={build}
         bootstrap={bootstrap}
-        theme={theme}
-        onThemeChange={onThemeChange}
         onNotice={onNotice}
       />
     );
@@ -1353,6 +1349,8 @@ function ClientsModal({ connection, onClose, onNotice }) {
       const payload = await api.clientConfigById(connection.id, client.id);
       return {
         name: client.name,
+        online: client.online,
+        bytesUsed: client.bytesUsed,
         uri: payload.uri || null,
         configJson: JSON.stringify(payload.config, null, 2)
       };
@@ -1804,187 +1802,120 @@ function PPSettingsPage({ onNotice }) {
   );
 }
 
-function SettingsPage({ user, build, bootstrap, theme, onThemeChange, onNotice }) {
-  const [panelDomain, setPanelDomain] = useState("");
-  const [panelHTTPS, setPanelHTTPS] = useState(false);
-  const [panelCertPath, setPanelCertPath] = useState("");
-  const [panelKeyPath, setPanelKeyPath] = useState("");
-  const [showPanelNginx, setShowPanelNginx] = useState(false);
+function SettingsPage({ bootstrap, onNotice }) {
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [form, setForm] = useState(null);
 
-  const publicHost = getPanelHost(bootstrap);
-  const trimmedPanelDomain = panelDomain.trim();
-  const panelServerName = trimmedPanelDomain || publicHost;
-  const directPanelUrl = `http://${publicHost}:4090`;
-  const defaultPanelCertPath = trimmedPanelDomain
-    ? `/etc/letsencrypt/live/${trimmedPanelDomain}/fullchain.pem`
-    : "/etc/ssl/certs/panel.crt";
-  const defaultPanelKeyPath = trimmedPanelDomain
-    ? `/etc/letsencrypt/live/${trimmedPanelDomain}/privkey.pem`
-    : "/etc/ssl/private/panel.key";
-  const resolvedPanelCertPath = panelCertPath.trim() || defaultPanelCertPath;
-  const resolvedPanelKeyPath = panelKeyPath.trim() || defaultPanelKeyPath;
-  const publicPanelUrl = `${panelHTTPS ? "https" : "http"}://${panelServerName}`;
-  const panelNginxConfig = panelHTTPS
-    ? `server {
-    listen 80;
-    server_name ${panelServerName};
-    return 301 https://$host$request_uri;
-}
+  useEffect(() => {
+    loadSettings();
+  }, []);
 
-server {
-    listen 443 ssl http2;
-    server_name ${panelServerName};
-
-    ssl_certificate ${resolvedPanelCertPath};
-    ssl_certificate_key ${resolvedPanelKeyPath};
-
-    location / {
-        proxy_pass http://127.0.0.1:4090;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+  async function loadSettings() {
+    setLoading(true);
+    try {
+      const data = await api.getSettings();
+      setForm(data);
+    } catch (error) {
+      onNotice({ tone: "error", message: error.message });
+    } finally {
+      setLoading(false);
     }
-}`
-    : `server {
-    listen 80;
-    server_name ${panelServerName};
-
-    location / {
-        proxy_pass http://127.0.0.1:4090;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}`;
-
-  async function handleCopy(text, successMessage) {
-    const copied = await copyToClipboard(text);
-    onNotice({
-      tone: copied ? "success" : "error",
-      message: copied ? successMessage : "Не удалось скопировать значение."
-    });
   }
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    setSubmitting(true);
+    try {
+      await api.saveSettings(form);
+      onNotice({ tone: "success", message: "Настройки сохранены. Перезапустите панель для применения изменений." });
+    } catch (error) {
+      onNotice({ tone: "error", message: error.message });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (loading || !form) return <PageSkeleton title="Настройки панели" />;
+
+  // Вычисляем предпросмотр
+  const protocol = form.panelHttps ? "https" : "http";
+  const domain = form.panelDomain || (bootstrap?.publicIP !== "Unknown" ? bootstrap.publicIP : "127.0.0.1");
+  const port = form.panelPort || 4090;
+  const prefix = form.panelPrefix ? `/${form.panelPrefix.replace(/^\//, "")}` : "";
+  const previewUrl = `${protocol}://${domain}:${port}${prefix}`;
 
   return (
     <div className="page">
-
-
       <section className="settings-grid">
         <article className="surface-card surface-card--wide">
           <div className="surface-card__head">
             <div>
-              <span className="eyebrow">Access</span>
-              <h3>Доступ к панели</h3>
+              <span className="eyebrow">Panel</span>
+              <h3>Конфигурация доступа</h3>
             </div>
           </div>
 
-          <div className="address-display">
-            <div className="address-display__copy">
-              <span className="eyebrow">Прямой адрес</span>
-              <code className="big-address">{directPanelUrl}</code>
-            </div>
-            <button className="ghost-button" onClick={() => handleCopy(directPanelUrl, "Адрес панели скопирован.")}>
-              Копировать
-            </button>
-          </div>
-
-          <div className="nginx-hint-box">
-            <h4>Публичный домен и HTTPS</h4>
-
-            <div className="input-group">
-              <label>Домен панели</label>
-              <input
-                type="text"
-                placeholder="panel.example.com"
-                value={panelDomain}
-                onChange={(event) => setPanelDomain(event.target.value)}
-              />
-            </div>
-
-            <div className="checkbox-group checkbox-group--tight-top">
-              <label>
+          <form onSubmit={handleSubmit} className="auth-form" style={{ maxWidth: "600px" }}>
+            <div className="settings-section">
+              <h4>Сетевые настройки</h4>
+              <div className="input-group">
+                <label>Порт панели</label>
                 <input
-                  type="checkbox"
-                  checked={panelHTTPS}
-                  onChange={(event) => setPanelHTTPS(event.target.checked)}
+                  type="number"
+                  min="1"
+                  max="65535"
+                  value={form.panelPort || ""}
+                  onChange={(e) => setForm({ ...form, panelPort: parseInt(e.target.value) || 4090 })}
                 />
-                <span>Показывать конфиг панели с HTTPS</span>
-              </label>
-            </div>
-
-            {panelHTTPS ? (
-              <div className="settings-panel-https-grid">
-                <div className="input-group">
-                  <label>Путь к сертификату</label>
-                  <input
-                    type="text"
-                    placeholder={defaultPanelCertPath}
-                    value={panelCertPath}
-                    onChange={(event) => setPanelCertPath(event.target.value)}
-                  />
-                </div>
-
-                <div className="input-group">
-                  <label>Путь к ключу</label>
-                  <input
-                    type="text"
-                    placeholder={defaultPanelKeyPath}
-                    value={panelKeyPath}
-                    onChange={(event) => setPanelKeyPath(event.target.value)}
-                  />
-                </div>
               </div>
-            ) : null}
 
-            <div className="address-display address-display--compact">
-              <div className="address-display__copy">
-                <span className="eyebrow">Публичный адрес</span>
-                <code className="big-address">{publicPanelUrl}</code>
+              <div className="input-group">
+                <label>Префикс пути (напр. /panel)</label>
+                <input
+                  type="text"
+                  placeholder="/"
+                  value={form.panelPrefix || ""}
+                  onChange={(e) => setForm({ ...form, panelPrefix: e.target.value })}
+                />
+                <p className="muted-caption">Если указать "panel", доступ к системе будет через /panel/</p>
               </div>
-              <button className="ghost-button" onClick={() => handleCopy(publicPanelUrl, "Публичный адрес панели скопирован.")}>
-                Копировать адрес
-              </button>
             </div>
 
-            <p className="muted-caption">
-              Если HTTPS включён, конфиг сразу добавит редирект с `80` на `443` и SSL-пути для панели.
-            </p>
+            <div className="settings-section">
+              <h4>Безопасность и HTTPS</h4>
+              <div className="input-group">
+                <label>Домен (для HTTPS)</label>
+                <input
+                  type="text"
+                  placeholder="panel.example.com"
+                  value={form.panelDomain || ""}
+                  onChange={(e) => setForm({ ...form, panelDomain: e.target.value })}
+                />
+                <p className="muted-caption">Требуется для корректной работы сертификатов.</p>
+              </div>
 
-            <div className="button-group button-group--wrap">
-              <button
-                className="ghost-button ghost-button--small"
-                onClick={() => setShowPanelNginx(!showPanelNginx)}
-              >
-                {showPanelNginx ? "Скрыть конфиг" : "Показать конфиг Nginx"}
-              </button>
-              <button
-                className="ghost-button ghost-button--small"
-                onClick={() => handleCopy(panelNginxConfig, "Конфиг Nginx для панели скопирован.")}
-              >
-                Копировать конфиг
-              </button>
+              <div className="checkbox-group">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={!!form.panelHttps}
+                    onChange={(e) => setForm({ ...form, panelHttps: e.target.checked })}
+                  />
+                  <span>Включить HTTPS (самоподписанный)</span>
+                </label>
+              </div>
             </div>
 
-            {showPanelNginx ? <pre className="json-panel json-panel--small">{panelNginxConfig}</pre> : null}
-          </div>
-        </article>
-
-        <article className="surface-card">
-          <div className="surface-card__head">
-            <div>
-              <span className="eyebrow">Profile</span>
-              <h3>Администратор</h3>
+            <div className="settings-preview">
+              <span className="eyebrow">Итоговый адрес доступа</span>
+              <code>{previewUrl}</code>
             </div>
-          </div>
 
-          <dl className="details-list">
-            <Detail label="Логин" value={user?.username || "—"} />
-            <Detail label="Роль" value="Суперпользователь" />
-            <Detail label="Публичный IP" value={bootstrap.publicIP || "Unknown"} />
-            <Detail label="Backend listen" value={bootstrap.listen || DEFAULT_LISTEN} />
-          </dl>
+            <button type="submit" className="primary-button" disabled={submitting}>
+              {submitting ? "Сохранение..." : "Сохранить изменения"}
+            </button>
+          </form>
         </article>
       </section>
     </div>
