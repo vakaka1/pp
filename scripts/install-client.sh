@@ -61,7 +61,6 @@ usage() {
 
 Скрипт устанавливает клиентские инструменты PP:
 - pp-client (основной бинарник)
-- GeoIP / GeoSite базы
 USAGE
 }
 
@@ -142,6 +141,49 @@ create_dirs() {
 }
 run_with_spinner "Создание директорий ($INSTALL_PREFIX, $PP_DATA_DIR)" create_dirs
 
+cleanup_path_binaries() {
+    local target
+    target="$(readlink -f "$PP_BIN" 2>/dev/null || echo "$PP_BIN")"
+    local IFS=':'
+    local dir
+    for dir in $PATH; do
+        [ -n "$dir" ] || continue
+        local candidate="$dir/pp-client"
+        [ -e "$candidate" ] || continue
+        local resolved
+        resolved="$(readlink -f "$candidate" 2>/dev/null || echo "$candidate")"
+        if [ "$resolved" = "$target" ]; then
+            continue
+        fi
+        rm -f "$candidate" 2>/dev/null || true
+    done
+}
+run_with_spinner "Очистка старых pp-client из PATH" cleanup_path_binaries
+
+install_full_tunnel_deps() {
+    if command -v iptables >/dev/null 2>&1; then
+        return 0
+    fi
+    if [ "$EUID" -ne 0 ]; then
+        return 0
+    fi
+
+    if command -v apt-get >/dev/null 2>&1; then
+        apt-get update -qq && apt-get install -y -qq iptables
+    elif command -v dnf >/dev/null 2>&1; then
+        dnf install -y iptables
+    elif command -v yum >/dev/null 2>&1; then
+        yum install -y iptables
+    elif command -v pacman >/dev/null 2>&1; then
+        pacman -Sy --noconfirm iptables
+    elif command -v apk >/dev/null 2>&1; then
+        apk add --no-cache iptables
+    else
+        return 0
+    fi
+}
+run_with_spinner "Подготовка full-tunnel зависимостей" install_full_tunnel_deps
+
 step "Загрузка компонентов"
 
 download_pp() {
@@ -167,25 +209,8 @@ download_pp() {
 
 run_with_spinner "Загрузка бинарника pp" download_pp
 
-# Вывод версии установленного бинарника
 INSTALLED_VER=$("$PP_BIN" version 2>/dev/null || echo "неизвестно")
 ok "Установлена версия: ${CYAN}${INSTALLED_VER}${NC}"
-
-download_geo() {
-    local geoip_file="$PP_DATA_SUBDIR/geoip.dat"
-    local geosite_file="$PP_DATA_SUBDIR/geosite.dat"
-
-    if ! [ -f "$geoip_file" ] || [ "$(stat -c%s "$geoip_file" 2>/dev/null || echo 0)" -lt 1000000 ]; then
-        curl -fsSL --connect-timeout 30 --retry 3 --retry-delay 2 -o "$geoip_file" "$GEO_IP_URL" || return 1
-    fi
-
-    if ! [ -f "$geosite_file" ] || [ "$(stat -c%s "$geosite_file" 2>/dev/null || echo 0)" -lt 100000 ]; then
-        curl -fsSL --connect-timeout 30 --retry 3 --retry-delay 2 -o "$geosite_file" "$GEO_SITE_URL" || return 1
-    fi
-}
-
-run_with_spinner "Загрузка GeoIP / GeoSite баз" download_geo
-
 
 echo ""
 echo -e "${BOLD}${GREEN}╔══════════════════════════════════════════════════════════════╗${NC}"

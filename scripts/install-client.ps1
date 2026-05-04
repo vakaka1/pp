@@ -91,6 +91,53 @@ function Add-ToUserPath {
     return $true
 }
 
+function Remove-OldPathBinaries {
+    param([string]$TargetExe)
+
+    $targetFull = [System.IO.Path]::GetFullPath($TargetExe)
+    $pathDirs = @()
+    foreach ($scope in @("Machine", "User")) {
+        $pathValue = [Environment]::GetEnvironmentVariable("Path", $scope)
+        if ($pathValue) {
+            $pathDirs += $pathValue.Split(";") | Where-Object { $_ }
+        }
+    }
+    $pathDirs += $env:Path.Split(";") | Where-Object { $_ }
+
+    foreach ($dir in ($pathDirs | Select-Object -Unique)) {
+        try {
+            $candidate = Join-Path $dir "pp-client.exe"
+            if (-not (Test-Path $candidate)) {
+                continue
+            }
+            $candidateFull = [System.IO.Path]::GetFullPath($candidate)
+            if ($candidateFull -ieq $targetFull) {
+                continue
+            }
+            Remove-Item -Force $candidate -ErrorAction SilentlyContinue
+        } catch {}
+    }
+}
+
+function Copy-WithRetry {
+    param(
+        [string]$Source,
+        [string]$Destination
+    )
+
+    for ($attempt = 1; $attempt -le 20; $attempt++) {
+        try {
+            Copy-Item -Path $Source -Destination $Destination -Force
+            return
+        } catch {
+            if ($attempt -eq 20) {
+                throw
+            }
+            Start-Sleep -Milliseconds 500
+        }
+    }
+}
+
 function Install-PPClient {
     $script:GoArch = Get-GoArch
 
@@ -133,6 +180,9 @@ function Install-PPClient {
     }
     Write-Ok "Создание директорий ($InstallDir)"
 
+    Remove-OldPathBinaries -TargetExe $exePath
+    Write-Ok "Очистка старых pp-client.exe из PATH"
+
     Write-Step "Загрузка компонентов"
 
     $downloadUrl = "https://github.com/$GITHUB_REPO/releases/download/$version/pp-client_windows_$($script:GoArch).zip"
@@ -151,7 +201,7 @@ function Install-PPClient {
         Exit-Fatal "pp-client*.exe не найден в архиве"
     }
     
-    Copy-Item -Path $extractedExe.FullName -Destination $exePath -Force
+    Copy-WithRetry -Source $extractedExe.FullName -Destination $exePath
     Remove-Item -Recurse -Force $extractDir -ErrorAction SilentlyContinue
     Remove-Item -Force $zipPath -ErrorAction SilentlyContinue
 

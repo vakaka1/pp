@@ -39,44 +39,53 @@ func (p *ConnectionPool) Start(ctx context.Context) error {
 }
 
 func (p *ConnectionPool) maintainConnection(ctx context.Context) {
-	select {
-	case <-ctx.Done():
-		return
-	default:
+	defer p.closePool()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		noiseRunner := newBrowserNoiseRunner(p.cfg, p.log)
+		sess, err := ConnectToServer(ctx, p.cfg, noiseRunner)
+		if err != nil {
+			p.log.Warn("failed to connect to server", zap.Error(err))
+			if !p.waitReconnect(ctx) {
+				return
+			}
+			continue
+		}
+
+		p.setSession(sess)
+		p.log.Info("connected to server successfully")
+
+		presenceCtx, presenceCancel := context.WithCancel(ctx)
+		go noiseRunner.RunPresenceLoop(presenceCtx)
+
+		closedCh := make(chan struct{})
+		var acceptErr error
+		go func() {
+			_, acceptErr = sess.AcceptStream()
+			close(closedCh)
+		}()
+
+		select {
+		case <-closedCh:
+			presenceCancel()
+			p.log.Warn("session closed", zap.Error(acceptErr))
+		case <-ctx.Done():
+			presenceCancel()
+			sess.Close()
+			return
+		}
+
+		p.clearSession(sess)
+		if !p.waitReconnect(ctx) {
+			return
+		}
 	}
-
-	noiseRunner := newBrowserNoiseRunner(p.cfg, p.log)
-	sess, err := ConnectToServer(ctx, p.cfg, noiseRunner)
-	if err != nil {
-		p.log.Warn("failed to connect to server", zap.Error(err))
-		p.closePool()
-		return
-	}
-
-	p.setSession(sess)
-	p.log.Info("connected to server successfully")
-
-	presenceCtx, presenceCancel := context.WithCancel(ctx)
-	go noiseRunner.RunPresenceLoop(presenceCtx)
-
-	closedCh := make(chan struct{})
-	go func() {
-		_, _ = sess.AcceptStream()
-		close(closedCh)
-	}()
-
-	select {
-	case <-closedCh:
-		presenceCancel()
-		p.log.Warn("session closed")
-	case <-ctx.Done():
-		presenceCancel()
-		sess.Close()
-		return
-	}
-
-	p.clearSession(sess)
-	p.closePool()
 }
 
 var errSessionUnavailable = errors.New("session unavailable")
@@ -164,6 +173,18 @@ func (p *ConnectionPool) closePool() {
 	}
 	p.done = true
 	close(p.ready)
+}
+
+func (p *ConnectionPool) waitReconnect(ctx context.Context) bool {
+	timer := time.NewTimer(2 * time.Second)
+	defer timer.Stop()
+
+	select {
+	case <-timer.C:
+		return true
+	case <-ctx.Done():
+		return false
+	}
 }
 
 func waitForSession(ctx context.Context, ready <-chan struct{}) error {

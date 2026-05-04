@@ -137,7 +137,9 @@ func ConnectToServer(ctx context.Context, cfg *config.ClientConfig, noise *brows
 	}
 
 	smuxCfg := protocol.DefaultSmuxConfig()
-	smuxCfg.KeepAliveInterval = time.Duration(cfg.Transport.KeepaliveIntervalSeconds) * time.Second
+	if cfg.Transport.KeepaliveIntervalSeconds > 0 {
+		smuxCfg.KeepAliveInterval = time.Duration(cfg.Transport.KeepaliveIntervalSeconds) * time.Second
+	}
 	session, err := smux.Client(transportConn, smuxCfg)
 	if err != nil {
 		transportConn.Close()

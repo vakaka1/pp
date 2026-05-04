@@ -26,10 +26,12 @@ var bypassCIDRs = []string{
 	"240.0.0.0/4",
 }
 
-
 func Up(cfg *config.ClientConfig, transparentListen string, owner string) error {
 	if cfg == nil {
 		return fmt.Errorf("client config is required")
+	}
+	if _, err := exec.LookPath("iptables"); err != nil {
+		return fmt.Errorf("linux full-tunnel requires iptables, but it was not found in PATH. Install it first: apt install iptables, dnf install iptables, yum install iptables, pacman -S iptables, or apk add iptables")
 	}
 	if transparentListen == "" {
 		transparentListen = cfg.TransparentListen
@@ -97,7 +99,6 @@ func Up(cfg *config.ClientConfig, transparentListen string, owner string) error 
 
 	return nil
 }
-
 
 func Down() error {
 	_ = runIptablesAllowFailure("-t", "nat", "-D", "OUTPUT", "-p", "tcp", "-j", chainName)

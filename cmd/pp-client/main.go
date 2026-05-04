@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"runtime"
@@ -30,6 +31,7 @@ var (
 	transparentListen string
 	fullTunnelOwner   string
 	enableSysProxy    bool
+	enableFullTunnel  bool
 )
 
 func configSearchDirs() []string {
@@ -118,6 +120,17 @@ func main() {
 		},
 	}
 
+	updateCmd := &cobra.Command{
+		Use:   "update",
+		Short: "Update pp-client using the official installer",
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := runSelfUpdate(); err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+		},
+	}
+
 	validateCmd := &cobra.Command{
 		Use:   "validate-config [config-name]",
 		Short: "Validate client config",
@@ -145,8 +158,6 @@ func main() {
 		},
 	}
 	validateCmd.Flags().StringVar(&cfgFile, "config", "", "Config file")
-
-	var enableFullTunnel bool
 
 	clientCmd := &cobra.Command{
 		Use:   "start [config-name]",
@@ -305,10 +316,44 @@ func main() {
 
 	fullTunnelCmd.AddCommand(fullTunnelUpCmd, fullTunnelDownCmd)
 
-	rootCmd.AddCommand(versionCmd, validateCmd, clientCmd, fullTunnelCmd, importCmd, listCmd, deleteCmd)
+	rootCmd.AddCommand(versionCmd, updateCmd, validateCmd, clientCmd, fullTunnelCmd, importCmd, listCmd, deleteCmd)
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}
+}
+
+func runSelfUpdate() error {
+	switch runtime.GOOS {
+	case "windows":
+		err := startCommand("powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "irm https://raw.githubusercontent.com/vakaka1/pp/main/scripts/install-client.ps1 | iex")
+		if err == nil {
+			fmt.Println("update started in PowerShell")
+		}
+		return err
+	case "linux":
+		if os.Geteuid() == 0 {
+			return runCommand("bash", "-c", "curl -fsSL https://raw.githubusercontent.com/vakaka1/pp/main/scripts/install-client.sh | bash")
+		}
+		return runCommand("sudo", "bash", "-c", "curl -fsSL https://raw.githubusercontent.com/vakaka1/pp/main/scripts/install-client.sh | bash")
+	default:
+		return fmt.Errorf("update is not supported on %s", runtime.GOOS)
+	}
+}
+
+func runCommand(name string, args ...string) error {
+	command := exec.Command(name, args...)
+	command.Stdout = os.Stdout
+	command.Stderr = os.Stderr
+	command.Stdin = os.Stdin
+	return command.Run()
+}
+
+func startCommand(name string, args ...string) error {
+	command := exec.Command(name, args...)
+	command.Stdout = os.Stdout
+	command.Stderr = os.Stderr
+	command.Stdin = os.Stdin
+	return command.Start()
 }
 
 func initLog(cfg config.LogConfig, verbose bool) *zap.Logger {
