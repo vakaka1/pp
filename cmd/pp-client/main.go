@@ -146,6 +146,8 @@ func main() {
 	}
 	validateCmd.Flags().StringVar(&cfgFile, "config", "", "Config file")
 
+	var enableFullTunnel bool
+
 	clientCmd := &cobra.Command{
 		Use:   "start [config-name]",
 		Short: "Start client proxy",
@@ -205,6 +207,29 @@ func main() {
 				}
 			}
 
+			if enableFullTunnel {
+				owner := fullTunnelOwner
+				if runtime.GOOS == "linux" && owner == "" {
+					owner = "root"
+				}
+				listenAddr := transparentListen
+				if listenAddr == "" {
+					listenAddr = "127.0.0.1:1090"
+					cfg.Client.TransparentListen = listenAddr
+				}
+				if err := fulltunnel.Up(cfg.Client, listenAddr, owner); err != nil {
+					log.Fatal("failed to enable full-tunnel", zap.Error(err))
+				}
+				log.Info("full-tunnel enabled", zap.String("transparent_listen", listenAddr), zap.String("owner", owner))
+				defer func() {
+					if err := fulltunnel.Down(); err != nil {
+						log.Warn("failed to disable full-tunnel", zap.Error(err))
+					} else {
+						log.Info("full-tunnel disabled")
+					}
+				}()
+			}
+
 			go func() {
 				sig := make(chan os.Signal, 1)
 				signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
@@ -221,6 +246,8 @@ func main() {
 	clientCmd.Flags().StringVar(&cfgFile, "config", "", "Config file")
 	clientCmd.Flags().StringVar(&transparentListen, "transparent-listen", "", "Transparent TCP listener for redirected full-tunnel traffic")
 	clientCmd.Flags().BoolVar(&enableSysProxy, "system-proxy", false, "Enable system proxy on start (Windows: registry, other: no-op)")
+	clientCmd.Flags().BoolVar(&enableFullTunnel, "full-tunnel", false, "Enable full-tunnel mode (requires root/admin)")
+	clientCmd.Flags().StringVar(&fullTunnelOwner, "owner", "", "Username or UID to exempt from full-tunnel redirection (Linux only)")
 
 	fullTunnelCmd := &cobra.Command{
 		Use:   "full-tunnel",

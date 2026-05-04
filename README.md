@@ -39,6 +39,19 @@ irm https://raw.githubusercontent.com/vakaka1/pp/main/scripts/install-client.ps1
 pp-client start --config client.json --system-proxy
 ```
 
+### Geo-базы (GeoIP / GeoSite)
+Скрипты для скачивания или обновления баз:
+
+**Linux:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/vakaka1/pp/main/scripts/install-geo.sh | sudo bash
+```
+
+**Windows:**
+```powershell
+irm https://raw.githubusercontent.com/vakaka1/pp/main/scripts/install-geo.ps1 | iex
+```
+
 После запуска будут доступны локальные прокси: **SOCKS5** (`127.0.0.1:1080`) и **HTTP** (`127.0.0.1:8080`).
 
 **Full Tunnel (Linux):**

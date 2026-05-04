@@ -16,6 +16,16 @@ curl -fsSL https://raw.githubusercontent.com/vakaka1/pp/main/scripts/install-cli
 irm https://raw.githubusercontent.com/vakaka1/pp/main/scripts/install-client.ps1 | iex
 ```
 
+### Обновление Geo-баз
+Скрипты для скачивания или обновления баз GeoIP/GeoSite (запускать по необходимости):
+```bash
+# Linux
+curl -fsSL https://raw.githubusercontent.com/vakaka1/pp/main/scripts/install-geo.sh | bash
+
+# Windows (PowerShell)
+irm https://raw.githubusercontent.com/vakaka1/pp/main/scripts/install-geo.ps1 | iex
+```
+
 ### Встраивание в GUI-приложение
 
 GUI может либо поставлять `pp-client` в комплекте, либо скачивать из GitHub Releases при первом запуске:

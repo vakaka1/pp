@@ -21,6 +21,19 @@ curl -fsSL https://raw.githubusercontent.com/vakaka1/pp/main/scripts/install-cli
 irm https://raw.githubusercontent.com/vakaka1/pp/main/scripts/install-client.ps1 | iex
 ```
 
+### Обновление Geo-баз
+Отдельные скрипты для установки или обновления GeoIP/GeoSite баз:
+
+**Linux:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/vakaka1/pp/main/scripts/install-geo.sh | bash
+```
+
+**Windows:**
+```powershell
+irm https://raw.githubusercontent.com/vakaka1/pp/main/scripts/install-geo.ps1 | iex
+```
+
 ### Для GUI-приложения
 GUI может поставлять `pp-client` в комплекте (bundled) или скачивать его при первом запуске из GitHub Releases:
 ```
@@ -45,7 +58,6 @@ https://github.com/vakaka1/pp/releases/latest/download/pp-client_windows_amd64.z
 | Бинарник | `%LOCALAPPDATA%\pp\pp-client.exe` |
 | Конфиги | `%APPDATA%\pp\*.json` |
 | GeoIP/GeoSite | `%LOCALAPPDATA%\pp\data\` |
-| Лаунчеры | `%LOCALAPPDATA%\pp\pp-start.cmd`, `pp-tunnel.cmd` |
 
 > Типичные значения переменных:
 > - `%LOCALAPPDATA%` = `C:\Users\<User>\AppData\Local`
@@ -82,6 +94,8 @@ pp-client start client
 |------|----------|
 | `--config` | Путь к JSON-конфигу или его имя |
 | `--system-proxy` | Включить системный прокси (Windows: реестр, Linux: no-op) |
+| `--full-tunnel` | Включить режим full-tunnel (маршрутизация всего трафика ОС). Требует root/admin. |
+| `--owner` | UID или имя пользователя для исключения из full-tunnel (только Linux, по умолчанию `root` при `--full-tunnel`). |
 | `--transparent-listen` | Адрес прозрачного слушателя (Linux full-tunnel) |
 | `--verbose` | Включить DEBUG-логирование |
 

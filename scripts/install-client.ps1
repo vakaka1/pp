@@ -11,24 +11,11 @@ $ErrorActionPreference = "Stop"
 $GITHUB_REPO = if ($env:GITHUB_REPO) { $env:GITHUB_REPO } else { "vakaka1/pp" }
 $RELEASE_TAG = if ($env:RELEASE_TAG) { $env:RELEASE_TAG } else { "latest" }
 
-$GEO_IP_URL  = "https://github.com/v2fly/geoip/releases/latest/download/geoip.dat"
-$GEO_SITE_URL = "https://github.com/v2fly/domain-list-community/releases/latest/download/dlc.dat"
-
-function Write-Header {
-    Write-Host ""
-    Write-Host "  ╔══════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "  ║            PP Client Installer                       ║" -ForegroundColor Cyan
-    Write-Host "  ╚══════════════════════════════════════════════════════╝" -ForegroundColor Cyan
-    Write-Host "  GitHub:      github.com/$GITHUB_REPO" -ForegroundColor Gray
-    Write-Host "  Arch:        windows/$script:GoArch" -ForegroundColor Gray
-    Write-Host ""
-}
-
-function Write-Step  { param([string]$Msg) Write-Host "`n  ▶ $Msg" -ForegroundColor Blue }
-function Write-Ok    { param([string]$Msg) Write-Host "  ✔ $Msg" -ForegroundColor Green }
-function Write-Info  { param([string]$Msg) Write-Host "  ℹ $Msg" -ForegroundColor Cyan }
-function Write-Warn  { param([string]$Msg) Write-Host "  ⚠ $Msg" -ForegroundColor Yellow }
-function Write-Err   { param([string]$Msg) Write-Host "  ✖ $Msg" -ForegroundColor Red }
+function Write-Info  { param([string]$Msg) Write-Host -NoNewline -ForegroundColor Cyan "ℹ " ; Write-Host $Msg }
+function Write-Ok    { param([string]$Msg) Write-Host -NoNewline -ForegroundColor Green "✔ " ; Write-Host $Msg }
+function Write-Warn  { param([string]$Msg) Write-Host -NoNewline -ForegroundColor Yellow "⚠ " ; Write-Host $Msg }
+function Write-Err   { param([string]$Msg) Write-Host -NoNewline -ForegroundColor Red "✖ " ; Write-Host $Msg }
+function Write-Step  { param([string]$Msg) Write-Host "`n" ; Write-Host -NoNewline -ForegroundColor Blue "▶ " ; Write-Host $Msg -ForegroundColor White }
 
 function Exit-Fatal {
     param([string]$Msg)
@@ -38,25 +25,17 @@ function Exit-Fatal {
 
 function Show-Usage {
     Write-Host @"
+Использование: install-client.ps1
 
-  Использование:
-    irm https://raw.githubusercontent.com/$GITHUB_REPO/main/scripts/install-client.ps1 | iex
+Скрипт устанавливает клиентские инструменты PP (Windows):
+- pp-client.exe (основной бинарник)
 
-  Или скачать и запустить:
-    .\install-client.ps1 [-InstallDir C:\path] [-Config client.json]
-
-  Параметры:
-    -InstallDir   Директория установки (по умолчанию %LOCALAPPDATA%\pp)
-    -Config       Путь к файлу конфигурации для активации после установки
-    -Help         Показать эту справку
-
-  Что делает:
-    - Скачивает pp-client.exe из GitHub Releases
-    - Устанавливает в %LOCALAPPDATA%\pp\
-    - Скачивает GeoIP / GeoSite базы
-    - Добавляет директорию в PATH (для текущего пользователя)
-    - Создаёт лаунчер-скрипты (pp-start.cmd, pp-tunnel.cmd)
+Параметры:
+  -InstallDir   Директория установки (по умолчанию %LOCALAPPDATA%\pp)
+  -Config       Путь к файлу конфигурации для активации после установки
+  -Help         Показать эту справку
 "@
+    exit 0
 }
 
 function Get-GoArch {
@@ -87,14 +66,11 @@ function Download-File {
         [string]$Destination,
         [string]$Description
     )
-    Write-Info "Загрузка: $Description..."
     try {
         $ProgressPreference = 'SilentlyContinue'
         Invoke-WebRequest -Uri $Url -OutFile $Destination -UseBasicParsing -TimeoutSec 120
         $ProgressPreference = 'Continue'
-        $size = (Get-Item $Destination).Length
-        $sizeMB = [math]::Round($size / 1MB, 1)
-        Write-Ok "$Description ($sizeMB MB)"
+        Write-Ok $Description
     } catch {
         Exit-Fatal "Не удалось скачать $Description : $_"
     }
@@ -105,7 +81,6 @@ function Add-ToUserPath {
 
     $currentPath = [Environment]::GetEnvironmentVariable("Path", "User")
     if ($currentPath -and $currentPath.Split(";") -contains $Dir) {
-        Write-Info "Директория уже в PATH"
         return $false
     }
 
@@ -113,8 +88,6 @@ function Add-ToUserPath {
     [Environment]::SetEnvironmentVariable("Path", $newPath, "User")
 
     $env:Path = "$env:Path;$Dir"
-
-    Write-Ok "Добавлено в PATH пользователя: $Dir"
     return $true
 }
 
@@ -135,23 +108,30 @@ function Install-PPClient {
     $cfgDir  = Join-Path $env:APPDATA "pp"
     $exePath = Join-Path $binDir "pp-client.exe"
 
-    Write-Header
+    Clear-Host
+    Write-Host ""
+    Write-Host "╔══════════════════════════════════════════════════════╗" -ForegroundColor Cyan
+    Write-Host "║                 PP Client Installer                  ║" -ForegroundColor Cyan
+    Write-Host "╚══════════════════════════════════════════════════════╝" -ForegroundColor Cyan
+    Write-Host -NoNewline "  GitHub:      " ; Write-Host "github.com/$GITHUB_REPO" -ForegroundColor Cyan
+    Write-Host -NoNewline "  Архитектура: " ; Write-Host "windows/$script:GoArch" -ForegroundColor Cyan
+    Write-Host ""
 
-    Write-Step "Определение версии"
+    Write-Info "Получение информации о релизе..."
     if ($RELEASE_TAG -eq "latest") {
         $version = Get-LatestVersion
     } else {
         $version = $RELEASE_TAG
     }
-    Write-Ok "Версия: $version"
+    Write-Ok "Версия для установки: $version"
 
-    Write-Step "Подготовка директорий"
+    Write-Step "Подготовка файловой системы"
     foreach ($dir in @($binDir, $dataDir, $cfgDir)) {
         if (-not (Test-Path $dir)) {
             New-Item -ItemType Directory -Path $dir -Force | Out-Null
         }
     }
-    Write-Ok "Директории созданы"
+    Write-Ok "Создание директорий ($InstallDir)"
 
     Write-Step "Загрузка компонентов"
 
@@ -159,9 +139,8 @@ function Install-PPClient {
     $zipPath = Join-Path $env:TEMP "pp-client-$version.zip"
     $extractDir = Join-Path $env:TEMP "pp-client-extract"
 
-    Download-File -Url $downloadUrl -Destination $zipPath -Description "pp-client.exe"
+    Download-File -Url $downloadUrl -Destination $zipPath -Description "Загрузка бинарника pp"
 
-    Write-Info "Распаковка архива..."
     if (Test-Path $extractDir) {
         Remove-Item -Recurse -Force $extractDir
     }
@@ -176,99 +155,12 @@ function Install-PPClient {
     Remove-Item -Recurse -Force $extractDir -ErrorAction SilentlyContinue
     Remove-Item -Force $zipPath -ErrorAction SilentlyContinue
 
-    Write-Ok "pp-client.exe установлен"
-
     try {
         $verOutput = & $exePath version 2>&1 | Out-String
-        Write-Info $verOutput.Trim()
+        Write-Ok "Установлена версия: $($verOutput.Trim())"
     } catch {}
 
-    $geoIpFile = Join-Path $dataDir "geoip.dat"
-    $geoSiteFile = Join-Path $dataDir "geosite.dat"
-
-    $needGeoIp = (-not (Test-Path $geoIpFile)) -or ((Get-Item $geoIpFile).Length -lt 1000000)
-    $needGeoSite = (-not (Test-Path $geoSiteFile)) -or ((Get-Item $geoSiteFile).Length -lt 100000)
-
-    if ($needGeoIp) {
-        Download-File -Url $GEO_IP_URL -Destination $geoIpFile -Description "GeoIP база"
-    } else {
-        Write-Ok "GeoIP база актуальна"
-    }
-
-    if ($needGeoSite) {
-        Download-File -Url $GEO_SITE_URL -Destination $geoSiteFile -Description "GeoSite база"
-    } else {
-        Write-Ok "GeoSite база актуальна"
-    }
-
-    Write-Step "Настройка скриптов запуска"
-
-    $startScript = Join-Path $binDir "pp-start.cmd"
-    $tunnelScript = Join-Path $binDir "pp-tunnel.cmd"
-
-    $startContent = @"
-@echo off
-setlocal
-set PP_BIN=$exePath
-set PP_DATA=$dataDir
-set PP_CONFIG=$cfgDir\client.json
-
-if not exist "%PP_BIN%" (
-    echo pp-client.exe not found: %PP_BIN% 1>&2
-    exit /b 1
-)
-if not exist "%PP_CONFIG%" (
-    echo Config not found: %PP_CONFIG% 1>&2
-    echo Run: pp-client import "ppf://..." 1>&2
-    exit /b 1
-)
-
-cd /d "%PP_DATA%\.."
-"%PP_BIN%" start --config "%PP_CONFIG%" --system-proxy %*
-"@
-
-    $tunnelContent = @"
-@echo off
-setlocal
-set PP_BIN=$exePath
-set PP_DATA=$dataDir
-set PP_CONFIG=$cfgDir\client.json
-
-net session >nul 2>&1
-if %errorlevel% neq 0 (
-    echo Full-tunnel requires Administrator privileges. 1>&2
-    echo Right-click and select "Run as administrator". 1>&2
-    exit /b 1
-)
-
-if not exist "%PP_BIN%" (
-    echo pp-client.exe not found: %PP_BIN% 1>&2
-    exit /b 1
-)
-if not exist "%PP_CONFIG%" (
-    echo Config not found: %PP_CONFIG% 1>&2
-    echo Run: pp-client import "ppf://..." 1>&2
-    exit /b 1
-)
-
-cd /d "%PP_DATA%\.."
-"%PP_BIN%" start --config "%PP_CONFIG%" --system-proxy &
-timeout /t 3 >nul
-"%PP_BIN%" full-tunnel up --config "%PP_CONFIG%"
-echo.
-echo Full-tunnel active. Press Ctrl+C to stop.
-echo.
-
-:wait
-timeout /t 86400 >nul
-goto wait
-"@
-
-    Set-Content -Path $startScript -Value $startContent -Encoding ASCII
-    Set-Content -Path $tunnelScript -Value $tunnelContent -Encoding ASCII
-    Write-Ok "Созданы: pp-start.cmd, pp-tunnel.cmd"
-
-    Write-Step "Настройка PATH"
+    
     $pathAdded = Add-ToUserPath -Dir $binDir
 
     if ($Config -and (Test-Path $Config)) {
@@ -279,24 +171,22 @@ goto wait
     }
 
     Write-Host ""
-    Write-Host "  ╔══════════════════════════════════════════════════════════════╗" -ForegroundColor Green
-    Write-Host "  ║              Установка клиента завершена!                   ║" -ForegroundColor Green
-    Write-Host "  ╚══════════════════════════════════════════════════════════════╝" -ForegroundColor Green
+    Write-Host "╔══════════════════════════════════════════════════════════════╗" -ForegroundColor Green
+    Write-Host "║                Установка клиента завершена!                  ║" -ForegroundColor Green
+    Write-Host "╚══════════════════════════════════════════════════════════════╝" -ForegroundColor Green
     Write-Host ""
     Write-Host "  Пути:" -ForegroundColor White
-    Write-Host "    Бинарник:    $exePath" -ForegroundColor Cyan
-    Write-Host "    Данные:      $dataDir" -ForegroundColor Cyan
-    Write-Host "    Конфиги:     $cfgDir" -ForegroundColor Cyan
+    Write-Host -NoNewline "    Бинарник:    " ; Write-Host $exePath -ForegroundColor Cyan
+    Write-Host -NoNewline "    Данные:      " ; Write-Host $dataDir -ForegroundColor Cyan
+    Write-Host -NoNewline "    Конфиги:     " ; Write-Host $cfgDir -ForegroundColor Cyan
     Write-Host ""
     Write-Host "  Использование:" -ForegroundColor White
-    Write-Host "    Импорт:           pp-client import `"ppf://...`"" -ForegroundColor Cyan
-    Write-Host "    Обычный режим:    pp-start" -ForegroundColor Cyan
-    Write-Host "    Или напрямую:     pp-client start --config client.json --system-proxy" -ForegroundColor Cyan
-    Write-Host "    Full-tunnel:      pp-tunnel  (от Администратора)" -ForegroundColor Cyan
+    Write-Host -NoNewline "    Подключение:     " ; Write-Host "pp-client start --config client.json" -ForegroundColor Cyan
+    Write-Host -NoNewline "    Full-tunnel:     " ; Write-Host "pp-client full-tunnel up --config client.json (от Администратора)" -ForegroundColor Cyan
     Write-Host ""
 
     if ($pathAdded) {
-        Write-Warn "PATH обновлён. Перезапустите терминал, чтобы изменения вступили в силу."
+        Write-Warn "Каталог $binDir был добавлен в PATH. Перезапустите терминал для применения."
     }
 }
 

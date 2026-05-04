@@ -82,11 +82,13 @@ func newBrowserNoiseRunner(cfg *config.ClientConfig, log *zap.Logger) *browserNo
 }
 
 func (b *browserNoiseRunner) runPreConnectScenario(ctx context.Context) {
+	b.log.Info("browser noise: starting pre-connect scenario")
 	page, err := b.fetchPage(ctx, http.MethodGet, "/", "", "")
 	if err != nil {
 		b.log.Debug("browser noise landing page failed", zap.Error(err))
 		return
 	}
+	b.log.Info("browser noise: visited landing page", zap.String("path", "/"))
 
 	if !b.pause(ctx, b.randomDuration(browserNoiseThinkMin, browserNoiseThinkMax)) {
 		return
@@ -95,6 +97,8 @@ func (b *browserNoiseRunner) runPreConnectScenario(ctx context.Context) {
 	if articlePath := b.pickArticlePath(page.articlePaths); articlePath != "" {
 		if _, err := b.fetchPage(ctx, http.MethodGet, articlePath, "", b.baseURL+"/"); err != nil {
 			b.log.Debug("browser noise article visit failed", zap.String("path", articlePath), zap.Error(err))
+		} else {
+			b.log.Info("browser noise: visited article", zap.String("path", articlePath))
 		}
 		if !b.pause(ctx, b.randomDuration(browserNoiseThinkMin, browserNoiseThinkMax)) {
 			return
@@ -105,6 +109,7 @@ func (b *browserNoiseRunner) runPreConnectScenario(ctx context.Context) {
 		b.log.Debug("browser noise login page failed", zap.Error(err))
 		return
 	}
+	b.log.Info("browser noise: visited login page", zap.String("path", "/login"))
 
 	b.log.Info("browser noise pre-connect scenario completed successfully")
 	_ = b.pause(ctx, b.randomDuration(browserNoiseBackgroundThinkMin, browserNoiseBackgroundThinkMax))
@@ -114,8 +119,11 @@ func (b *browserNoiseRunner) startLoginCover() {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), browserNoiseLoginCoverTimeout)
 		defer cancel()
+		b.log.Info("browser noise: submitting synthetic login")
 		if err := b.submitLogin(ctx); err != nil {
 			b.log.Debug("browser noise login cover failed", zap.Error(err))
+		} else {
+			b.log.Info("browser noise: synthetic login successful")
 		}
 	}()
 }
@@ -135,6 +143,7 @@ func (b *browserNoiseRunner) runPresenceBurst(ctx context.Context) {
 		b.log.Debug("browser noise background index failed", zap.Error(err))
 		return
 	}
+	b.log.Info("browser noise: background visited landing page")
 
 	if !b.pause(ctx, b.randomDuration(browserNoiseBackgroundThinkMin, browserNoiseBackgroundThinkMax)) {
 		return
@@ -143,6 +152,8 @@ func (b *browserNoiseRunner) runPresenceBurst(ctx context.Context) {
 	if articlePath := b.pickArticlePath(page.articlePaths); articlePath != "" && b.rand.Intn(100) < 80 {
 		if _, err := b.fetchPage(ctx, http.MethodGet, articlePath, "", b.baseURL+"/"); err != nil {
 			b.log.Debug("browser noise background article failed", zap.String("path", articlePath), zap.Error(err))
+		} else {
+			b.log.Info("browser noise: background visited article", zap.String("path", articlePath))
 		}
 	}
 
@@ -152,6 +163,8 @@ func (b *browserNoiseRunner) runPresenceBurst(ctx context.Context) {
 		}
 		if _, err := b.fetchPage(ctx, http.MethodGet, "/login", "", b.baseURL+"/"); err != nil {
 			b.log.Debug("browser noise background login page failed", zap.Error(err))
+		} else {
+			b.log.Info("browser noise: background visited login page")
 		}
 	}
 }
