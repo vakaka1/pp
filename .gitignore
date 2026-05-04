@@ -1,6 +1,8 @@
 # Compiled binaries / build artifacts
 /dist/
 /pp
+/pp-client
+/pp-client.exe
 /bin/
 /pp-web-frontend.tar.gz
 
