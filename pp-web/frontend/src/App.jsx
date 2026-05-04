@@ -1180,17 +1180,36 @@ function HTTPSChoiceModal({ connection, onClose, onNotice, onUpdated }) {
         </div>
 
         <div className="modal-body">
-          <p className="modal-intro">
-            Профиль создан. Можно сразу выпустить сертификат Let's Encrypt для домена{" "}
-            <strong>{connection.settings.domain}</strong>.
-          </p>
+          {busy ? (
+            <div style={{ padding: "1.5rem 0", display: "flex", flexDirection: "column", gap: "1.2rem" }}>
+              <div className="status-stack">
+                <div className="status-orb" />
+                <div>
+                  <h4 style={{ margin: 0 }}>Выпуск сертификата</h4>
+                  <p style={{ margin: "0.25rem 0 0", opacity: 0.7, fontSize: "0.9rem" }}>
+                    Это может занять до минуты, пожалуйста, не закрывайте окно.
+                  </p>
+                </div>
+              </div>
+              <div className="loading-track" aria-hidden="true">
+                <span />
+              </div>
+            </div>
+          ) : (
+            <>
+              <p className="modal-intro">
+                Профиль создан. Можно сразу выпустить сертификат Let's Encrypt для домена{" "}
+                <strong>{connection.settings.domain}</strong>.
+              </p>
 
-          <div className="choice-grid choice-grid--single">
-            <button className="choice-card" onClick={handleApply} disabled={busy}>
-              <h4>Let's Encrypt</h4>
-              <p>Боевой сертификат. Для проверки нужен доступный 80 порт и настроенный DNS на этот сервер.</p>
-            </button>
-          </div>
+              <div className="choice-grid choice-grid--single">
+                <button className="choice-card" onClick={handleApply} disabled={busy}>
+                  <h4>Let's Encrypt</h4>
+                  <p>Боевой сертификат. Для проверки нужен доступный 80 порт и настроенный DNS на этот сервер.</p>
+                </button>
+              </div>
+            </>
+          )}
         </div>
 
         <div className="modal-footer">
