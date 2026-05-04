@@ -5,6 +5,7 @@ package fulltunnel
 import (
 	"fmt"
 	"net"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -13,6 +14,18 @@ import (
 )
 
 const chainName = "PP_FULL_TUNNEL"
+
+func resolveIptablesPath() (string, error) {
+	if path, err := exec.LookPath("iptables"); err == nil {
+		return path, nil
+	}
+	for _, p := range []string{"/sbin/iptables", "/usr/sbin/iptables", "/usr/local/sbin/iptables"} {
+		if _, err := os.Stat(p); err == nil {
+			return p, nil
+		}
+	}
+	return "", fmt.Errorf("iptables not found")
+}
 
 var bypassCIDRs = []string{
 	"0.0.0.0/8",
@@ -30,7 +43,7 @@ func Up(cfg *config.ClientConfig, transparentListen string, owner string) error 
 	if cfg == nil {
 		return fmt.Errorf("client config is required")
 	}
-	if _, err := exec.LookPath("iptables"); err != nil {
+	if _, err := resolveIptablesPath(); err != nil {
 		return fmt.Errorf("linux full-tunnel requires iptables, but it was not found in PATH. Install it first: apt install iptables, dnf install iptables, yum install iptables, pacman -S iptables, or apk add iptables")
 	}
 	if transparentListen == "" {
@@ -140,7 +153,11 @@ func resolveServerEndpoint(address string) (string, int, error) {
 }
 
 func runIptables(args ...string) error {
-	cmd := exec.Command("iptables", args...)
+	iptables, err := resolveIptablesPath()
+	if err != nil {
+		return err
+	}
+	cmd := exec.Command(iptables, args...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("iptables %s failed: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(string(out)))
@@ -149,7 +166,12 @@ func runIptables(args ...string) error {
 }
 
 func runIptablesAllowFailure(args ...string) error {
-	cmd := exec.Command("iptables", args...)
-	_, err := cmd.CombinedOutput()
+	iptables, err := resolveIptablesPath()
+	if err != nil {
+		return err
+	}
+	cmd := exec.Command(iptables, args...)
+	_, err = cmd.CombinedOutput()
 	return err
 }
+

@@ -53,6 +53,7 @@ func (s *H2Stream) UnlockWrite() {
 
 func (s *H2Stream) readLoop() {
 	for {
+		s.conn.SetReadDeadline(time.Now().Add(90 * time.Second))
 		f, err := s.framer.ReadFrame()
 		if err != nil {
 			s.closeWithErr(err)
