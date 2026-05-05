@@ -5,7 +5,6 @@ import (
 	crand "crypto/rand"
 	"encoding/hex"
 	"fmt"
-	mrand "math/rand"
 	"net"
 	"time"
 
@@ -15,7 +14,6 @@ import (
 	"github.com/vakaka1/pp/internal/transport"
 	"github.com/xtaci/smux"
 	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/hpack"
 )
 
 func uuidV4() string {
@@ -58,6 +56,9 @@ func ConnectToServer(ctx context.Context, cfg *config.ClientConfig, noise *brows
 	h2 := protocol.NewH2Stream(conn)
 	h2.LockWrite()
 
+	// Set a deadline for the handshake process
+	conn.SetDeadline(time.Now().Add(15 * time.Second))
+
 	if err := h2.Framer().WriteSettings(protocol.GetChromeSettings()...); err != nil {
 		h2.UnlockWrite()
 		h2.Close()
@@ -69,26 +70,7 @@ func ConnectToServer(ctx context.Context, cfg *config.ClientConfig, noise *brows
 		return nil, fmt.Errorf("write window update failed: %w", err)
 	}
 
-	// Browser Emulation
-	fakePaths := []string{"/", "/assets/style.css", "/assets/app.js"}
 	streamID := uint32(1)
-
-	for _, path := range fakePaths {
-		headers := []hpack.HeaderField{
-			{Name: ":method", Value: "GET"},
-			{Name: ":scheme", Value: "https"},
-			{Name: ":path", Value: path},
-			{Name: ":authority", Value: cfg.Server.Domain},
-			{Name: "user-agent", Value: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"},
-			{Name: "accept", Value: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8"},
-		}
-		protocol.WriteHeaders(h2.Framer(), streamID, true, headers)
-
-		// Simulate network and parsing delay
-		time.Sleep(time.Duration(50+mrand.Intn(100)) * time.Millisecond)
-		streamID += 2
-	}
-
 	h2.ActiveStream = streamID
 
 	if err := h2.Framer().WriteWindowUpdate(streamID, 15663105); err != nil {
@@ -107,9 +89,9 @@ func ConnectToServer(ctx context.Context, cfg *config.ClientConfig, noise *brows
 		return nil, fmt.Errorf("jwt generation failed: %w", err)
 	}
 
-	// The authenticated gRPC request is the tunnel creation step. The browser
-	// noise has already reached /login, so do not submit a separate fake login.
-	headers := protocol.GenerateGRPCClientHeaders(cfg.Server.Domain, cfg.Server.GRPCPath, jwtToken, cfg.Server.GRPCUserAgent)
+	// The authenticated gRPC request is the login action. A normal GET /login
+	// renders the fallback page; a POST /login with a valid token opens the tunnel.
+	headers := protocol.GenerateGRPCClientHeaders(cfg.Server.Domain, protocol.LoginTunnelPath, jwtToken, cfg.Server.GRPCUserAgent)
 	if err := protocol.WriteHeaders(h2.Framer(), streamID, false, headers); err != nil {
 		h2.UnlockWrite()
 		h2.Close()
@@ -146,6 +128,9 @@ func ConnectToServer(ctx context.Context, cfg *config.ClientConfig, noise *brows
 		transportConn.Close()
 		return nil, fmt.Errorf("smux client failed: %w", err)
 	}
+
+	// Reset deadline for the established session
+	conn.SetDeadline(time.Time{})
 
 	return session, nil
 }

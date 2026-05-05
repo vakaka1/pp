@@ -283,7 +283,7 @@ function renderDashboard() {
                 </label>
                 <label>
                   gRPC path
-                  <input name="grpc_path" value="${escapeHTML(formDefaults.settings.grpc_path)}" placeholder="/pp.v1.TunnelService/Connect">
+                  <input name="grpc_path" value="${escapeHTML(formDefaults.settings.grpc_path)}" placeholder="/login">
                 </label>
                 <label>
                   Publish min delay (minutes)
@@ -746,7 +746,7 @@ function buildConnectionDraft(connection) {
     settings: {
       type: "blog",
       domain: "",
-      grpc_path: "/pp.v1.TunnelService/Connect",
+      grpc_path: "/login",
       noise_private_key: "",
       psk: "",
       proxy_address: "",

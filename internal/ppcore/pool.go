@@ -52,7 +52,7 @@ func (p *ConnectionPool) maintainConnection(ctx context.Context) {
 		default:
 		}
 
-		noiseRunner := newBrowserNoiseRunner(p.cfg, p.log)
+		noiseRunner := NewBrowserNoiseRunner(p.cfg, p.log)
 		sess, err := ConnectToServer(ctx, p.cfg, noiseRunner)
 		if err != nil {
 			p.log.Warn("failed to connect to server", zap.Error(err))

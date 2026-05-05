@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -16,39 +15,6 @@ type ConfigInfo struct {
 	Name string             `json:"name"`
 	Path string             `json:"path"`
 	Meta *config.ConfigMeta `json:"meta,omitempty"`
-}
-
-func configListDirs() []string {
-	var dirs []string
-	if confDir, err := os.UserConfigDir(); err == nil {
-		clientDir := filepath.Join(confDir, "pp-client")
-		if info, err := os.Stat(clientDir); err == nil && info.IsDir() {
-			dirs = append(dirs, clientDir)
-		}
-		if runtime.GOOS == "windows" {
-			ppDir := filepath.Join(confDir, "pp")
-			if info, err := os.Stat(ppDir); err == nil && info.IsDir() {
-				dirs = append(dirs, ppDir)
-			}
-		}
-	}
-	if runtime.GOOS == "windows" {
-		exePath, err := os.Executable()
-		if err == nil {
-			dirs = append(dirs, filepath.Dir(exePath))
-		}
-	} else {
-		if info, err := os.Stat("/etc/pp"); err == nil && info.IsDir() {
-			dirs = append(dirs, "/etc/pp")
-		}
-	}
-	if info, err := os.Stat("configs"); err == nil && info.IsDir() {
-		dirs = append(dirs, "configs")
-	}
-	if len(dirs) == 0 {
-		dirs = append(dirs, ".")
-	}
-	return dirs
 }
 
 var listCmd = &cobra.Command{

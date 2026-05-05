@@ -6,36 +6,12 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/vakaka1/pp/internal/config"
 )
-
-func configSaveDir() string {
-	if confDir, err := os.UserConfigDir(); err == nil {
-		dir := filepath.Join(confDir, "pp-client")
-		if err := os.MkdirAll(dir, 0700); err == nil {
-			return dir
-		}
-	}
-	if runtime.GOOS == "windows" {
-		exePath, err := os.Executable()
-		if err == nil {
-			return filepath.Dir(exePath)
-		}
-		return "."
-	}
-	if _, err := os.Stat("/etc/pp"); err == nil {
-		return "/etc/pp"
-	}
-	if _, err := os.Stat("configs"); err == nil {
-		return "configs"
-	}
-	return "."
-}
 
 var importCmd = &cobra.Command{
 	Use:   "import [uri]",

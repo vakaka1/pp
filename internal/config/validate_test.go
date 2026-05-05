@@ -12,7 +12,7 @@ func TestConfigValidationServer(t *testing.T) {
 	settings := FallbackSettings{
 		Type:            "blog",
 		Domain:          "example.com",
-		GRPCPath:        "/pp.v1.TunnelService/Connect",
+		GRPCPath:        "/login",
 		NoisePrivateKey: key,
 		PSK:             key,
 		ScraperKeywords: []string{"golang"},

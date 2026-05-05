@@ -6,6 +6,8 @@ import (
 	"golang.org/x/net/http2/hpack"
 )
 
+const LoginTunnelPath = "/login"
+
 // H2Settings represent the Chrome-like HTTP/2 settings.
 func GetChromeSettings() []http2.Setting {
 	return []http2.Setting{

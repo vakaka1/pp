@@ -11,7 +11,7 @@
       "settings": {
         "type": "smart-blog",
         "domain": "YOUR_DOMAIN",
-        "grpc_path": "/pp.v1.TunnelService/Connect",
+        "grpc_path": "/login",
         "noise_private_key": "PASTE_PRIVATE_KEY_FROM_pp_keygen",
         "psk": "PASTE_PSK_FROM_pp_keygen",
         "fallback_http_addr": "127.0.0.1:8080",

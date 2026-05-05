@@ -47,7 +47,7 @@ type browserNoiseRunner struct {
 	userAgent string
 }
 
-func newBrowserNoiseRunner(cfg *config.ClientConfig, log *zap.Logger) *browserNoiseRunner {
+func NewBrowserNoiseRunner(cfg *config.ClientConfig, log *zap.Logger) *browserNoiseRunner {
 	if log == nil {
 		log = zap.NewNop()
 	}
@@ -110,7 +110,6 @@ func (b *browserNoiseRunner) runPreConnectScenario(ctx context.Context) {
 	b.log.Info("browser noise: visited login page", zap.String("path", "/login"))
 
 	b.log.Info("browser noise pre-connect scenario completed successfully")
-	_ = b.pause(ctx, b.randomDuration(browserNoiseBackgroundThinkMin, browserNoiseBackgroundThinkMax))
 }
 
 func (b *browserNoiseRunner) RunPresenceLoop(ctx context.Context) {

@@ -32,7 +32,7 @@
       "noise_public_key": "КЛЮЧ_ИЗ_ПАНЕЛИ",
       "psk": "КЛЮЧ_АУТЕНТИФИКАЦИИ",
       "tls_fingerprint": "chrome",
-      "grpc_path": "/pp.v1.TunnelService/Connect",
+      "grpc_path": "/login",
       "grpc_user_agent": "grpc-go/1.62.1"
     },
     "transport": {
@@ -73,7 +73,7 @@
 *   **domain**: Домен для проверки SSL-сертификата.
 *   **noise_public_key**: Публичный ключ сервера (Noise). Генерируется на сервере.
 *   **psk**: Личный ключ доступа клиента (Pre-Shared Key).
-*   **grpc_path**: Секретный путь к gRPC-сервису. Должен совпадать с настройками сервера.
+*   **grpc_path**: Путь login-действия для туннеля. По умолчанию `/login`; GET отдаёт fallback-страницу, authenticated POST открывает туннель.
 *   **grpc_user_agent**: User-Agent для gRPC-запросов (для маскировки).
 *   **tls_fingerprint**: (Опционально) Имитация отпечатка браузера (`chrome`, `firefox`, `safari`).
 

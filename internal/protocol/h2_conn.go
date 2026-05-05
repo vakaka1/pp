@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -53,7 +54,7 @@ func (s *H2Stream) UnlockWrite() {
 
 func (s *H2Stream) readLoop() {
 	for {
-		s.conn.SetReadDeadline(time.Now().Add(90 * time.Second))
+		s.conn.SetReadDeadline(time.Now().Add(30 * time.Second))
 		f, err := s.framer.ReadFrame()
 		if err != nil {
 			s.closeWithErr(err)
@@ -71,6 +72,11 @@ func (s *H2Stream) readLoop() {
 		case *http2.HeadersFrame:
 			if f.StreamEnded() && f.StreamID == s.ActiveStream {
 				s.closeWithErr(io.EOF)
+				return
+			}
+		case *http2.RSTStreamFrame:
+			if f.StreamID == s.ActiveStream {
+				s.closeWithErr(fmt.Errorf("stream reset: %v", f.ErrCode))
 				return
 			}
 		case *http2.SettingsFrame:

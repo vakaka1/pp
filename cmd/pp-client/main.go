@@ -3,13 +3,17 @@ package main
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/vakaka1/pp/internal/config"
@@ -34,58 +38,7 @@ var (
 	enableFullTunnel  bool
 )
 
-func configSearchDirs() []string {
-	var dirs []string
-	if confDir, err := os.UserConfigDir(); err == nil {
-		dirs = append(dirs, filepath.Join(confDir, "pp-client"))
-		if runtime.GOOS == "windows" {
-			dirs = append(dirs, filepath.Join(confDir, "pp"))
-		}
-	}
-	if runtime.GOOS == "windows" {
-		exePath, err := os.Executable()
-		if err == nil {
-			dirs = append(dirs, filepath.Dir(exePath))
-		}
-	} else {
-		dirs = append(dirs, "/etc/pp")
-	}
-	dirs = append(dirs, "configs")
-	return dirs
-}
-
-func resolveConfigPath(name string) (string, error) {
-	if name == "" {
-		return "", fmt.Errorf("config name or path is required")
-	}
-
-	if info, err := os.Stat(name); err == nil && !info.IsDir() {
-		return name, nil
-	}
-
-	var candidates []string
-	searchDirs := configSearchDirs()
-
-	if !strings.HasSuffix(name, ".json") {
-		nameExt := name + ".json"
-		candidates = append(candidates, nameExt)
-		for _, dir := range searchDirs {
-			candidates = append(candidates, filepath.Join(dir, nameExt))
-		}
-	} else {
-		for _, dir := range searchDirs {
-			candidates = append(candidates, filepath.Join(dir, name))
-		}
-	}
-
-	for _, cand := range candidates {
-		if info, err := os.Stat(cand); err == nil && !info.IsDir() {
-			return cand, nil
-		}
-	}
-
-	return "", fmt.Errorf("config file not found for: %s", name)
-}
+var pingTimePattern = regexp.MustCompile(`time[=<]([0-9]+(?:[.,][0-9]+)?)\s*ms`)
 
 func dataFilePath(name string) string {
 	if runtime.GOOS == "windows" {
@@ -105,6 +58,43 @@ func dataFilePath(name string) string {
 		}
 	}
 	return filepath.Join("data", name)
+}
+
+func pingTargetFromConfig(cfg *config.ClientConfig) string {
+	if cfg.Server.Domain != "" {
+		return cfg.Server.Domain
+	}
+	host, _, err := net.SplitHostPort(cfg.Server.Address)
+	if err == nil {
+		return host
+	}
+	return cfg.Server.Address
+}
+
+func pingSite(ctx context.Context, target string) (time.Duration, string, error) {
+	args := []string{"-c", "1", "-W", "5", target}
+	if runtime.GOOS == "windows" {
+		args = []string{"-n", "1", "-w", "5000", target}
+	}
+
+	start := time.Now()
+	out, err := exec.CommandContext(ctx, "ping", args...).CombinedOutput()
+	elapsed := time.Since(start)
+	output := strings.TrimSpace(string(out))
+	if err != nil {
+		return 0, output, err
+	}
+
+	matches := pingTimePattern.FindStringSubmatch(output)
+	if len(matches) != 2 {
+		return elapsed, output, nil
+	}
+	value := strings.ReplaceAll(matches[1], ",", ".")
+	ms, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return elapsed, output, nil
+	}
+	return time.Duration(ms * float64(time.Millisecond)), output, nil
 }
 
 func main() {
@@ -132,6 +122,61 @@ func main() {
 			}
 		},
 	}
+
+	testCmd := &cobra.Command{
+		Use:   "test [config-name]",
+		Short: "Validate config and test server availability",
+		Run: func(cmd *cobra.Command, args []string) {
+			target := cfgFile
+			if target == "" && len(args) > 0 {
+				target = args[0]
+			}
+			resolvedPath, err := resolveConfigPath(target)
+			if err != nil {
+				fmt.Println("Error:", err)
+				os.Exit(1)
+			}
+			cfg, err := config.LoadConfig(resolvedPath)
+			if err != nil {
+				fmt.Println("Error loading config:", err)
+				os.Exit(1)
+			}
+			if err := cfg.Validate(false); err != nil {
+				fmt.Println("Client config invalid:")
+				fmt.Println("-", err)
+				os.Exit(1)
+			}
+			fmt.Println("Client config is valid.")
+
+			log := initLog(cfg.Log, verbose)
+			fmt.Println("Checking server availability (site readiness)...")
+
+			ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+			defer cancel()
+
+			if err := ppcore.TestConnection(ctx, cfg.Client, log); err != nil {
+				fmt.Println("Server availability check failed:")
+				fmt.Println("-", err)
+				os.Exit(1)
+			}
+			fmt.Println("Server is available and site is ready.")
+
+			pingTarget := pingTargetFromConfig(cfg.Client)
+			fmt.Printf("Pinging %s to measure latency...\n", pingTarget)
+			pingCtx, pingCancel := context.WithTimeout(context.Background(), 10*time.Second)
+			sitePing, pingOutput, err := pingSite(pingCtx, pingTarget)
+			pingCancel()
+			if err != nil {
+				fmt.Printf("Site ping failed (%s): %v\n", pingTarget, err)
+				if pingOutput != "" {
+					fmt.Println(pingOutput)
+				}
+				os.Exit(1)
+			}
+			fmt.Printf("Ping result (%s): %.2fms\n", pingTarget, float64(sitePing.Microseconds())/1000)
+		},
+	}
+	testCmd.Flags().StringVar(&cfgFile, "config", "", "Config file")
 
 	validateCmd := &cobra.Command{
 		Use:   "validate-config [config-name]",
@@ -318,7 +363,7 @@ func main() {
 
 	fullTunnelCmd.AddCommand(fullTunnelUpCmd, fullTunnelDownCmd)
 
-	rootCmd.AddCommand(versionCmd, updateCmd, validateCmd, clientCmd, fullTunnelCmd, importCmd, listCmd, deleteCmd)
+	rootCmd.AddCommand(versionCmd, updateCmd, testCmd, validateCmd, clientCmd, fullTunnelCmd, importCmd, listCmd, deleteCmd)
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}

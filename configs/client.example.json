@@ -14,7 +14,7 @@
       "noise_public_key": "PASTE_PUBLIC_KEY_FROM_pp_keygen",
       "psk": "PASTE_PSK_FROM_pp_keygen",
       "tls_fingerprint": "chrome",
-      "grpc_path": "/pp.v1.TunnelService/Connect",
+      "grpc_path": "/login",
       "grpc_user_agent": "grpc-go/1.62.1"
     },
     "routing": {

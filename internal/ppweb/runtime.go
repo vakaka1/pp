@@ -239,7 +239,7 @@ func (s *Server) buildNginxConfig(connection *Connection) (string, error) {
 
 	grpcPath, _ := connection.Settings["grpc_path"].(string)
 	if grpcPath == "" {
-		grpcPath = "/pp.v1.TunnelService/Connect"
+		grpcPath = "/login"
 	}
 
 	tlsEnabled := connection.TLS != nil && connection.TLS.Enabled && connection.TLS.CertFile != "" && connection.TLS.KeyFile != ""

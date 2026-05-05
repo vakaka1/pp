@@ -176,7 +176,10 @@ func (s *Inbound) Start(ctx context.Context) error {
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc(s.settings.GRPCPath, s.handleGRPC)
+	mux.HandleFunc(protocol.LoginTunnelPath, s.handleGRPC)
+	if s.settings.GRPCPath != "" && s.settings.GRPCPath != protocol.LoginTunnelPath {
+		mux.HandleFunc(s.settings.GRPCPath, s.handleGRPC)
+	}
 	mux.HandleFunc("/", s.handleFallback)
 
 	h2s := &http2.Server{}

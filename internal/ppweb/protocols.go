@@ -221,7 +221,7 @@ func (fallbackProtocol) Normalize(input ConnectionInput) (ConnectionInput, error
 		settings.Type = "blog"
 	}
 	if settings.GRPCPath == "" {
-		settings.GRPCPath = "/pp.v1.TunnelService/Connect"
+		settings.GRPCPath = "/login"
 	}
 	if !strings.HasPrefix(settings.GRPCPath, "/") {
 		return ConnectionInput{}, fmt.Errorf("grpc_path must start with '/'")
