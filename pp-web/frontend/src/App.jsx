@@ -6,6 +6,21 @@ import AboutPage from "./AboutPage";
 const DEFAULT_LISTEN = "127.0.0.1:8081";
 const THEME_STORAGE_KEY = "pp-web-theme";
 
+const ICONS = {
+  profiles: (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+  ),
+  activity: (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>
+  ),
+  network: (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2" /><rect x="2" y="14" width="20" height="8" rx="2" ry="2" /><line x1="6" y1="6" x2="6.01" y2="6" /><line x1="6" y1="18" x2="6.01" y2="18" /></svg>
+  ),
+  protocol: (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" /></svg>
+  )
+};
+
 const NAV_ITEMS = [
   {
     path: "/app/overview",
@@ -329,13 +344,13 @@ export default function App() {
 
   useEffect(() => {
     const updateState = aboutData?.update?.status?.state;
-    
+
     if (updateState === "success") {
       // Если обновление завершено успешно, проверяем версию.
       // Если версия уже совпадает с целевой, значит перезагрузка больше не нужна.
       const current = aboutData?.release?.currentVersion;
       const target = aboutData?.update?.status?.targetVersion;
-      
+
       if (current && target) {
         const normalize = (v) => v.replace(/^v/, "");
         if (normalize(current) === normalize(target)) {
@@ -848,12 +863,13 @@ function PageHero({ eyebrow, title, description, actions, aside, tone = "default
   );
 }
 
-function MetricCard({ value, label }) {
+function MetricCard({ value, label, icon }) {
   return (
-    <article className="metric-card">
-      <div className="metric-value">{value}</div>
-      <div className="metric-label">{label}</div>
-    </article>
+    <div className="metric-card">
+      {icon && <div className="metric-card__icon">{icon}</div>}
+      <span className="metric-value">{value}</span>
+      <span className="metric-label">{label}</span>
+    </div>
   );
 }
 
@@ -912,6 +928,105 @@ function PageSkeleton({ title, description }) {
   );
 }
 
+function StatusOrb({ good, pulse = true }) {
+  return <div className={`health-orb health-orb--${good ? "good" : "bad"} ${pulse ? "is-pulsing" : ""}`} />;
+}
+
+function CoreStatusCard({ core }) {
+  const isHealthy = core.binaryAvailable && core.configValid;
+
+  return (
+    <section className="surface-card">
+      <header className="surface-card__head">
+        <div className="eyebrow">Состояние системы</div>
+        <StatusOrb good={isHealthy} />
+      </header>
+
+      <div className="core-status-list">
+        <div className="core-status-item">
+          <span>Версия ядра</span>
+          <strong>{core.binaryVersion || "—"}</strong>
+        </div>
+        <div className="core-status-item">
+          <span>Синхронизация</span>
+          <strong>{formatDateTime(core.lastSyncAt)}</strong>
+        </div>
+        <div className="core-status-item">
+          <span>Конфигурация</span>
+          <strong style={{ color: core.configValid ? "var(--success)" : "var(--error)" }}>
+            {core.configValid ? "Валидна" : "Ошибка"}
+          </strong>
+        </div>
+      </div>
+
+      {core.lastSyncError && (
+        <div className="core-error-box" style={{ marginTop: "1rem", padding: "0.75rem", borderRadius: "8px", background: "var(--error-bg)", color: "var(--error)", fontSize: "0.85rem" }}>
+          {core.lastSyncError}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ProtocolUsageList({ protocols }) {
+  const activeProtocols = protocols.filter((p) => p.usageCount > 0);
+
+  return (
+    <section className="surface-card">
+      <header className="surface-card__head">
+        <div className="eyebrow">Используемые протоколы</div>
+      </header>
+
+      {activeProtocols.length > 0 ? (
+        <div className="protocol-usage-list">
+          {activeProtocols.map((p) => (
+            <div key={p.id} className="protocol-usage-item">
+              <div className="protocol-usage-dot" style={{ background: p.accent || "var(--accent-strong)" }} />
+              <span className="protocol-usage-name">{p.name}</span>
+              <span className="protocol-usage-count">{p.usageCount}</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="empty-muted">Нет активных протоколов</div>
+      )}
+    </section>
+  );
+}
+
+function ListenersSummaryList({ listeners }) {
+  const activeListeners = listeners.filter((l) => l.enabled);
+
+  return (
+    <section className="surface-card">
+      <header className="surface-card__head">
+        <div className="eyebrow">Доступность слушателей</div>
+      </header>
+
+      <div className="listeners-summary-list">
+        {activeListeners.length > 0 ? (
+          activeListeners.map((l) => (
+            <div key={l.id} className="listener-summary-item">
+              <div className="listener-summary-info">
+                <div className={`listener-summary-status listener-summary-status--${l.reachable ? "good" : "bad"}`} />
+                <div>
+                  <div className="listener-summary-addr">{l.listen}</div>
+                  <div className="listener-summary-proto">{l.protocol} — {l.name}</div>
+                </div>
+              </div>
+              <StatusPill tone={l.reachable ? "good" : "bad"}>
+                {l.reachable ? "Доступен" : "Офлайн"}
+              </StatusPill>
+            </div>
+          ))
+        ) : (
+          <div className="empty-muted">Нет активных слушателей</div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function OverviewPage({ onNotice }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -941,14 +1056,49 @@ function OverviewPage({ onNotice }) {
   const healthyCore = data.core.binaryAvailable && data.core.configValid;
 
   return (
-    <div className="page">
+    <div className="page fade-in">
+      <div className="dashboard-layout">
 
-      <section className="metric-grid">
-        <MetricCard value={data.summary.connectionsTotal} label="Всего профилей" />
-        <MetricCard value={data.summary.connectionsActive} label="Активных профилей" />
-        <MetricCard value={data.summary.listenersReachable} label="Доступных слушателей" />
-        <MetricCard value={data.summary.protocolsInstalled} label="Протоколов" />
-      </section>
+        <header className="dashboard-hero">
+          <span className="eyebrow" style={{ color: "var(--accent-strong)" }}>Сводка</span>
+          <p>
+            Система работает в штатном режиме. У вас запущено <strong>{runningListeners.length}</strong> слушателей
+            и настроено <strong>{data.summary.connectionsTotal}</strong> профилей подключений.
+          </p>
+        </header>
+
+        <section className="dashboard-stats-grid">
+          <MetricCard
+            value={data.summary.connectionsTotal}
+            label="Всего профилей"
+            icon={ICONS.profiles}
+          />
+          <MetricCard
+            value={data.summary.connectionsActive}
+            label="Активных"
+            icon={ICONS.activity}
+          />
+          <MetricCard
+            value={data.summary.listenersReachable}
+            label="Онлайн"
+            icon={ICONS.network}
+          />
+          <MetricCard
+            value={data.summary.protocolsInstalled}
+            label="Протоколов"
+            icon={ICONS.protocol}
+          />
+        </section>
+
+        <div className="dashboard-insights">
+          <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+            <CoreStatusCard core={data.core} />
+            <ProtocolUsageList protocols={data.protocols} />
+          </div>
+          <ListenersSummaryList listeners={data.listeners} />
+        </div>
+
+      </div>
     </div>
   );
 }
@@ -1764,7 +1914,8 @@ function PPSettingsPage({ onNotice }) {
         <Banner
           notice={{
             tone: "error",
-            message: "Исполняемый файл 'pp' или 'pp-core' не найден. Без него запуск ядра невозможен."          }}
+            message: "Исполняемый файл 'pp' или 'pp-core' не найден. Без него запуск ядра невозможен."
+          }}
         />
       ) : null}
 
@@ -1994,12 +2145,12 @@ function SettingsPage({ bootstrap, onNotice }) {
             <div style={{ marginTop: "2rem", borderTop: "1px solid var(--border-color)", paddingTop: "1.5rem" }}>
               <h4>Перезапуск панели</h4>
               <p className="muted-caption" style={{ marginBottom: "1rem" }}>
-                Нажмите кнопку ниже, чтобы полностью перезапустить веб-интерфейс. 
+                Нажмите кнопку ниже, чтобы полностью перезапустить веб-интерфейс.
                 Это необходимо для применения изменений порта, HTTPS или префикса пути.
               </p>
-              <button 
-                type="button" 
-                className="ghost-button destructive" 
+              <button
+                type="button"
+                className="ghost-button destructive"
                 onClick={handleRestart}
               >
                 Перезапустить панель
@@ -2266,21 +2417,21 @@ function ConnectionEditor({ connection, connections, protocols, onClose, onSaved
     connection?.settings?.publish_max_delay_minutes ?? Math.max(derivedPublishMinDelay, Math.floor((legacyPublishInterval * 3) / 2));
   const initialSettings = connection?.settings
     ? {
-        ...connection.settings,
-        publish_min_delay_minutes: derivedPublishMinDelay,
-        publish_max_delay_minutes: derivedPublishMaxDelay,
-        publish_batch_size: connection.settings.publish_batch_size ?? 3
-      }
+      ...connection.settings,
+      publish_min_delay_minutes: derivedPublishMinDelay,
+      publish_max_delay_minutes: derivedPublishMaxDelay,
+      publish_batch_size: connection.settings.publish_batch_size ?? 3
+    }
     : {
-        type: "blog",
-        domain: "",
-        scraper_keywords: [],
-        noise_private_key: "",
-        psk: "",
-        publish_min_delay_minutes: 15,
-        publish_max_delay_minutes: 75,
-        publish_batch_size: 3
-      };
+      type: "blog",
+      domain: "",
+      scraper_keywords: [],
+      noise_private_key: "",
+      psk: "",
+      publish_min_delay_minutes: 15,
+      publish_max_delay_minutes: 75,
+      publish_batch_size: 3
+    };
 
   const [form, setForm] = useState({
     name: connection?.name || "",
@@ -2297,9 +2448,9 @@ function ConnectionEditor({ connection, connections, protocols, onClose, onSaved
   const legacySiteType = form.settings.type && form.settings.type !== "blog" ? form.settings.type : null;
   const siteTypeOptions = legacySiteType
     ? [
-        { value: legacySiteType, label: `${getSiteTypeLabel(legacySiteType)} (устарел)`, disabled: true },
-        { value: "blog", label: "Блог" }
-      ]
+      { value: legacySiteType, label: `${getSiteTypeLabel(legacySiteType)} (устарел)`, disabled: true },
+      { value: "blog", label: "Блог" }
+    ]
     : [{ value: "blog", label: "Блог" }];
 
   async function handleCheckPort() {
