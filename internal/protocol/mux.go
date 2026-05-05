@@ -10,7 +10,7 @@ import (
 func DefaultSmuxConfig() *smux.Config {
 	cfg := smux.DefaultConfig()
 	cfg.KeepAliveInterval = 25 * time.Second
-	cfg.KeepAliveTimeout = 120 * time.Second
+	cfg.KeepAliveTimeout = 55 * time.Second
 	cfg.MaxFrameSize = 16384
 	cfg.MaxReceiveBuffer = 4194304
 	cfg.MaxStreamBuffer = 65536

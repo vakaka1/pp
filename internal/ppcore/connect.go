@@ -37,7 +37,6 @@ func ConnectToServer(ctx context.Context, cfg *config.ClientConfig, noise *brows
 		browseCtx, cancel := context.WithTimeout(ctx, browserNoisePreconnectTimeout)
 		noise.runPreConnectScenario(browseCtx)
 		cancel()
-		noise.startLoginCover()
 	}
 
 	select {
@@ -108,6 +107,8 @@ func ConnectToServer(ctx context.Context, cfg *config.ClientConfig, noise *brows
 		return nil, fmt.Errorf("jwt generation failed: %w", err)
 	}
 
+	// The authenticated gRPC request is the tunnel creation step. The browser
+	// noise has already reached /login, so do not submit a separate fake login.
 	headers := protocol.GenerateGRPCClientHeaders(cfg.Server.Domain, cfg.Server.GRPCPath, jwtToken, cfg.Server.GRPCUserAgent)
 	if err := protocol.WriteHeaders(h2.Framer(), streamID, false, headers); err != nil {
 		h2.UnlockWrite()

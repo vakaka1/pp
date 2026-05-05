@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	mrand "math/rand"
 	"go.uber.org/zap"
+	mrand "math/rand"
 )
 
 type recordedNoiseRequest struct {
@@ -106,29 +106,30 @@ func TestBrowserNoisePreConnectScenarioVisitsLandingArticleAndLogin(t *testing.T
 	}
 }
 
-func TestBrowserNoiseSubmitLoginPostsCredentials(t *testing.T) {
+func TestBrowserNoisePresenceDoesNotVisitLogin(t *testing.T) {
 	doer := &fakeNoiseDoer{
 		responses: map[string]string{
-			"POST /login": `<html><body>retry later</body></html>`,
+			"GET /":          `<html><body><a href="/article/1">read</a></body></html>`,
+			"GET /article/1": `<html><body>article</body></html>`,
+			"GET /login":     `<html><body>login</body></html>`,
 		},
 	}
 	runner := &browserNoiseRunner{
 		baseURL:   "https://example.com",
 		doer:      doer,
+		log:       zap.NewNop(),
 		rand:      mrand.New(mrand.NewSource(2)),
+		sleep:     func(time.Duration) {},
 		userAgent: browserNoiseUserAgent,
 	}
 
-	if err := runner.submitLogin(context.Background()); err != nil {
-		t.Fatalf("submitLogin() error = %v", err)
+	for i := 0; i < 20; i++ {
+		runner.runPresenceBurst(context.Background())
 	}
-	if len(doer.requests) != 1 {
-		t.Fatalf("expected one login request, got %d", len(doer.requests))
-	}
-	if doer.requests[0].Method != http.MethodPost || doer.requests[0].Path != "/login" {
-		t.Fatalf("unexpected login request: %#v", doer.requests[0])
-	}
-	if !strings.Contains(doer.requests[0].Body, "username=") || !strings.Contains(doer.requests[0].Body, "password=") {
-		t.Fatalf("expected login form body, got %q", doer.requests[0].Body)
+
+	for _, request := range doer.requests {
+		if request.Path == "/login" {
+			t.Fatalf("presence noise must not revisit login after tunnel creation, got requests: %#v", doer.requests)
+		}
 	}
 }

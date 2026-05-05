@@ -8,7 +8,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/cookiejar"
-	"net/url"
 	"strings"
 	"time"
 
@@ -22,7 +21,6 @@ const (
 	browserNoiseDialTimeout        = 8 * time.Second
 	browserNoiseRequestTimeout     = 12 * time.Second
 	browserNoisePreconnectTimeout  = 18 * time.Second
-	browserNoiseLoginCoverTimeout  = 10 * time.Second
 	browserNoisePresencePauseMin   = 55 * time.Second
 	browserNoisePresencePauseMax   = 3 * time.Minute
 	browserNoiseThinkMin           = 900 * time.Millisecond
@@ -115,19 +113,6 @@ func (b *browserNoiseRunner) runPreConnectScenario(ctx context.Context) {
 	_ = b.pause(ctx, b.randomDuration(browserNoiseBackgroundThinkMin, browserNoiseBackgroundThinkMax))
 }
 
-func (b *browserNoiseRunner) startLoginCover() {
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), browserNoiseLoginCoverTimeout)
-		defer cancel()
-		b.log.Info("browser noise: submitting synthetic login")
-		if err := b.submitLogin(ctx); err != nil {
-			b.log.Debug("browser noise login cover failed", zap.Error(err))
-		} else {
-			b.log.Info("browser noise: synthetic login successful")
-		}
-	}()
-}
-
 func (b *browserNoiseRunner) RunPresenceLoop(ctx context.Context) {
 	for {
 		if !b.pause(ctx, b.randomDuration(browserNoisePresencePauseMin, browserNoisePresencePauseMax)) {
@@ -156,27 +141,6 @@ func (b *browserNoiseRunner) runPresenceBurst(ctx context.Context) {
 			b.log.Info("browser noise: background visited article", zap.String("path", articlePath))
 		}
 	}
-
-	if b.rand.Intn(100) < 25 {
-		if !b.pause(ctx, b.randomDuration(400*time.Millisecond, 1200*time.Millisecond)) {
-			return
-		}
-		if _, err := b.fetchPage(ctx, http.MethodGet, "/login", "", b.baseURL+"/"); err != nil {
-			b.log.Debug("browser noise background login page failed", zap.Error(err))
-		} else {
-			b.log.Info("browser noise: background visited login page")
-		}
-	}
-}
-
-func (b *browserNoiseRunner) submitLogin(ctx context.Context) error {
-	username, password := b.syntheticCredentials()
-	form := url.Values{}
-	form.Set("username", username)
-	form.Set("password", password)
-
-	_, err := b.fetchPage(ctx, http.MethodPost, "/login", form.Encode(), b.baseURL+"/login")
-	return err
 }
 
 func (b *browserNoiseRunner) fetchPage(ctx context.Context, method, path, body, referer string) (browserNoisePage, error) {
@@ -267,12 +231,6 @@ func (b *browserNoiseRunner) pickArticlePath(paths []string) string {
 		return ""
 	}
 	return paths[b.rand.Intn(len(paths))]
-}
-
-func (b *browserNoiseRunner) syntheticCredentials() (string, string) {
-	names := []string{"alex", "dmitry", "nikita", "roman", "anna", "irina"}
-	suffix := 100 + b.rand.Intn(900)
-	return fmt.Sprintf("%s%d", names[b.rand.Intn(len(names))], suffix), fmt.Sprintf("p%04dword", 1000+b.rand.Intn(9000))
 }
 
 func (b *browserNoiseRunner) randomDuration(min, max time.Duration) time.Duration {

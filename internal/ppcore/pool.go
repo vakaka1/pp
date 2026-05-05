@@ -25,6 +25,10 @@ type ConnectionPool struct {
 	done  bool
 }
 
+const (
+	defaultStreamOpenTimeout = 8 * time.Second
+)
+
 func NewConnectionPool(cfg *config.ClientConfig, log *zap.Logger) *ConnectionPool {
 	return &ConnectionPool{
 		cfg:   cfg,
@@ -64,17 +68,10 @@ func (p *ConnectionPool) maintainConnection(ctx context.Context) {
 		presenceCtx, presenceCancel := context.WithCancel(ctx)
 		go noiseRunner.RunPresenceLoop(presenceCtx)
 
-		closedCh := make(chan struct{})
-		var acceptErr error
-		go func() {
-			_, acceptErr = sess.AcceptStream()
-			close(closedCh)
-		}()
-
 		select {
-		case <-closedCh:
+		case <-sess.CloseChan():
 			presenceCancel()
-			p.log.Warn("session closed", zap.Error(acceptErr))
+			p.log.Warn("session closed")
 		case <-ctx.Done():
 			presenceCancel()
 			sess.Close()
@@ -122,7 +119,9 @@ func (p *ConnectionPool) OpenStreamContext(ctx context.Context, target string) (
 			continue
 		}
 
-		stream, err := openStreamOnSession(sess, target)
+		streamCtx, cancel := context.WithTimeout(ctx, defaultStreamOpenTimeout)
+		stream, err := openStreamOnSession(streamCtx, sess, target)
+		cancel()
 		if err == nil {
 			return stream, nil
 		}
@@ -196,7 +195,7 @@ func waitForSession(ctx context.Context, ready <-chan struct{}) error {
 	}
 }
 
-func openStreamOnSession(sess *smux.Session, target string) (net.Conn, error) {
+func openStreamOnSession(ctx context.Context, sess *smux.Session, target string) (net.Conn, error) {
 	host, portStr, err := net.SplitHostPort(target)
 	if err != nil {
 		return nil, fmt.Errorf("invalid target %q: %w", target, err)
@@ -206,7 +205,7 @@ func openStreamOnSession(sess *smux.Session, target string) (net.Conn, error) {
 		return nil, fmt.Errorf("invalid target port %q", portStr)
 	}
 
-	stream, err := sess.OpenStream()
+	stream, err := openSmuxStream(ctx, sess)
 	if err != nil {
 		return nil, fmt.Errorf("%w: open stream failed: %w", errSessionUnavailable, err)
 	}
@@ -226,6 +225,13 @@ func openStreamOnSession(sess *smux.Session, target string) (net.Conn, error) {
 		hdr.AddrLen = uint8(len(host))
 	}
 
+	if deadline, ok := ctx.Deadline(); ok {
+		if err := stream.SetDeadline(deadline); err != nil {
+			stream.Close()
+			return nil, fmt.Errorf("%w: failed to set stream deadline: %w", errSessionUnavailable, err)
+		}
+	}
+
 	if err := hdr.Encode(stream); err != nil {
 		stream.Close()
 		return nil, fmt.Errorf("%w: failed to encode stream header: %w", errSessionUnavailable, err)
@@ -242,5 +248,32 @@ func openStreamOnSession(sess *smux.Session, target string) (net.Conn, error) {
 		return nil, &StreamRejectedError{Status: statusBuf[0]}
 	}
 
+	_ = stream.SetDeadline(time.Time{})
 	return stream, nil
+}
+
+func openSmuxStream(ctx context.Context, sess *smux.Session) (*smux.Stream, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	type openResult struct {
+		stream *smux.Stream
+		err    error
+	}
+	resultCh := make(chan openResult, 1)
+	go func() {
+		stream, err := sess.OpenStream()
+		resultCh <- openResult{stream: stream, err: err}
+	}()
+
+	select {
+	case result := <-resultCh:
+		return result.stream, result.err
+	case <-ctx.Done():
+		_ = sess.Close()
+		return nil, ctx.Err()
+	case <-sess.CloseChan():
+		return nil, io.ErrClosedPipe
+	}
 }
