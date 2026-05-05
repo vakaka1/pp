@@ -795,9 +795,6 @@ function Shell({
       <div className="app-main">
         <header className="app-topbar">
           <div className="app-topbar__primary">
-            <div className="app-topbar__mobile-brand">
-              <BrandLockup appName={bootstrap.appName} compact />
-            </div>
             <div className="app-topbar__copy">
               <span className="eyebrow">PP Web</span>
               <h1>{routeMeta.label}</h1>
@@ -832,6 +829,17 @@ function Shell({
             <span>{item.shortLabel || item.label}</span>
           </button>
         ))}
+        <button
+          className={`mobile-dock__item ${route.startsWith("/app/about") ? "is-active" : ""}`}
+          onClick={() => onNavigate("/app/about")}
+        >
+          {updateIndicator ? (
+            <span className={`mobile-dock__indicator mobile-dock__indicator--${updateIndicator.tone}`}>
+              {updateIndicator.label}
+            </span>
+          ) : null}
+          <span>О прогр.</span>
+        </button>
       </nav>
     </div>
   );
@@ -1091,7 +1099,7 @@ function OverviewPage({ onNotice }) {
         </section>
 
         <div className="dashboard-insights">
-          <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem", width: "97%" }}>
             <CoreStatusCard core={data.core} />
             <ProtocolUsageList protocols={data.protocols} />
           </div>

@@ -206,32 +206,26 @@ export default function AboutPage({ data, loading, error, onRefresh, onNotice })
   }
 
   return (
-    <div className="page" style={{ animation: "fadeInUp 380ms ease" }}>
+    <div className="page fade-in">
       
       {/* Элегантная шапка (Hero) */}
-      <div style={{
-        display: "flex", flexWrap: "wrap", gap: "1.5rem", justifyContent: "space-between", alignItems: "center",
-        padding: "2.5rem 2.8rem", borderRadius: "var(--radius-xl)",
-        background: "linear-gradient(135deg, var(--surface-color), var(--surface-strong))",
-        border: "1px solid var(--border-color)", boxShadow: "var(--shadow-sm)",
-        position: "relative", overflow: "hidden"
-      }}>
-        <div style={{ position: "absolute", top: "-50%", right: "-10%", width: "60%", height: "200%", background: "radial-gradient(circle, var(--ambient-1), transparent 70%)", opacity: 0.6, pointerEvents: "none" }} />
-        <div style={{ position: "absolute", bottom: "-50%", left: "-10%", width: "50%", height: "150%", background: "radial-gradient(circle, var(--ambient-3), transparent 70%)", opacity: 0.3, pointerEvents: "none" }} />
+      <div className="about-hero">
+        <div className="about-hero__aurora about-hero__aurora--one" />
+        <div className="about-hero__aurora about-hero__aurora--two" />
         
-        <div style={{ position: "relative", zIndex: 1 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "1.2rem", marginBottom: "0.6rem" }}>
-             <h1 style={{ fontSize: "3.2rem", margin: 0, fontFamily: "var(--font-display)", letterSpacing: "-0.03em", color: "var(--text-color)" }}>PP Web</h1>
-             <span style={{ padding: "0.45rem 1rem", background: "var(--surface-accent)", border: "1px solid var(--border-color)", borderRadius: "var(--radius-pill)", fontSize: "0.85rem", fontWeight: "800", color: "var(--text-soft)", backdropFilter: "blur(10px)" }}>
+        <div className="about-hero__content">
+          <div className="about-hero__title-row">
+             <h1 className="about-hero__title">PP Web</h1>
+             <span className="about-hero__version">
                 v{app?.version || "—"}
              </span>
           </div>
-          <p style={{ color: "var(--text-muted)", fontSize: "1.1rem", margin: 0, maxWidth: "38rem", lineHeight: "1.5" }}>
+          <p className="about-hero__copy">
             Профессиональный интерфейс для управления вашим PP-сервером. Единый центр для контроля за конфигурацией, туннелями и версиями системы.
           </p>
         </div>
 
-        <div style={{ display: "flex", gap: "1rem", position: "relative", zIndex: 1, flexWrap: "wrap" }}>
+        <div className="about-hero__actions">
            <button className="ghost-button" onClick={() => onRefresh?.({ force: true })} disabled={busy}>
              <IconRefresh /> Проверить обновления
            </button>
@@ -250,36 +244,36 @@ export default function AboutPage({ data, loading, error, onRefresh, onNotice })
       )}
 
       {/* Единый блок "Информация о системе" */}
-      <article className="surface-card" style={{ padding: "2rem" }}>
-        <div className="surface-card__head" style={{ marginBottom: "1.8rem" }}>
-          <h3 style={{ margin: 0, fontSize: "1.5rem" }}>Информация о системе</h3>
+      <article className="surface-card about-card">
+        <div className="surface-card__head">
+          <h3>Информация о системе</h3>
           <AboutStatusPill tone={updateStatusColor}>{updateStatusText}</AboutStatusPill>
         </div>
         
-        <div className="detail-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "1.2rem" }}>
-          <div className="detail-card" style={{ background: "transparent", border: "1px solid var(--border-color)", padding: "1.4rem" }}>
-            <span style={{ fontSize: "0.75rem", color: "var(--text-soft)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Текущая версия</span>
-            <strong style={{ fontSize: "1.5rem", marginTop: "0.5rem" }}>{app?.version || "—"}</strong>
-            <p style={{ marginTop: "0.5rem", fontSize: "0.9rem", color: "var(--text-muted)", lineHeight: "1.5" }}>
+        <div className="detail-grid about-grid">
+          <div className="detail-card about-detail-card">
+            <span className="about-detail-card__label">Текущая версия</span>
+            <strong className="about-detail-card__value">{app?.version || "—"}</strong>
+            <p className="about-detail-card__copy">
               Сборка от {formatBuildDate(app?.buildDate)}<br/>
-              Коммит: <code style={{ background: "none", padding: 0, color: "var(--text-color)" }}>{app?.gitCommit ? app.gitCommit.substring(0, 7) : "—"}</code>
+              Коммит: <code>{app?.gitCommit ? app.gitCommit.substring(0, 7) : "—"}</code>
             </p>
           </div>
 
-          <div className="detail-card" style={{ background: "transparent", border: "1px solid var(--border-color)", padding: "1.4rem" }}>
-            <span style={{ fontSize: "0.75rem", color: "var(--text-soft)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Последний релиз</span>
-            <strong style={{ fontSize: "1.5rem", marginTop: "0.5rem" }}>{release?.latestVersion || "—"}</strong>
-            <p style={{ marginTop: "0.5rem", fontSize: "0.9rem", color: "var(--text-muted)", lineHeight: "1.5" }}>
+          <div className="detail-card about-detail-card">
+            <span className="about-detail-card__label">Последний релиз</span>
+            <strong className="about-detail-card__value">{release?.latestVersion || "—"}</strong>
+            <p className="about-detail-card__copy">
               Опубликован {formatDateTime(release?.latestPublishedAt)}
             </p>
           </div>
 
-          <div className="detail-card" style={{ background: "transparent", border: "1px solid var(--border-color)", padding: "1.4rem" }}>
-            <span style={{ fontSize: "0.75rem", color: "var(--text-soft)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Состояние обновления</span>
-            <strong style={{ fontSize: "1.2rem", marginTop: "0.5rem" }}>
+          <div className="detail-card about-detail-card">
+            <span className="about-detail-card__label">Состояние обновления</span>
+            <strong className="about-detail-card__value-small">
               {updateState === "running" ? "В процессе установки..." : updateState === "queued" ? "В очереди на установку..." : release?.updateAvailable ? "Доступна новая версия" : "Обновления не требуются"}
             </strong>
-            <p style={{ marginTop: "0.5rem", fontSize: "0.9rem", color: "var(--text-muted)", lineHeight: "1.5" }}>
+            <p className="about-detail-card__copy">
               Режим: {formatUpdateMode(update?.mode)}
               {update?.status?.message && <><br/><span style={{ color: "var(--accent-strong)" }}>{update.status.message}</span></>}
             </p>
@@ -292,17 +286,17 @@ export default function AboutPage({ data, loading, error, onRefresh, onNotice })
           </div>
         )}
 
-        <div style={{ marginTop: "2.5rem", paddingTop: "1.8rem", borderTop: "1px solid var(--border-color)" }}>
-           <h4 style={{ margin: "0 0 1.2rem", fontSize: "1.1rem", color: "var(--text-color)" }}>Пути установки</h4>
-           <div style={{ display: "flex", flexDirection: "column", gap: "0.85rem" }}>
-             <div style={{ display: "flex", alignItems: "center", gap: "1rem", background: "var(--surface-accent)", padding: "0.85rem 1.2rem", borderRadius: "var(--radius-md)" }}>
-               <span style={{ fontSize: "0.9rem", color: "var(--text-soft)", minWidth: "100px" }}>Бинарник</span>
-               <code style={{ flex: 1, background: "transparent", padding: 0, fontSize: "0.9rem", color: "var(--text-color)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{app?.binaryPath || "—"}</code>
+        <div className="about-paths">
+           <h4>Пути установки</h4>
+           <div className="about-paths__list">
+             <div className="about-paths__item">
+               <span className="about-paths__label">Бинарник</span>
+               <code className="about-paths__code">{app?.binaryPath || "—"}</code>
                <button className="icon-button icon-button--tiny" onClick={() => handleCopy(app?.binaryPath, "Путь к бинарнику скопирован")}><IconCopy /></button>
              </div>
-             <div style={{ display: "flex", alignItems: "center", gap: "1rem", background: "var(--surface-accent)", padding: "0.85rem 1.2rem", borderRadius: "var(--radius-md)" }}>
-               <span style={{ fontSize: "0.9rem", color: "var(--text-soft)", minWidth: "100px" }}>Frontend</span>
-               <code style={{ flex: 1, background: "transparent", padding: 0, fontSize: "0.9rem", color: "var(--text-color)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{app?.frontendDist || "—"}</code>
+             <div className="about-paths__item">
+               <span className="about-paths__label">Frontend</span>
+               <code className="about-paths__code">{app?.frontendDist || "—"}</code>
                <button className="icon-button icon-button--tiny" onClick={() => handleCopy(app?.frontendDist, "Путь к frontend скопирован")}><IconCopy /></button>
              </div>
            </div>
@@ -310,57 +304,32 @@ export default function AboutPage({ data, loading, error, onRefresh, onNotice })
       </article>
 
       {/* Описание релиза */}
-      <article className="surface-card" style={{ padding: "2rem" }}>
-        <div className="surface-card__head" style={{ borderBottom: "1px solid var(--border-color)", paddingBottom: "1.5rem", marginBottom: "1.5rem" }}>
-          <h3 style={{ margin: 0, fontSize: "1.5rem" }}>Заметки к версии {release?.latestVersion || ""}</h3>
-          <span style={{ color: "var(--text-soft)", fontSize: "0.95rem" }}>
+      <article className="surface-card about-card">
+        <div className="surface-card__head about-release-head">
+          <h3>Заметки к версии {release?.latestVersion || ""}</h3>
+          <span className="about-release-tag">
              {release?.latestName ? `«${release.latestName}»` : ""}
           </span>
         </div>
-        <div style={{ padding: "0 0.5rem" }}>
+        <div className="about-release-notes">
           <ReleaseNotes body={release?.latestBody} />
         </div>
       </article>
 
       {/* Рекламный баннер GitHub (В самом низу) */}
-      <section style={{
-        marginTop: "1.5rem",
-        padding: "3.5rem 2rem",
-        borderRadius: "var(--radius-xl)",
-        background: "linear-gradient(145deg, #0d1117, #161b22)",
-        border: "1px solid rgba(240, 246, 252, 0.08)",
-        color: "#c9d1d9",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        textAlign: "center",
-        boxShadow: "0 30px 60px rgba(0, 0, 0, 0.25)",
-        position: "relative",
-        overflow: "hidden"
-      }}>
-        <div style={{ position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)", width: "80%", height: "1px", background: "radial-gradient(circle, rgba(88, 166, 255, 0.4), transparent 70%)" }} />
+      <section className="about-github-promo">
+        <div className="about-github-promo__line" />
         
-        <IconGithub size={54} style={{ color: "#f0f6fc", marginBottom: "1.2rem" }} />
-        <h2 style={{ color: "#f0f6fc", fontSize: "2.2rem", marginBottom: "0.8rem", fontFamily: "var(--font-sans)", fontWeight: "800", letterSpacing: "-0.02em" }}>Open Source Project</h2>
-        <p style={{ maxWidth: "36rem", fontSize: "1.1rem", lineHeight: "1.6", color: "#8b949e", marginBottom: "2.5rem" }}>
+        <IconGithub size={54} className="about-github-promo__icon" />
+        <h2 className="about-github-promo__title">Open Source Project</h2>
+        <p className="about-github-promo__copy">
           PP Web — это прозрачный и открытый инструмент. Весь исходный код, история изменений, дискуссии и релизы доступны в нашем официальном репозитории на GitHub.
         </p>
-        <div className="button-group" style={{ justifyContent: "center", gap: "1rem" }}>
-          <a href={githubUrl} target="_blank" rel="noreferrer" style={{
-            display: "inline-flex", alignItems: "center", gap: "0.5rem",
-            padding: "1rem 1.8rem", borderRadius: "var(--radius-pill)",
-            background: "#f0f6fc", color: "#0d1117", fontWeight: "700", fontSize: "0.95rem", textDecoration: "none",
-            transition: "transform 0.2s"
-          }} onMouseOver={(e) => e.currentTarget.style.transform = "translateY(-2px)"} onMouseOut={(e) => e.currentTarget.style.transform = "none"}>
+        <div className="button-group about-github-promo__actions">
+          <a href={githubUrl} target="_blank" rel="noreferrer" className="about-github-promo__link about-github-promo__link--primary">
             Перейти в репозиторий
           </a>
-          <a href={releasesUrl} target="_blank" rel="noreferrer" style={{
-            display: "inline-flex", alignItems: "center", gap: "0.5rem",
-            padding: "1rem 1.8rem", borderRadius: "var(--radius-pill)",
-            background: "rgba(240, 246, 252, 0.08)", color: "#c9d1d9", fontWeight: "600", fontSize: "0.95rem", textDecoration: "none",
-            border: "1px solid rgba(240, 246, 252, 0.15)",
-            transition: "background 0.2s"
-          }} onMouseOver={(e) => e.currentTarget.style.background = "rgba(240, 246, 252, 0.12)"} onMouseOut={(e) => e.currentTarget.style.background = "rgba(240, 246, 252, 0.08)"}>
+          <a href={releasesUrl} target="_blank" rel="noreferrer" className="about-github-promo__link about-github-promo__link--secondary">
             Все релизы
           </a>
         </div>
