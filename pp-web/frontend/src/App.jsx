@@ -1999,9 +1999,8 @@ function SettingsPage({ bootstrap, onNotice }) {
               </p>
               <button 
                 type="button" 
-                className="secondary-button" 
+                className="ghost-button destructive" 
                 onClick={handleRestart}
-                style={{ color: "var(--error-color)" }}
               >
                 Перезапустить панель
               </button>
