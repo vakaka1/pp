@@ -15,14 +15,13 @@ import (
 )
 
 func configSaveDir() string {
-	if runtime.GOOS == "windows" {
-		appData := os.Getenv("APPDATA")
-		if appData != "" {
-			dir := filepath.Join(appData, "pp")
-			if err := os.MkdirAll(dir, 0700); err == nil {
-				return dir
-			}
+	if confDir, err := os.UserConfigDir(); err == nil {
+		dir := filepath.Join(confDir, "pp-client")
+		if err := os.MkdirAll(dir, 0700); err == nil {
+			return dir
 		}
+	}
+	if runtime.GOOS == "windows" {
 		exePath, err := os.Executable()
 		if err == nil {
 			return filepath.Dir(exePath)

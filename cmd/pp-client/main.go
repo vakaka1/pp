@@ -36,11 +36,13 @@ var (
 
 func configSearchDirs() []string {
 	var dirs []string
-	if runtime.GOOS == "windows" {
-		appData := os.Getenv("APPDATA")
-		if appData != "" {
-			dirs = append(dirs, filepath.Join(appData, "pp"))
+	if confDir, err := os.UserConfigDir(); err == nil {
+		dirs = append(dirs, filepath.Join(confDir, "pp-client"))
+		if runtime.GOOS == "windows" {
+			dirs = append(dirs, filepath.Join(confDir, "pp"))
 		}
+	}
+	if runtime.GOOS == "windows" {
 		exePath, err := os.Executable()
 		if err == nil {
 			dirs = append(dirs, filepath.Dir(exePath))
