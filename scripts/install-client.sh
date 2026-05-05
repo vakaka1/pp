@@ -223,7 +223,7 @@ echo -e "    Данные:      ${CYAN}$PP_DATA_DIR${NC}"
 echo ""
 echo -e "  ${BOLD}Использование:${NC}"
 echo -e "    Подключение:     ${CYAN}$PP_BIN start --config $PP_CONFIG${NC}"
-echo -e "    Full-tunnel:     ${CYAN}sudo $PP_BIN full-tunnel up --config $PP_CONFIG${NC}"
+echo -e "    Full-tunnel:     ${CYAN}sudo $PP_BIN start --config $PP_CONFIG --full-tunnel${NC}"
 echo ""
 if [[ ":$PATH:" != *":$INSTALL_PREFIX/bin:"* ]]; then
     warn "Каталог $INSTALL_PREFIX/bin не найден в PATH. Возможно, потребуется добавить его."

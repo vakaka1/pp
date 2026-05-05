@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -43,6 +44,15 @@ func configDirs(existingOnly bool) []string {
 		if os.Geteuid() == 0 {
 			add("/etc/pp-client")
 			add("/etc/pp")
+			if sudoUser := os.Getenv("SUDO_USER"); sudoUser != "" {
+				if u, err := user.Lookup(sudoUser); err == nil {
+					if runtime.GOOS == "darwin" {
+						add(filepath.Join(u.HomeDir, "Library", "Application Support", "pp-client"))
+					} else {
+						add(filepath.Join(u.HomeDir, ".config", "pp-client"))
+					}
+				}
+			}
 		}
 		if confDir, err := os.UserConfigDir(); err == nil {
 			add(filepath.Join(confDir, "pp-client"))

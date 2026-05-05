@@ -3,6 +3,8 @@
 #  PP Server Installer — https://github.com/vakaka1/pp
 #  Запуск: curl -fsSL https://raw.githubusercontent.com/vakaka1/pp/main/scripts/install-server.sh | bash
 #          если вы уже root; иначе: ... | sudo bash
+#  Порт панели: sudo PANEL_PORT=8080 bash install-server.sh
+#               curl -fsSL .../install-server.sh | sudo bash -s -- --panel-port 8080
 # =============================================================================
 set -euo pipefail
 
@@ -21,6 +23,18 @@ ok()    { echo -e "${GREEN}✔${NC} $*"; }
 warn()  { echo -e "${YELLOW}⚠${NC} $*"; }
 die()   { echo -e "${RED}✖${NC} $*" >&2; exit 1; }
 step()  { echo -e "\n${BOLD}${BLUE}▶${NC} ${BOLD}$*${NC}"; }
+
+usage() {
+    cat <<EOF
+Использование: install-server.sh [--panel-port PORT]
+
+Опции:
+  --panel-port PORT   Порт веб-панели управления (по умолчанию: 4090)
+  -h, --help          Показать эту справку
+
+Порт также можно задать переменной окружения PANEL_PORT.
+EOF
+}
 
 run_with_spinner() {
     local msg="$1"
@@ -57,9 +71,6 @@ run_with_spinner() {
     rm -f "$temp_log"
 }
 
-# ---------- Проверка root ----------
-[ "$EUID" -eq 0 ] || die "Запустите скрипт от root. Если sudo доступен: curl ... | sudo bash"
-
 # ---------- Конфигурация ----------
 SCRIPT_SOURCE="${BASH_SOURCE:-}"
 if [ -n "$SCRIPT_SOURCE" ] && [ -f "$SCRIPT_SOURCE" ]; then
@@ -84,10 +95,45 @@ PP_NGINX_MANAGED_DIR="/etc/nginx/pp-sites"
 PP_NGINX_INCLUDE="/etc/nginx/conf.d/pp-managed.conf"
 
 PP_WEB_LISTEN="0.0.0.0:4090"
+PP_WEB_PORT="${PANEL_PORT:-4090}"
 GEO_IP_URL="https://github.com/v2fly/geoip/releases/latest/download/geoip.dat"
 GEO_SITE_URL="https://github.com/v2fly/domain-list-community/releases/latest/download/dlc.dat"
 PP_WEB_SERVICE_USER="$PP_USER"
 PP_WEB_SERVICE_GROUP="$PP_USER"
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --panel-port)
+            [ "${2:-}" ] || die "Для --panel-port нужно указать порт"
+            PP_WEB_PORT="$2"
+            shift 2
+            ;;
+        --panel-port=*)
+            PP_WEB_PORT="${1#*=}"
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            die "Неизвестный аргумент: $1"
+            ;;
+    esac
+done
+
+case "$PP_WEB_PORT" in
+    ''|*[!0-9]*)
+        die "Порт панели должен быть числом от 1 до 65535"
+        ;;
+esac
+if [ "$PP_WEB_PORT" -lt 1 ] || [ "$PP_WEB_PORT" -gt 65535 ]; then
+    die "Порт панели должен быть числом от 1 до 65535"
+fi
+PP_WEB_LISTEN="0.0.0.0:${PP_WEB_PORT}"
+
+# ---------- Проверка root ----------
+[ "$EUID" -eq 0 ] || die "Запустите скрипт от root. Если sudo доступен: curl ... | sudo bash"
 
 # ---------- Детектирование архитектуры ----------
 ARCH="$(uname -m)"
@@ -104,6 +150,7 @@ echo -e "${BOLD}${CYAN}║                 PP Server Installer                  
 echo -e "${BOLD}${CYAN}╚══════════════════════════════════════════════════════╝${NC}"
 echo -e "  GitHub:      ${CYAN}github.com/${GITHUB_REPO}${NC}"
 echo -e "  Архитектура: ${CYAN}linux/${GOARCH}${NC}"
+echo -e "  Порт панели: ${CYAN}${PP_WEB_PORT}${NC}"
 echo ""
 
 # Определение версии
@@ -366,7 +413,7 @@ echo -e "  Откройте веб-панель управления для за
 echo ""
 
 SERVER_IP="$(curl -fsSL --connect-timeout 5 https://api.ipify.org 2>/dev/null || hostname -I | awk '{print $1}')"
-echo -e "  ${CYAN}${BOLD}http://${SERVER_IP}:4090${NC}"
+echo -e "  ${CYAN}${BOLD}http://${SERVER_IP}:${PP_WEB_PORT}${NC}"
 echo ""
 echo -e "  ${BOLD}В панели вы сможете:${NC}"
 echo -e "    • Создать подключение и выпустить SSL-сертификат"

@@ -82,7 +82,7 @@ err := cmd.Start()
 При корректном завершении клиент автоматически:
 - Закрывает все соединения
 - Отключает System Proxy (если был `--system-proxy`)
-- НЕ откатывает full-tunnel маршруты (нужно отдельно вызвать `full-tunnel down`)
+- Отключает full-tunnel правила/маршруты (если процесс был запущен с `--full-tunnel`)
 
 ### Аварийное завершение
 
@@ -124,36 +124,34 @@ pp-client.exe start --config client.json --system-proxy
 
 **Linux (требует root):**
 ```bash
-# Шаг 1: Запуск клиента с прозрачным слушателем
-pp-client start --config client.json --transparent-listen 127.0.0.1:12345
-
-# Шаг 2: Включение iptables-перенаправления (в отдельном процессе)
-sudo pp-client full-tunnel up --config client.json --transparent-listen 127.0.0.1:12345 --owner $(whoami)
+sudo pp-client start --config client.json --full-tunnel
+sudo pp-client start client --full-tunnel
 ```
-Для GUI используйте `pkexec` для шага 2:
+Если нужен нестандартный transparent listener:
 ```bash
-pkexec pp-client full-tunnel up --config client.json --transparent-listen 127.0.0.1:12345 --owner $USER
+sudo pp-client start --config client.json --full-tunnel --transparent-listen 127.0.0.1:12345 --owner root
+```
+Для GUI запускайте сам `start --full-tunnel` через `pkexec`:
+```bash
+pkexec pp-client start --config client.json --full-tunnel
 ```
 
 **Windows (требует Администратора):**
 ```powershell
-# Шаг 1: Запуск клиента
-pp-client.exe start --config client.json
-
-# Шаг 2: Включение маршрутов (в отдельном процессе от Администратора)
-pp-client.exe full-tunnel up --config client.json
+pp-client.exe start --config client.json --full-tunnel
+pp-client.exe start client --full-tunnel
 ```
 Для GUI: запустите процесс с `runas` или проверяйте права через `net session`:
 ```dart
 // Dart/Flutter — запуск с повышенными привилегиями
 final process = await Process.start('powershell', [
   '-Command', 'Start-Process', 'pp-client.exe',
-  '-ArgumentList', '"full-tunnel up --config client.json"',
+  '-ArgumentList', '"start --config client.json --full-tunnel"',
   '-Verb', 'RunAs',
 ]);
 ```
 
-**Отключение Full Tunnel:**
+`start --full-tunnel` держит туннель активным, пока жив процесс клиента, и при штатном завершении сам откатывает правила/маршруты. Ручная команда `full-tunnel down` нужна только для аварийной очистки после crash/kill:
 ```bash
 # Linux
 sudo pp-client full-tunnel down
@@ -218,6 +216,13 @@ pp-client list --json
 ```bash
 pp-client validate-config --config client.json
 ```
+
+Для диагностики доступности сервера используйте `test`:
+```bash
+pp-client test --config client.json
+pp-client test client
+```
+Команда проверяет конфиг, готовность fallback-сайта сервера и ping до `client.server.domain` или host из `client.server.address`. Она не запускает локальные прокси и не включает full-tunnel.
 - Код возврата `0` — конфиг валиден.
 - Код возврата `1` — ошибка (описание в stdout).
 

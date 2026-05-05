@@ -12,6 +12,12 @@
 curl -fsSL https://raw.githubusercontent.com/vakaka1/pp/main/scripts/install-server.sh | sudo bash
 ```
 
+Чтобы заранее выбрать порт веб-панели, передайте его установщику:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vakaka1/pp/main/scripts/install-server.sh | sudo bash -s -- --panel-port 8080
+```
+
 ### Что сделает скрипт:
 1.  **Установит зависимости**: Nginx (для реверс-прокси), Certbot (для SSL), libcap.
 2.  **Загрузит бинарники**: Ядро прокси (`pp-core`) и панель управления (`pp-web`).
@@ -23,7 +29,7 @@ curl -fsSL https://raw.githubusercontent.com/vakaka1/pp/main/scripts/install-ser
 
 После завершения установки откройте браузер и перейдите по адресу:
 
-**`http://IP_ВАШЕГО_СЕРВЕРА:4090`**
+**`http://IP_ВАШЕГО_СЕРВЕРА:4090`** или выбранный вами порт.
 
 При первом входе система попросит вас создать учетную запись администратора.
 

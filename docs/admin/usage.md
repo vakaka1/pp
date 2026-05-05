@@ -36,6 +36,18 @@
 *   **Linux:** `pp-client import "ppf://..."` или `pp-client start --config client.json`
 *   **Windows:** `pp-client.exe import "ppf://..."` или `pp-client.exe start --config client.json --system-proxy`
 
+Если нужно перенаправлять весь TCP-трафик системы, запускайте клиент сразу в full-tunnel режиме:
+*   **Linux:** `sudo pp-client start --config client.json --full-tunnel`
+*   **Windows:** `pp-client.exe start --config client.json --full-tunnel` из консоли администратора
+
+После импорта можно использовать имя профиля вместо пути к файлу: `pp-client start client --full-tunnel`.
+
+Для проверки конфига и доступности сервера без подключения используйте:
+```bash
+pp-client test --config client.json
+pp-client test client
+```
+
 ## Обслуживание системы
 
 В разделе **Ядро PP** вы можете следить за здоровьем сервера. Если в статусе написано «Конфигурация не совпадает» — нажмите **Обновить конфигурацию**, а затем **Перезапустить ядро**.

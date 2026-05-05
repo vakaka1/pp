@@ -81,11 +81,19 @@ Commit: 53e49e4
 OS: windows/amd64
 ```
 
+### `pp-client update`
+Запускает официальный install-client скрипт для обновления текущего бинарника.
+```bash
+pp-client update
+```
+Поддерживается на Linux и Windows. На Linux команда использует `sudo`, если текущий процесс не root. На Windows стартует PowerShell-установщик.
+
 ### `pp-client start [имя_профиля]`
 Основная команда — запуск прокси.
 ```bash
 pp-client start --config client.json
 pp-client start --config client.json --system-proxy
+sudo pp-client start --config client.json --full-tunnel
 pp-client start --config client.json --verbose
 pp-client start client
 ```
@@ -102,11 +110,31 @@ pp-client start client
 При запуске открываются локальные порты:
 - **SOCKS5** — `127.0.0.1:1080` (по умолчанию)
 - **HTTP** — `127.0.0.1:8080` (по умолчанию)
+- **Transparent** — только на Linux при `--full-tunnel`; по умолчанию `127.0.0.1:1090`, если не задан `--transparent-listen` или `client.transparent_listen`.
+
+`--full-tunnel` нужно передавать именно в `start`: клиент сначала включает системное перенаправление, затем запускает локальные прокси и при штатном завершении автоматически вызывает очистку full-tunnel. На Linux команда требует root, на Windows — запуск от Администратора.
+
+### `pp-client test [имя_профиля]`
+Проверяет конфиг и доступность сервера без запуска локальных прокси.
+```bash
+pp-client test --config client.json
+pp-client test client
+pp-client test --config client.json --verbose
+```
+
+Что делает команда:
+- валидирует JSON-конфиг;
+- выполняет browser-like проверку готовности сайта/маскировки сервера;
+- пингует `client.server.domain`, а если он пустой — host из `client.server.address`;
+- возвращает код `0` при успехе и `1` при ошибке.
+
+У `test` нет `--full-tunnel`, `--system-proxy`, `--owner` и `--transparent-listen`: это диагностическая команда, она не меняет маршруты, iptables или системный прокси.
 
 ### `pp-client validate-config [имя_профиля]`
 Проверка конфигурации без запуска.
 ```bash
 pp-client validate-config --config client.json
+pp-client validate-config client
 ```
 Код возврата: `0` — валидный, `1` — ошибка.
 
@@ -150,33 +178,39 @@ pp-client delete client
 pp-client rm client
 ```
 
-### `pp-client start [имя_профиля]`
+### Запуск по имени профиля
 После импорта можно запускать по имени без указания полного пути:
 ```bash
 pp-client start client
+sudo pp-client start client --full-tunnel
 ```
 
-### `pp-client full-tunnel up [имя_профиля]`
-Включение полного перехвата трафика.
+### Full Tunnel
 
 **Linux (требует root):**
 ```bash
-sudo pp-client full-tunnel up --config client.json --transparent-listen 127.0.0.1:12345 --owner $(whoami)
+sudo pp-client start --config client.json --full-tunnel
+sudo pp-client start client --full-tunnel
+sudo pp-client start --config client.json --full-tunnel --transparent-listen 127.0.0.1:12345 --owner root
 ```
 
 **Windows (требует Администратора):**
 ```powershell
-pp-client full-tunnel up --config client.json
+pp-client start --config client.json --full-tunnel
+pp-client start client --full-tunnel
 ```
 
 | Флаг | Описание |
 |------|----------|
 | `--config` | Путь к конфигу |
 | `--transparent-listen` | Адрес прозрачного слушателя (только Linux) |
-| `--owner` | UID/имя пользователя для исключения из перехвата (только Linux) |
+| `--owner` | UID/имя пользователя для исключения из перехвата (только Linux). Если не указан при `--full-tunnel`, используется `root`. |
 
-### `pp-client full-tunnel down`
-Отключение полного перехвата.
+На Linux `--full-tunnel` перенаправляет исходящий TCP через transparent listener. CLI автоматически исключает приватные/локальные сети, multicast/reserved-диапазоны, адрес PP-сервера и владельца процесса, указанного в `--owner`. Адрес сервера должен резолвиться в IPv4; IPv6 full-tunnel пока не поддерживается.
+
+На Windows `--full-tunnel` добавляет split default routes (`0.0.0.0/1` и `128.0.0.0/1`) через текущий шлюз, добавляет отдельный маршрут до PP-сервера и включает System Proxy на адрес `client.http_proxy_listen` или `127.0.0.1:8080`.
+
+При штатном завершении `start --full-tunnel` сам отключает full-tunnel. Команда `pp-client full-tunnel down` нужна как аварийная очистка после kill/crash или ручного вмешательства:
 ```bash
 # Linux
 sudo pp-client full-tunnel down
@@ -193,7 +227,7 @@ pp-client full-tunnel down
 *   **Маршрутизация**: Встроенный движок решает, какие сайты пускать через прокси, а какие — напрямую (GeoIP/GeoSite/domain rules).
 
 ### Linux Full Tunnel
-Использует `iptables` для перенаправления всего исходящего TCP в прозрачный слушатель. IP сервера исключается из перенаправления. Команда `--owner` исключает процесс самого клиента.
+Использует `iptables` для перенаправления исходящего TCP в прозрачный слушатель. Из перенаправления исключаются локальные/приватные сети, IP сервера и владелец процесса из `--owner`.
 
 ### Windows System Proxy
 Записывает `ProxyServer` и `ProxyEnable=1` в реестр Windows (`HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings`), затем вызывает WinAPI `InternetSetOptionW` для немедленного применения. При завершении — сбрасывает обратно.
@@ -203,7 +237,7 @@ pp-client full-tunnel down
 2. Получает текущий шлюз через `Get-NetRoute`.
 3. Добавляет маршруты `0.0.0.0/1` и `128.0.0.0/1` через реальный шлюз.
 4. Включает System Proxy одновременно.
-5. При `down` — удаляет маршруты и отключает прокси.
+5. При штатном завершении `start --full-tunnel` удаляет маршруты и отключает прокси.
 
 ---
 [Конфигурация клиента](config-client.md) | [Назад в оглавление](README.md)

@@ -54,14 +54,19 @@ irm https://raw.githubusercontent.com/vakaka1/pp/main/scripts/install-geo.ps1 | 
 
 После запуска будут доступны локальные прокси: **SOCKS5** (`127.0.0.1:1080`) и **HTTP** (`127.0.0.1:8080`).
 
+Проверить конфиг и доступность сервера без запуска прокси:
+```bash
+pp-client test --config client.json
+```
+
 **Full Tunnel (Linux):**
 ```bash
-sudo pp-client full-tunnel up --config client.json
+sudo pp-client start --config client.json --full-tunnel
 ```
 
 **Full Tunnel (Windows — от Администратора):**
 ```powershell
-pp-client full-tunnel up --config client.json
+pp-client start --config client.json --full-tunnel
 ```
 
 ## Документация

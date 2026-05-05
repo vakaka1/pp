@@ -232,7 +232,7 @@ function Install-PPClient {
     Write-Host ""
     Write-Host "  Использование:" -ForegroundColor White
     Write-Host -NoNewline "    Подключение:     " ; Write-Host "pp-client start --config client.json" -ForegroundColor Cyan
-    Write-Host -NoNewline "    Full-tunnel:     " ; Write-Host "pp-client full-tunnel up --config client.json (от Администратора)" -ForegroundColor Cyan
+    Write-Host -NoNewline "    Full-tunnel:     " ; Write-Host "pp-client start --config client.json --full-tunnel (от Администратора)" -ForegroundColor Cyan
     Write-Host ""
 
     if ($pathAdded) {
