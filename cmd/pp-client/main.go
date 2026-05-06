@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"os"
@@ -39,6 +40,23 @@ var (
 )
 
 var pingTimePattern = regexp.MustCompile(`time[=<]([0-9]+(?:[.,][0-9]+)?)\s*ms`)
+
+type testResultLine struct {
+	Status    string   `json:"status"`
+	ConnectOK bool     `json:"connect_ok"`
+	PingOK    bool     `json:"ping_ok"`
+	PingMS    *float64 `json:"ping_ms"`
+	Error     string   `json:"error,omitempty"`
+}
+
+func printTestResultLine(result testResultLine) {
+	data, err := json.Marshal(result)
+	if err != nil {
+		fmt.Printf("PP_CLIENT_TEST_RESULT {\"status\":\"error\",\"connect_ok\":false,\"ping_ok\":false,\"ping_ms\":null,\"error\":\"failed to encode result\"}\n")
+		return
+	}
+	fmt.Printf("PP_CLIENT_TEST_RESULT %s\n", data)
+}
 
 func dataFilePath(name string) string {
 	if runtime.GOOS == "windows" {
@@ -134,16 +152,19 @@ func main() {
 			resolvedPath, err := resolveConfigPath(target)
 			if err != nil {
 				fmt.Println("Error:", err)
+				printTestResultLine(testResultLine{Status: "error", Error: err.Error()})
 				os.Exit(1)
 			}
 			cfg, err := config.LoadConfig(resolvedPath)
 			if err != nil {
 				fmt.Println("Error loading config:", err)
+				printTestResultLine(testResultLine{Status: "error", Error: err.Error()})
 				os.Exit(1)
 			}
 			if err := cfg.Validate(false); err != nil {
 				fmt.Println("Client config invalid:")
 				fmt.Println("-", err)
+				printTestResultLine(testResultLine{Status: "error", Error: err.Error()})
 				os.Exit(1)
 			}
 			fmt.Println("Client config is valid.")
@@ -157,6 +178,7 @@ func main() {
 			if err := ppcore.TestConnection(ctx, cfg.Client, log); err != nil {
 				fmt.Println("Server availability check failed:")
 				fmt.Println("-", err)
+				printTestResultLine(testResultLine{Status: "error", Error: err.Error()})
 				os.Exit(1)
 			}
 			fmt.Println("Server is available and site is ready.")
@@ -171,9 +193,12 @@ func main() {
 				if pingOutput != "" {
 					fmt.Println(pingOutput)
 				}
+				printTestResultLine(testResultLine{Status: "error", ConnectOK: true, Error: err.Error()})
 				os.Exit(1)
 			}
-			fmt.Printf("Ping result (%s): %.2fms\n", pingTarget, float64(sitePing.Microseconds())/1000)
+			pingMS := float64(sitePing.Microseconds()) / 1000
+			fmt.Printf("Ping result (%s): %.2fms\n", pingTarget, pingMS)
+			printTestResultLine(testResultLine{Status: "ok", ConnectOK: true, PingOK: true, PingMS: &pingMS})
 		},
 	}
 	testCmd.Flags().StringVar(&cfgFile, "config", "", "Config file")

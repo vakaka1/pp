@@ -30,12 +30,18 @@ func NewClient(cfg *config.ClientConfig, log *zap.Logger, engine *routing.Engine
 	}
 }
 
-// TestConnection checks that the site is available and responding to browser-like requests.
+var testConnectToServer = ConnectToServer
+
+// TestConnection checks that the server accepts a full client tunnel handshake.
 func TestConnection(ctx context.Context, cfg *config.ClientConfig, log *zap.Logger) error {
 	noiseRunner := NewBrowserNoiseRunner(cfg, log)
-	// We only run the pre-connect scenario to verify the site is "ready"
-	// as per the user's requirement to not test the full tunnel handshake here.
-	noiseRunner.runPreConnectScenario(ctx)
+	session, err := testConnectToServer(ctx, cfg, noiseRunner)
+	if err != nil {
+		return err
+	}
+	if session != nil {
+		_ = session.Close()
+	}
 	return nil
 }
 
