@@ -12,8 +12,9 @@ type runtimeClientStatusFile struct {
 }
 
 type runtimeClientStatus struct {
-	Online   bool      `json:"online"`
-	LastSeen time.Time `json:"lastSeen"`
+	Online    bool      `json:"online"`
+	LastSeen  time.Time `json:"lastSeen"`
+	BytesUsed int64     `json:"bytesUsed"`
 }
 
 func (s *Server) enrichClientsWithRuntimeStatus(clients []Client) error {
@@ -36,6 +37,7 @@ func (s *Server) enrichClientsWithRuntimeStatus(clients []Client) error {
 			continue
 		}
 		clients[i].Online = entry.Online
+		clients[i].BytesUsed = entry.BytesUsed
 		if !entry.LastSeen.IsZero() {
 			lastSeen := entry.LastSeen
 			clients[i].LastSeen = &lastSeen
