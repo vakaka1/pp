@@ -17,19 +17,24 @@ import (
 )
 
 type ConnectionPool struct {
-	cfg   *config.ClientConfig
-	log   *zap.Logger
-	mu    sync.Mutex
-	sess  *smux.Session
-	ready chan struct{}
-	done  bool
+	cfg                    *config.ClientConfig
+	log                    *zap.Logger
+	mu                     sync.Mutex
+	sess                   *smux.Session
+	ready                  chan struct{}
+	done                   bool
+	consecutiveOpenTimeout int
 }
 
 const (
-	defaultStreamOpenTimeout = 20 * time.Second
+	defaultStreamOpenTimeout     = 20 * time.Second
+	maxConsecutiveStreamTimeouts = 3
 )
 
 func NewConnectionPool(cfg *config.ClientConfig, log *zap.Logger) *ConnectionPool {
+	if log == nil {
+		log = zap.NewNop()
+	}
 	return &ConnectionPool{
 		cfg:   cfg,
 		log:   log,
@@ -123,7 +128,16 @@ func (p *ConnectionPool) OpenStreamContext(ctx context.Context, target string) (
 		stream, err := openStreamOnSession(streamCtx, sess, target)
 		cancel()
 		if err == nil {
+			p.recordOpenStreamSuccess(sess)
 			return stream, nil
+		}
+		if isTimeoutError(err) {
+			if p.recordOpenStreamTimeout(sess) {
+				p.log.Warn("session is not responding to stream opens, reconnecting", zap.String("target", target), zap.Error(err))
+				p.clearSession(sess)
+				continue
+			}
+			return nil, err
 		}
 		if !errors.Is(err, errSessionUnavailable) {
 			return nil, err
@@ -150,6 +164,7 @@ func (p *ConnectionPool) setSession(sess *smux.Session) {
 		return
 	}
 	p.sess = sess
+	p.consecutiveOpenTimeout = 0
 	close(p.ready)
 }
 
@@ -160,8 +175,27 @@ func (p *ConnectionPool) clearSession(sess *smux.Session) {
 		return
 	}
 	p.sess = nil
+	p.consecutiveOpenTimeout = 0
 	p.ready = make(chan struct{})
 	_ = sess.Close()
+}
+
+func (p *ConnectionPool) recordOpenStreamSuccess(sess *smux.Session) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.sess == sess {
+		p.consecutiveOpenTimeout = 0
+	}
+}
+
+func (p *ConnectionPool) recordOpenStreamTimeout(sess *smux.Session) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.sess != sess || p.done {
+		return false
+	}
+	p.consecutiveOpenTimeout++
+	return p.consecutiveOpenTimeout >= maxConsecutiveStreamTimeouts
 }
 
 func (p *ConnectionPool) closePool() {
@@ -193,6 +227,14 @@ func waitForSession(ctx context.Context, ready <-chan struct{}) error {
 	case <-ctx.Done():
 		return fmt.Errorf("%w: %w", errSessionUnavailable, ctx.Err())
 	}
+}
+
+func isTimeoutError(err error) bool {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	var netErr net.Error
+	return errors.As(err, &netErr) && netErr.Timeout()
 }
 
 func openStreamOnSession(ctx context.Context, sess *smux.Session, target string) (net.Conn, error) {

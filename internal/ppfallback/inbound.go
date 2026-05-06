@@ -302,6 +302,7 @@ func (s *Inbound) handleGRPC(w http.ResponseWriter, r *http.Request) {
 	for {
 		stream, err := session.AcceptStream()
 		if err != nil {
+			s.log.Warn("smux session closed", zap.Error(err))
 			break
 		}
 		if s.contentLoader != nil {

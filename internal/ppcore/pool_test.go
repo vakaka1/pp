@@ -74,3 +74,38 @@ func TestClientSmuxConfigClampsUnsafeKeepaliveInterval(t *testing.T) {
 		t.Fatalf("unexpected clamped keepalive interval: %s", smuxCfg.KeepAliveInterval)
 	}
 }
+
+func TestConnectionPoolStreamTimeoutThreshold(t *testing.T) {
+	clientConn, serverConn := net.Pipe()
+	defer clientConn.Close()
+	defer serverConn.Close()
+
+	clientSession, err := smux.Client(clientConn, protocol.DefaultSmuxConfig())
+	if err != nil {
+		t.Fatalf("create client session: %v", err)
+	}
+	defer clientSession.Close()
+
+	serverSession, err := smux.Server(serverConn, protocol.DefaultSmuxConfig())
+	if err != nil {
+		t.Fatalf("create server session: %v", err)
+	}
+	defer serverSession.Close()
+
+	pool := NewConnectionPool(&config.ClientConfig{}, nil)
+	pool.setSession(clientSession)
+
+	for i := 1; i < maxConsecutiveStreamTimeouts; i++ {
+		if pool.recordOpenStreamTimeout(clientSession) {
+			t.Fatalf("timeout %d unexpectedly crossed reconnect threshold", i)
+		}
+	}
+	if !pool.recordOpenStreamTimeout(clientSession) {
+		t.Fatalf("expected timeout threshold to request reconnect")
+	}
+
+	pool.recordOpenStreamSuccess(clientSession)
+	if pool.recordOpenStreamTimeout(clientSession) {
+		t.Fatalf("success did not reset timeout threshold")
+	}
+}

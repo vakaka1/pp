@@ -43,6 +43,7 @@ func serveTunnelStream(stream *smux.Stream, log *zap.Logger, engine *routing.Eng
 
 	conn, err := net.DialTimeout("tcp", target, 10*time.Second)
 	if err != nil {
+		log.Info("failed to connect stream target", zap.String("target", target), zap.Error(err))
 		stream.Write([]byte{protocol.StatusUnreachable})
 		return
 	}
