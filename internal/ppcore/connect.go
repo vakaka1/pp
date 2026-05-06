@@ -119,10 +119,7 @@ func ConnectToServer(ctx context.Context, cfg *config.ClientConfig, noise *brows
 		transportConn = transport.NewShaper(noiseConn, cfg.Transport.JitterMaxMs)
 	}
 
-	smuxCfg := protocol.DefaultSmuxConfig()
-	if cfg.Transport.KeepaliveIntervalSeconds > 0 {
-		smuxCfg.KeepAliveInterval = time.Duration(cfg.Transport.KeepaliveIntervalSeconds) * time.Second
-	}
+	smuxCfg := clientSmuxConfig(cfg)
 	session, err := smux.Client(transportConn, smuxCfg)
 	if err != nil {
 		transportConn.Close()
@@ -133,4 +130,18 @@ func ConnectToServer(ctx context.Context, cfg *config.ClientConfig, noise *brows
 	conn.SetDeadline(time.Time{})
 
 	return session, nil
+}
+
+func clientSmuxConfig(cfg *config.ClientConfig) *smux.Config {
+	smuxCfg := protocol.DefaultSmuxConfig()
+	if cfg == nil || cfg.Transport.KeepaliveIntervalSeconds <= 0 {
+		return smuxCfg
+	}
+
+	keepAliveInterval := time.Duration(cfg.Transport.KeepaliveIntervalSeconds) * time.Second
+	if keepAliveInterval >= smuxCfg.KeepAliveTimeout {
+		keepAliveInterval = smuxCfg.KeepAliveTimeout / 2
+	}
+	smuxCfg.KeepAliveInterval = keepAliveInterval
+	return smuxCfg
 }

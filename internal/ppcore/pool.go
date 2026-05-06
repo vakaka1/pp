@@ -26,7 +26,7 @@ type ConnectionPool struct {
 }
 
 const (
-	defaultStreamOpenTimeout = 8 * time.Second
+	defaultStreamOpenTimeout = 20 * time.Second
 )
 
 func NewConnectionPool(cfg *config.ClientConfig, log *zap.Logger) *ConnectionPool {
@@ -228,19 +228,19 @@ func openStreamOnSession(ctx context.Context, sess *smux.Session, target string)
 	if deadline, ok := ctx.Deadline(); ok {
 		if err := stream.SetDeadline(deadline); err != nil {
 			stream.Close()
-			return nil, fmt.Errorf("%w: failed to set stream deadline: %w", errSessionUnavailable, err)
+			return nil, fmt.Errorf("failed to set stream deadline: %w", err)
 		}
 	}
 
 	if err := hdr.Encode(stream); err != nil {
 		stream.Close()
-		return nil, fmt.Errorf("%w: failed to encode stream header: %w", errSessionUnavailable, err)
+		return nil, fmt.Errorf("failed to encode stream header: %w", err)
 	}
 
 	statusBuf := make([]byte, 1)
 	if _, err := io.ReadFull(stream, statusBuf); err != nil {
 		stream.Close()
-		return nil, fmt.Errorf("%w: failed to read stream status: %w", errSessionUnavailable, err)
+		return nil, fmt.Errorf("failed to read stream status: %w", err)
 	}
 
 	if statusBuf[0] != protocol.StatusOK {
@@ -271,7 +271,9 @@ func openSmuxStream(ctx context.Context, sess *smux.Session) (*smux.Stream, erro
 	case result := <-resultCh:
 		return result.stream, result.err
 	case <-ctx.Done():
-		_ = sess.Close()
+		// A single OpenStream timeout must not tear down the shared tunnel.
+		// The goroutine will finish when smux eventually opens a stream or the
+		// session is closed by the pool/server.
 		return nil, ctx.Err()
 	case <-sess.CloseChan():
 		return nil, io.ErrClosedPipe
