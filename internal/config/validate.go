@@ -14,7 +14,7 @@ import (
 func (c *Config) Validate(isServer bool) error {
 	if isServer {
 		if len(c.Inbounds) == 0 {
-			return fmt.Errorf("inbounds configuration is missing or empty")
+			return nil
 		}
 		return validateInboundsConfig(c.Inbounds)
 	} else {

@@ -501,6 +501,7 @@ func (s *Server) handleOverview(w http.ResponseWriter, r *http.Request, _ *Admin
 			"configPreview":   configPreview,
 			"lastSyncAt":      settings.LastSyncAt,
 			"lastSyncError":   settings.LastSyncError,
+			"processRunning":  s.isCoreRunning(),
 		},
 		"protocols":     protocolCards,
 		"listeners":     listenerCards,

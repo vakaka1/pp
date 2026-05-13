@@ -291,6 +291,11 @@ func main() {
 			}
 
 			if enableFullTunnel {
+				if runtime.GOOS == "windows" {
+					if !ensureAdmin(log) {
+						os.Exit(1)
+					}
+				}
 				owner := fullTunnelOwner
 				if runtime.GOOS == "linux" && owner == "" {
 					owner = "root"
@@ -364,6 +369,13 @@ func main() {
 			if err := cfg.Validate(false); err != nil {
 				fmt.Println(err)
 				os.Exit(1)
+			}
+			if runtime.GOOS == "windows" {
+				// Temporary logger for ensureAdmin since fullTunnelUpCmd doesn't initialize a full logger
+				logger, _ := zap.NewDevelopment()
+				if !ensureAdmin(logger) {
+					os.Exit(1)
+				}
 			}
 			if err := fulltunnel.Up(cfg.Client, transparentListen, fullTunnelOwner); err != nil {
 				fmt.Println(err)
