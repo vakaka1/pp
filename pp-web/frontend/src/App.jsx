@@ -940,8 +940,9 @@ function StatusOrb({ good, pulse = true }) {
   return <div className={`health-orb health-orb--${good ? "good" : "bad"} ${pulse ? "is-pulsing" : ""}`} />;
 }
 
-function CoreStatusCard({ core }) {
-  const isHealthy = core.binaryAvailable && core.configValid;
+function CoreStatusCard({ core, activeConnections }) {
+  const processExpected = activeConnections > 0;
+  const isHealthy = core.binaryAvailable && core.configValid && (processExpected ? core.processRunning : true);
 
   return (
     <section className="surface-card">
@@ -963,6 +964,12 @@ function CoreStatusCard({ core }) {
           <span>Конфигурация</span>
           <strong style={{ color: core.configValid ? "var(--success)" : "var(--error)" }}>
             {core.configValid ? "Валидна" : "Ошибка"}
+          </strong>
+        </div>
+        <div className="core-status-item">
+          <span>Процесс</span>
+          <strong style={{ color: core.processRunning ? "var(--success)" : (processExpected ? "var(--error)" : "var(--text-muted)") }}>
+            {core.processRunning ? "Запущен" : (processExpected ? "Остановлен" : "Ожидание")}
           </strong>
         </div>
       </div>
@@ -1100,7 +1107,7 @@ function OverviewPage({ onNotice }) {
 
         <div className="dashboard-insights">
           <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem", width: "97%" }}>
-            <CoreStatusCard core={data.core} />
+            <CoreStatusCard core={data.core} activeConnections={data.summary.connectionsActive} />
             <ProtocolUsageList protocols={data.protocols} />
           </div>
           <ListenersSummaryList listeners={data.listeners} />

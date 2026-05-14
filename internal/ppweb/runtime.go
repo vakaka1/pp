@@ -20,6 +20,32 @@ type coreRestartResult struct {
 	PID    int
 }
 
+func (s *Server) isCoreRunning() bool {
+	if s.serviceUnitExists("pp-core") {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		out, err := runPrivilegedCommand(ctx, "systemctl", "is-active", "pp-core")
+		if err == nil && strings.TrimSpace(string(out)) == "active" {
+			return true
+		}
+		// If systemctl is-active fails, we assume it's not active
+		return false
+	}
+
+	if s.coreCmd != nil && s.coreCmd.Process != nil {
+		// A simple check if we are directly managing it
+		// If process state is not nil, it has exited.
+		if s.coreCmd.ProcessState != nil {
+			return false
+		}
+		
+		// If not exited, we can assume it's running because we started it and haven't reaped it
+		// (exec.Cmd doesn't automatically reap unless Wait is called, which isn't in restartCore).
+		return true
+	}
+	return false
+}
+
 func (s *Server) applyCoreConfig(ctx context.Context) error {
 	hasConfig, err := s.syncCoreConfig(ctx)
 	if err != nil {
