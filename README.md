@@ -64,10 +64,11 @@ pp-client test --config client.json
 sudo pp-client start --config client.json --full-tunnel
 ```
 
-**Full Tunnel (Windows — от Администратора):**
+**Full Tunnel (Windows):**
 ```powershell
 pp-client start --config client.json --full-tunnel
 ```
+Если терминал запущен без прав администратора, `pp-client` сам запросит UAC-повышение и продолжит работу в elevated-процессе.
 
 ## Документация
 

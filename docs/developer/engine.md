@@ -112,7 +112,7 @@ pp-client start client
 - **HTTP** — `127.0.0.1:8080` (по умолчанию)
 - **Transparent** — только на Linux при `--full-tunnel`; по умолчанию `127.0.0.1:1090`, если не задан `--transparent-listen` или `client.transparent_listen`.
 
-`--full-tunnel` нужно передавать именно в `start`: клиент сначала включает системное перенаправление, затем запускает локальные прокси и при штатном завершении автоматически вызывает очистку full-tunnel. На Linux команда требует root, на Windows — запуск от Администратора.
+`--full-tunnel` нужно передавать именно в `start`: клиент сначала включает системное перенаправление, затем запускает локальные прокси и при штатном завершении автоматически вызывает очистку full-tunnel. На Linux команда требует root, на Windows при обычном запуске клиент сам запросит UAC-повышение.
 
 ### `pp-client test [имя_профиля]`
 Проверяет конфиг и доступность сервера без запуска локальных прокси.
@@ -194,7 +194,7 @@ sudo pp-client start client --full-tunnel
 sudo pp-client start --config client.json --full-tunnel --transparent-listen 127.0.0.1:12345 --owner root
 ```
 
-**Windows (требует Администратора):**
+**Windows:**
 ```powershell
 pp-client start --config client.json --full-tunnel
 pp-client start client --full-tunnel
@@ -209,6 +209,7 @@ pp-client start client --full-tunnel
 На Linux `--full-tunnel` перенаправляет исходящий TCP через transparent listener. CLI автоматически исключает приватные/локальные сети, multicast/reserved-диапазоны, адрес PP-сервера и владельца процесса, указанного в `--owner`. Адрес сервера должен резолвиться в IPv4; IPv6 full-tunnel пока не поддерживается.
 
 На Windows `--full-tunnel` добавляет split default routes (`0.0.0.0/1` и `128.0.0.0/1`) через текущий шлюз, добавляет отдельный маршрут до PP-сервера и включает System Proxy на адрес `client.http_proxy_listen` или `127.0.0.1:8080`.
+Если процесс не запущен от администратора, команды `start --full-tunnel`, `full-tunnel up` и `full-tunnel down` перезапускают текущий `pp-client.exe` через UAC с теми же аргументами.
 
 При штатном завершении `start --full-tunnel` сам отключает full-tunnel. Команда `pp-client full-tunnel down` нужна как аварийная очистка после kill/crash или ручного вмешательства:
 ```bash

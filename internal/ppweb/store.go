@@ -278,6 +278,7 @@ func (s *Store) GetAppSettings(ctx context.Context, fallbackCoreConfigPath strin
 	settings := &AppSettings{
 		AppName:        firstNonEmpty(settingsMap["app_name"], "PP Web"),
 		CoreConfigPath: firstNonEmpty(settingsMap["core_config_path"], fallbackCoreConfigPath),
+		UpdateChannel:  firstNonEmpty(settingsMap["update_channel"], "stable"),
 		LastSyncError:  settingsMap["last_sync_error"],
 
 		PanelHTTPS:    settingsMap["panel_https"] == "true",
@@ -302,6 +303,7 @@ func (s *Store) UpdateAppSettings(ctx context.Context, settings *AppSettings) er
 	settingsMap := map[string]string{
 		"app_name":         settings.AppName,
 		"core_config_path": settings.CoreConfigPath,
+		"update_channel":   settings.UpdateChannel,
 		"panel_https":     fmt.Sprintf("%v", settings.PanelHTTPS),
 		"panel_port":      fmt.Sprintf("%d", settings.PanelPort),
 		"panel_prefix":    settings.PanelPrefix,

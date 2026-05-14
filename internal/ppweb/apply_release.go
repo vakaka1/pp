@@ -25,6 +25,7 @@ type releaseApplyRequest struct {
 	StatusPath   string
 	PPService    string
 	WebService   string
+	Rollback     bool
 }
 
 func RunReleaseApplyCommand(args []string) error {
@@ -39,12 +40,99 @@ func RunReleaseApplyCommand(args []string) error {
 	fs.StringVar(&request.StatusPath, "status-path", "", "Status file path")
 	fs.StringVar(&request.PPService, "pp-service", "pp-core", "Systemd unit to restart after installing pp")
 	fs.StringVar(&request.WebService, "web-service", "pp-web", "Systemd unit to restart after installing pp-web")
+	fs.BoolVar(&request.Rollback, "rollback", false, "Rollback to previous version from .bak files")
 
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 
+	if request.Rollback {
+		return applyReleaseRollback(request)
+	}
+
 	return applyReleaseUpdate(request)
+}
+
+func applyReleaseRollback(request releaseApplyRequest) error {
+	now := time.Now().UTC()
+	if err := writeCLIUpdateStatus(request.StatusPath, updateRunStatus{
+		State:     "running",
+		Message:   "Выполняется откат к предыдущей версии.",
+		StartedAt: timePtr(now),
+	}); err != nil {
+		return err
+	}
+
+	if request.PPPath == "" || request.PPWebPath == "" || request.FrontendDist == "" {
+		return finalizeCLIUpdateError(request.StatusPath, "rollback", now, fmt.Errorf("пути для отката заданы не полностью"))
+	}
+
+	// Откат бинарников
+	if err := rollbackFile(request.PPPath); err != nil {
+		return finalizeCLIUpdateError(request.StatusPath, "rollback", now, err)
+	}
+	if err := rollbackFile(request.PPWebPath); err != nil {
+		return finalizeCLIUpdateError(request.StatusPath, "rollback", now, err)
+	}
+	// Откат фронтенда
+	if err := rollbackDirectory(request.FrontendDist); err != nil {
+		return finalizeCLIUpdateError(request.StatusPath, "rollback", now, err)
+	}
+
+	if request.PPService != "" && serviceUnitExists(request.PPService) {
+		_ = restartSystemService(request.PPService)
+	}
+
+	finishedAt := time.Now().UTC()
+	_ = writeCLIUpdateStatus(request.StatusPath, updateRunStatus{
+		State:      "success",
+		Message:    "Откат успешно завершен. Система перезагружается.",
+		StartedAt:  timePtr(now),
+		FinishedAt: timePtr(finishedAt),
+	})
+
+	if request.WebService != "" && serviceUnitExists(request.WebService) {
+		_ = restartSystemService(request.WebService)
+	}
+
+	return nil
+}
+
+func rollbackFile(path string) error {
+	bak := path + ".bak"
+	if _, err := os.Stat(bak); err != nil {
+		return fmt.Errorf("резервная копия %s не найдена", bak)
+	}
+	// Мы не удаляем текущий файл, а меняем их местами, чтобы можно было "откатить откат" если что
+	tmp := path + ".tmp-rollback"
+	_ = os.Remove(tmp)
+	if err := os.Rename(path, tmp); err != nil {
+		return fmt.Errorf("не удалось переместить текущий файл %s: %w", path, err)
+	}
+	if err := os.Rename(bak, path); err != nil {
+		_ = os.Rename(tmp, path)
+		return fmt.Errorf("не удалось восстановить файл из %s: %w", bak, err)
+	}
+	_ = os.Rename(tmp, bak)
+	return nil
+}
+
+func rollbackDirectory(path string) error {
+	bak := path + ".bak"
+	if _, err := os.Stat(bak); err != nil {
+		return fmt.Errorf("резервная копия директории %s не найдена", bak)
+	}
+	tmp := path + ".tmp-rollback"
+	_ = os.RemoveAll(tmp)
+	if err := os.Rename(path, tmp); err != nil {
+		return fmt.Errorf("не удалось переместить текущую директорию %s: %w", path, err)
+	}
+	if err := os.Rename(bak, path); err != nil {
+		_ = os.Rename(tmp, path)
+		return fmt.Errorf("не удалось восстановить директорию из %s: %w", bak, err)
+	}
+	_ = os.Rename(tmp, bak)
+	return nil
 }
 
 func applyReleaseUpdate(request releaseApplyRequest) error {
@@ -265,6 +353,15 @@ func installReleaseBinary(sourcePath, targetPath string) error {
 		return err
 	}
 
+	// Создаем бэкап перед установкой
+	if _, err := os.Stat(targetPath); err == nil {
+		bakPath := targetPath + ".bak"
+		_ = os.Remove(bakPath)
+		if err := copyFile(targetPath, bakPath); err != nil {
+			return fmt.Errorf("failed to create backup of %s: %w", targetPath, err)
+		}
+	}
+
 	tempFile, err := os.CreateTemp(filepath.Dir(targetPath), filepath.Base(targetPath)+".tmp-*")
 	if err != nil {
 		return err
@@ -330,8 +427,24 @@ func installFrontendBundle(archivePath, targetDir string) error {
 		return err
 	}
 
-	_ = os.RemoveAll(backupDir)
 	return nil
+}
+
+func copyFile(src, dst string) error {
+	source, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer source.Close()
+
+	destination, err := os.OpenFile(dst, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o755)
+	if err != nil {
+		return err
+	}
+	defer destination.Close()
+
+	_, err = io.Copy(destination, source)
+	return err
 }
 
 func extractFrontendArchive(archivePath, destination string) error {

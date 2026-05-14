@@ -177,6 +177,20 @@ export default function AboutPage({ data, loading, error, onRefresh, onNotice })
     }
   }
 
+  async function handleRollback() {
+    if (!confirm("Вы уверены, что хотите откатиться к предыдущей версии? Это восстановит бинарные файлы и фронтенд из резервных копий .bak. Система будет перезапущена.")) return;
+    setSubmitting(true);
+    try {
+      const payload = await api.rollback();
+      onNotice({ tone: "success", message: payload.message || "Откат запущен." });
+      await onRefresh?.({ force: true });
+    } catch (err) {
+      onNotice({ tone: "error", message: err.message });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   async function handleCopy(value, successMessage) {
     const copied = await copyToClipboard(value);
     onNotice({ tone: copied ? "success" : "error", message: copied ? successMessage : "Не удалось скопировать путь." });
@@ -228,6 +242,9 @@ export default function AboutPage({ data, loading, error, onRefresh, onNotice })
         <div className="about-hero__actions">
            <button className="ghost-button" onClick={() => onRefresh?.({ force: true })} disabled={busy}>
              <IconRefresh /> Проверить обновления
+           </button>
+           <button className="ghost-button" onClick={handleRollback} disabled={busy} title="Откат к предыдущей версии из .bak файлов">
+             Откатить изменения
            </button>
            {release?.updateAvailable && (
              <button className="primary-button" onClick={handleUpdate} disabled={busy || !update?.canStart}>

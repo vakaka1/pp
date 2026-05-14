@@ -136,27 +136,19 @@ sudo pp-client start --config client.json --full-tunnel --transparent-listen 127
 pkexec pp-client start --config client.json --full-tunnel
 ```
 
-**Windows (требует Администратора):**
+**Windows:**
 ```powershell
 pp-client.exe start --config client.json --full-tunnel
 pp-client.exe start client --full-tunnel
 ```
-Для GUI: запустите процесс с `runas` или проверяйте права через `net session`:
-```dart
-// Dart/Flutter — запуск с повышенными привилегиями
-final process = await Process.start('powershell', [
-  '-Command', 'Start-Process', 'pp-client.exe',
-  '-ArgumentList', '"start --config client.json --full-tunnel"',
-  '-Verb', 'RunAs',
-]);
-```
+Если процесс не elevated, клиент сам запросит UAC-повышение и перезапустит себя с теми же аргументами.
 
 `start --full-tunnel` держит туннель активным, пока жив процесс клиента, и при штатном завершении сам откатывает правила/маршруты. Ручная команда `full-tunnel down` нужна только для аварийной очистки после crash/kill:
 ```bash
 # Linux
 sudo pp-client full-tunnel down
 
-# Windows (Администратор)
+# Windows
 pp-client.exe full-tunnel down
 ```
 

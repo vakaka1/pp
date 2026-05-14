@@ -235,6 +235,17 @@ func main() {
 		Use:   "start [config-name]",
 		Short: "Start client proxy",
 		Run: func(cmd *cobra.Command, args []string) {
+			if enableFullTunnel {
+				restarted, err := ensureElevatedForFullTunnel()
+				if err != nil {
+					fmt.Println(err)
+					os.Exit(1)
+				}
+				if restarted {
+					return
+				}
+			}
+
 			target := cfgFile
 			if target == "" && len(args) > 0 {
 				target = args[0]
@@ -332,7 +343,7 @@ func main() {
 	clientCmd.Flags().StringVar(&cfgFile, "config", "", "Config file")
 	clientCmd.Flags().StringVar(&transparentListen, "transparent-listen", "", "Transparent TCP listener for redirected full-tunnel traffic")
 	clientCmd.Flags().BoolVar(&enableSysProxy, "system-proxy", false, "Enable system proxy on start (Windows: registry, other: no-op)")
-	clientCmd.Flags().BoolVar(&enableFullTunnel, "full-tunnel", false, "Enable full-tunnel mode (requires root/admin)")
+	clientCmd.Flags().BoolVar(&enableFullTunnel, "full-tunnel", false, "Enable full-tunnel mode (requires root/admin; Windows prompts automatically)")
 	clientCmd.Flags().StringVar(&fullTunnelOwner, "owner", "", "Username or UID to exempt from full-tunnel redirection (Linux only)")
 
 	fullTunnelCmd := &cobra.Command{
@@ -344,6 +355,15 @@ func main() {
 		Use:   "up [config-name]",
 		Short: "Enable full-tunnel redirection",
 		Run: func(cmd *cobra.Command, args []string) {
+			restarted, err := ensureElevatedForFullTunnel()
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+			if restarted {
+				return
+			}
+
 			target := cfgFile
 			if target == "" && len(args) > 0 {
 				target = args[0]
@@ -379,6 +399,15 @@ func main() {
 		Use:   "down",
 		Short: "Disable full-tunnel redirection",
 		Run: func(cmd *cobra.Command, args []string) {
+			restarted, err := ensureElevatedForFullTunnel()
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+			if restarted {
+				return
+			}
+
 			if err := fulltunnel.Down(); err != nil {
 				fmt.Println(err)
 				os.Exit(1)

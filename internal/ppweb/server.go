@@ -152,6 +152,8 @@ func (s *Server) serveAPI(w http.ResponseWriter, r *http.Request) {
 		s.withAdmin(w, r, s.handleAbout)
 	case r.URL.Path == "/api/about/update" && r.Method == http.MethodPost:
 		s.withAdmin(w, r, s.handleAboutUpdate)
+	case r.URL.Path == "/api/about/rollback" && r.Method == http.MethodPost:
+		s.withAdmin(w, r, s.handleAboutRollback)
 	case r.URL.Path == "/api/connections" && r.Method == http.MethodGet:
 		s.withAdmin(w, r, s.handleConnectionsList)
 	case r.URL.Path == "/api/connections" && r.Method == http.MethodPost:

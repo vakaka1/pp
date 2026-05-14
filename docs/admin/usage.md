@@ -38,7 +38,7 @@
 
 Если нужно перенаправлять весь TCP-трафик системы, запускайте клиент сразу в full-tunnel режиме:
 *   **Linux:** `sudo pp-client start --config client.json --full-tunnel`
-*   **Windows:** `pp-client.exe start --config client.json --full-tunnel` из консоли администратора
+*   **Windows:** `pp-client.exe start --config client.json --full-tunnel` — если консоль не elevated, клиент сам запросит UAC-повышение
 
 После импорта можно использовать имя профиля вместо пути к файлу: `pp-client start client --full-tunnel`.
 

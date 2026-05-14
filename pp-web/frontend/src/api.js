@@ -67,6 +67,12 @@ export const api = {
       body: JSON.stringify({})
     });
   },
+  rollback() {
+    return request("/api/about/rollback", {
+      method: "POST",
+      body: JSON.stringify({})
+    });
+  },
   listConnections() {
     return request("/api/connections", { method: "GET" });
   },

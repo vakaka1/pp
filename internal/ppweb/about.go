@@ -26,11 +26,12 @@ const (
 	gitHubReleasesURL    = gitHubRepoURL + "/releases"
 	gitHubIssuesURL      = gitHubRepoURL + "/issues"
 	gitHubLatestRelease  = "https://api.github.com/repos/" + gitHubRepoSlug + "/releases/latest"
+	gitHubAllReleases    = "https://api.github.com/repos/" + gitHubRepoSlug + "/releases"
 	ppWebUpdateUnit      = "pp-web-update"
 	releaseCacheLifetime = 15 * time.Minute
 )
 
-var releaseVersionPattern = regexp.MustCompile(`^v?(\d+)\.(\d+)\.(\d+)$`)
+var releaseVersionPattern = regexp.MustCompile(`^v?(\d+)\.(\d+)\.(\d+)(-.+)?$`)
 
 type gitHubRelease struct {
 	TagName     string               `json:"tag_name"`
@@ -193,6 +194,92 @@ func (s *Server) handleAboutUpdate(w http.ResponseWriter, r *http.Request, _ *Ad
 	})
 }
 
+func (s *Server) handleAboutRollback(w http.ResponseWriter, r *http.Request, _ *Admin) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	status := s.readUpdateStatus()
+	if status.State == "queued" || status.State == "running" {
+		writeError(w, http.StatusConflict, "обновление или откат уже запущены")
+		return
+	}
+
+	startedAt := time.Now().UTC()
+	if err := s.writeUpdateStatus(updateRunStatus{
+		State:     "queued",
+		Message:   "Запрос на откат поставлен в очередь.",
+		StartedAt: timePtr(startedAt),
+	}); err != nil {
+		s.log.Warn("failed to pre-write update status", zap.Error(err))
+	}
+
+	mode, err := s.startReleaseRollback()
+	if err != nil {
+		finishedAt := time.Now().UTC()
+		_ = s.writeUpdateStatus(updateRunStatus{
+			State:      "error",
+			Message:    err.Error(),
+			StartedAt:  timePtr(startedAt),
+			FinishedAt: timePtr(finishedAt),
+		})
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":      true,
+		"mode":    mode,
+		"message": "Откат запущен.",
+	})
+}
+
+func (s *Server) startReleaseRollback() (string, error) {
+	executablePath, err := os.Executable()
+	if err != nil {
+		return "", fmt.Errorf("не удалось определить путь к pp-web: %w", err)
+	}
+
+	ppPath, err := s.resolvePPCoreBinaryPath()
+	if err != nil {
+		return "", err
+	}
+
+	args := []string{
+		"apply-release",
+		"--rollback",
+		"--pp-path", ppPath,
+		"--pp-web-path", executablePath,
+		"--frontend-dist", s.opts.FrontendDist,
+		"--status-path", s.updateStatusPath(),
+		"--pp-service", "pp-core",
+		"--web-service", "pp-web",
+	}
+
+	// Мы используем transient unit если возможно, чтобы корректно перезапустить сам pp-web
+	if s.serviceUnitExists("pp-web") && execPathAvailable("systemd-run") && os.Geteuid() == 0 {
+		unitName := fmt.Sprintf("pp-web-rollback-%d", time.Now().UTC().Unix())
+		runArgs := append([]string{"--unit", unitName, "--collect", "--quiet", executablePath}, args...)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		out, err := exec.CommandContext(ctx, "systemd-run", runArgs...).CombinedOutput()
+		if err != nil {
+			return "", fmt.Errorf("не удалось запустить откат: %s", strings.TrimSpace(string(out)))
+		}
+		return "transient", nil
+	}
+
+	// Иначе пробуем запустить напрямую (может не сработать для самого pp-web)
+	cmd := exec.Command(executablePath, args...)
+	if err := cmd.Start(); err != nil {
+		return "", fmt.Errorf("не удалось запустить процесс отката: %w", err)
+	}
+	return "direct", nil
+}
+
 func (s *Server) buildAboutPayload(ctx context.Context, forceRefresh bool) (*aboutPayload, error) {
 	settings, err := s.store.GetAppSettings(ctx, s.opts.CoreConfigPath)
 	if err != nil {
@@ -297,7 +384,15 @@ func (s *Server) fetchLatestRelease(ctx context.Context, forceRefresh bool) (*gi
 		return cached.Release, cached.CheckedAt, cached.Error
 	}
 
-	release, err := fetchGitHubRelease(ctx, gitHubLatestRelease)
+	settings, _ := s.store.GetAppSettings(ctx, s.opts.CoreConfigPath)
+	channel := settings.UpdateChannel
+
+	endpoint := gitHubLatestRelease
+	if channel == "testing" {
+		endpoint = gitHubAllReleases
+	}
+
+	release, err := fetchGitHubRelease(ctx, endpoint)
 	checkedAt := time.Now().UTC()
 	next := releaseCacheEntry{
 		Release:   release,
@@ -340,6 +435,17 @@ func fetchGitHubRelease(ctx context.Context, endpoint string) (*gitHubRelease, e
 			message = resp.Status
 		}
 		return nil, fmt.Errorf("github release request failed: %s", message)
+	}
+
+	if strings.HasSuffix(endpoint, "/releases") {
+		var releases []gitHubRelease
+		if err := json.NewDecoder(resp.Body).Decode(&releases); err != nil {
+			return nil, fmt.Errorf("failed to decode github releases list: %w", err)
+		}
+		if len(releases) == 0 {
+			return nil, errors.New("github releases list is empty")
+		}
+		return &releases[0], nil
 	}
 
 	var release gitHubRelease

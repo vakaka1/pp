@@ -74,6 +74,7 @@ type Client struct {
 type AppSettings struct {
 	AppName        string    `json:"appName"`
 	CoreConfigPath string    `json:"coreConfigPath"`
+	UpdateChannel  string    `json:"updateChannel"` // "stable" or "testing"
 	LastSyncAt     time.Time `json:"lastSyncAt"`
 	LastSyncError  string    `json:"lastSyncError"`
 	InitializedAt  time.Time `json:"initializedAt"`

@@ -2141,6 +2141,23 @@ function SettingsPage({ bootstrap, onNotice }) {
               </div>
             </div>
 
+            <div className="settings-section">
+              <h4>Обновления</h4>
+              <div className="input-group">
+                <label>Канал обновлений</label>
+                <select
+                  value={form.updateChannel || "stable"}
+                  onChange={(e) => setForm({ ...form, updateChannel: e.target.value })}
+                >
+                  <option value="stable">Стабильный (рекомендуется)</option>
+                  <option value="testing">Тестовый (Beta)</option>
+                </select>
+                <p className="muted-caption">
+                  На тестовом канале вы будете получать самые новые функции быстрее, но возможна нестабильная работа.
+                </p>
+              </div>
+            </div>
+
             <div className="settings-preview">
               <span className="eyebrow">Итоговый адрес доступа</span>
               <code>{previewUrl}</code>
