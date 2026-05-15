@@ -5,7 +5,9 @@ import (
 	crand "crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"net"
+	"net/http"
 	"time"
 
 	"github.com/vakaka1/pp/internal/config"
@@ -13,7 +15,9 @@ import (
 	"github.com/vakaka1/pp/internal/protocol"
 	"github.com/vakaka1/pp/internal/transport"
 	"github.com/xtaci/smux"
+	"go.uber.org/zap"
 	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/hpack"
 )
 
 func uuidV4() string {
@@ -31,12 +35,6 @@ func randomHex(n int) string {
 }
 
 func ConnectToServer(ctx context.Context, cfg *config.ClientConfig, noise *browserNoiseRunner) (*smux.Session, error) {
-	if noise != nil {
-		browseCtx, cancel := context.WithTimeout(ctx, browserNoisePreconnectTimeout)
-		noise.runPreConnectScenario(browseCtx)
-		cancel()
-	}
-
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -53,25 +51,33 @@ func ConnectToServer(ctx context.Context, cfg *config.ClientConfig, noise *brows
 		return nil, fmt.Errorf("write preface failed: %w", err)
 	}
 
-	h2 := protocol.NewH2Stream(conn)
-	h2.LockWrite()
+	framer := http2.NewFramer(conn, conn)
 
 	// Set a deadline for the handshake process
 	conn.SetDeadline(time.Now().Add(15 * time.Second))
 
-	if err := h2.Framer().WriteSettings(protocol.GetChromeSettings()...); err != nil {
-		h2.UnlockWrite()
-		h2.Close()
+	if err := framer.WriteSettings(protocol.GetChromeSettings()...); err != nil {
+		conn.Close()
 		return nil, fmt.Errorf("write settings failed: %w", err)
 	}
-	if err := h2.Framer().WriteWindowUpdate(0, 15663105); err != nil {
-		h2.UnlockWrite()
-		h2.Close()
+	if err := framer.WriteWindowUpdate(0, 15663105); err != nil {
+		conn.Close()
 		return nil, fmt.Errorf("write window update failed: %w", err)
 	}
 
 	streamID := uint32(1)
-	h2.ActiveStream = streamID
+	if noise != nil {
+		browseCtx, cancel := context.WithTimeout(ctx, browserNoisePreconnectTimeout)
+		streamID, err = runBrowserWarmupOnH2(browseCtx, framer, cfg, noise, streamID)
+		cancel()
+		if err != nil {
+			conn.Close()
+			return nil, fmt.Errorf("browser warmup failed: %w", err)
+		}
+	}
+
+	h2 := protocol.NewH2StreamWithFramer(conn, framer, streamID)
+	h2.LockWrite()
 
 	if err := h2.Framer().WriteWindowUpdate(streamID, 15663105); err != nil {
 		h2.UnlockWrite()
@@ -130,6 +136,109 @@ func ConnectToServer(ctx context.Context, cfg *config.ClientConfig, noise *brows
 	conn.SetDeadline(time.Time{})
 
 	return session, nil
+}
+
+func runBrowserWarmupOnH2(ctx context.Context, framer *http2.Framer, cfg *config.ClientConfig, noise *browserNoiseRunner, streamID uint32) (uint32, error) {
+	if _, err := fetchWarmupPage(ctx, framer, cfg, noise, streamID, "/", ""); err != nil {
+		noise.log.Debug("browser warmup landing page failed", zap.Error(err))
+		return streamID, err
+	}
+	streamID += 2
+
+	if !noise.pause(ctx, noise.randomDuration(browserNoiseThinkMin, browserNoiseThinkMax)) {
+		return streamID, ctx.Err()
+	}
+
+	if _, err := fetchWarmupPage(ctx, framer, cfg, noise, streamID, protocol.LoginTunnelPath, "https://"+cfg.Server.Domain+"/"); err != nil {
+		noise.log.Debug("browser warmup login page failed", zap.Error(err))
+		return streamID, err
+	}
+	streamID += 2
+
+	return streamID, nil
+}
+
+func fetchWarmupPage(ctx context.Context, framer *http2.Framer, cfg *config.ClientConfig, noise *browserNoiseRunner, streamID uint32, path, referer string) (browserNoisePage, error) {
+	headers := []hpack.HeaderField{
+		{Name: ":method", Value: http.MethodGet},
+		{Name: ":scheme", Value: "https"},
+		{Name: ":path", Value: path},
+		{Name: ":authority", Value: cfg.Server.Domain},
+		{Name: "user-agent", Value: noise.userAgent},
+		{Name: "accept", Value: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"},
+		{Name: "accept-language", Value: "ru-RU,ru;q=0.9,en-US;q=0.7,en;q=0.5"},
+		{Name: "cache-control", Value: "max-age=0"},
+		{Name: "upgrade-insecure-requests", Value: "1"},
+	}
+	if referer != "" {
+		headers = append(headers, hpack.HeaderField{Name: "referer", Value: referer})
+	}
+
+	if err := protocol.WriteHeaders(framer, streamID, true, headers); err != nil {
+		return browserNoisePage{}, err
+	}
+
+	body, err := readWarmupResponse(ctx, framer, streamID)
+	if err != nil {
+		return browserNoisePage{}, err
+	}
+	return browserNoisePage{articlePaths: extractBrowserNoiseArticlePaths(string(body))}, nil
+}
+
+func readWarmupResponse(ctx context.Context, framer *http2.Framer, streamID uint32) ([]byte, error) {
+	var body []byte
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+		}
+
+		frame, err := framer.ReadFrame()
+		if err != nil {
+			return nil, err
+		}
+
+		switch f := frame.(type) {
+		case *http2.DataFrame:
+			if f.StreamID != streamID {
+				continue
+			}
+			if len(body) < 2<<20 {
+				remaining := (2 << 20) - len(body)
+				data := f.Data()
+				if len(data) > remaining {
+					data = data[:remaining]
+				}
+				body = append(body, data...)
+			}
+			if f.StreamEnded() {
+				return body, nil
+			}
+		case *http2.HeadersFrame:
+			if f.StreamID == streamID && f.StreamEnded() {
+				return body, nil
+			}
+		case *http2.SettingsFrame:
+			if !f.IsAck() {
+				if err := framer.WriteSettingsAck(); err != nil {
+					return nil, err
+				}
+			}
+		case *http2.PingFrame:
+			if !f.IsAck() {
+				if err := framer.WritePing(true, f.Data); err != nil {
+					return nil, err
+				}
+			}
+		case *http2.RSTStreamFrame:
+			if f.StreamID == streamID {
+				return nil, fmt.Errorf("warmup stream reset: %v", f.ErrCode)
+			}
+		case *http2.GoAwayFrame:
+			return nil, io.EOF
+		}
+	}
 }
 
 func clientSmuxConfig(cfg *config.ClientConfig) *smux.Config {

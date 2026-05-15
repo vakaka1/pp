@@ -27,12 +27,16 @@ type H2Stream struct {
 }
 
 func NewH2Stream(conn net.Conn) *H2Stream {
+	return NewH2StreamWithFramer(conn, http2.NewFramer(conn, conn), 1)
+}
+
+func NewH2StreamWithFramer(conn net.Conn, framer *http2.Framer, activeStream uint32) *H2Stream {
 	s := &H2Stream{
 		conn:         conn,
-		framer:       http2.NewFramer(conn, conn),
+		framer:       framer,
 		connWindow:   65535,
 		streamWind:   65535,
-		ActiveStream: 1,
+		ActiveStream: activeStream,
 	}
 	s.readCond = sync.NewCond(&sync.Mutex{})
 	s.sendCond = sync.NewCond(&sync.Mutex{})
