@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -470,18 +471,12 @@ func extractFrontendArchive(archivePath, destination string) error {
 			return err
 		}
 
-		// Пытаемся определить, нужно ли отрезать первый компонент пути (например, "dist/")
-		// Если путь содержит "/" и первый компонент "dist", отрезаем его.
-		// Иначе пробуем извлечь как есть.
-		cleanName := strings.ReplaceAll(header.Name, "\\", "/")
-		parts := strings.Split(strings.TrimPrefix(cleanName, "./"), "/")
-		
-		var relativePath string
-		if len(parts) > 1 && (parts[0] == "dist" || parts[0] == ".") {
-			relativePath = filepath.Join(parts[1:]...)
-		} else {
-			relativePath = filepath.Join(parts...)
+		stripComponents := 0
+		parts := strings.Split(strings.TrimPrefix(strings.ReplaceAll(header.Name, "\\", "/"), "./"), "/")
+		if len(parts) > 1 && (parts[0] == "dist" || parts[0] == "frontend" || parts[0] == ".") {
+			stripComponents = 1
 		}
+		relativePath := sanitizeArchivePath(header.Name, stripComponents)
 
 		if relativePath == "" || relativePath == "." {
 			continue
@@ -514,6 +509,33 @@ func extractFrontendArchive(archivePath, destination string) error {
 			}
 		}
 	}
+}
+
+func sanitizeArchivePath(name string, stripComponents int) string {
+	name = strings.ReplaceAll(strings.TrimSpace(name), "\\", "/")
+	name = strings.TrimPrefix(name, "./")
+	if name == "" {
+		return ""
+	}
+
+	parts := strings.Split(name, "/")
+	if stripComponents > len(parts) {
+		return ""
+	}
+	parts = parts[stripComponents:]
+
+	clean := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" || part == "." || part == ".." {
+			continue
+		}
+		clean = append(clean, part)
+	}
+	if len(clean) == 0 {
+		return ""
+	}
+	return filepath.FromSlash(path.Join(clean...))
 }
 
 func restartSystemService(name string) error {

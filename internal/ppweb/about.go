@@ -524,7 +524,7 @@ func describeReleaseStatus(currentVersion string, latest *gitHubRelease, checked
 
 func parseVersionTriplet(raw string) (versionTriplet, bool) {
 	matches := releaseVersionPattern.FindStringSubmatch(strings.TrimSpace(raw))
-	if len(matches) != 4 {
+	if len(matches) < 4 {
 		return versionTriplet{}, false
 	}
 

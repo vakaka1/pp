@@ -45,6 +45,22 @@ func TestDescribeReleaseStatusMajorUpdate(t *testing.T) {
 	}
 }
 
+func TestDescribeReleaseStatusPrereleaseUpdate(t *testing.T) {
+	info := describeReleaseStatus(
+		"v1.0.56",
+		&gitHubRelease{TagName: "v1.0.58-rc.1"},
+		time.Time{},
+		"",
+	)
+
+	if !info.UpdateAvailable {
+		t.Fatalf("expected prerelease update to be available")
+	}
+	if info.Severity != "patch" {
+		t.Fatalf("expected patch severity, got %q", info.Severity)
+	}
+}
+
 func TestDescribeReleaseStatusDevBuildDoesNotOfferUpdate(t *testing.T) {
 	info := describeReleaseStatus(
 		"dev",
