@@ -66,7 +66,7 @@ func TestExtractBrowserNoiseArticlePaths(t *testing.T) {
 	}
 }
 
-func TestBrowserNoisePreConnectScenarioVisitsLandingArticleAndLogin(t *testing.T) {
+func TestBrowserNoisePreConnectScenarioVisitsLandingOnly(t *testing.T) {
 	doer := &fakeNoiseDoer{
 		responses: map[string]string{
 			"GET /":          `<html><body><a href="/article/1">read</a></body></html>`,
@@ -89,20 +89,14 @@ func TestBrowserNoisePreConnectScenarioVisitsLandingArticleAndLogin(t *testing.T
 
 	runner.runPreConnectScenario(context.Background())
 
-	if len(doer.requests) != 3 {
-		t.Fatalf("expected 3 browser-noise requests, got %d: %#v", len(doer.requests), doer.requests)
+	if len(doer.requests) != 1 {
+		t.Fatalf("expected 1 browser-noise request, got %d: %#v", len(doer.requests), doer.requests)
 	}
 	if doer.requests[0].Method != http.MethodGet || doer.requests[0].Path != "/" {
 		t.Fatalf("unexpected first request: %#v", doer.requests[0])
 	}
-	if doer.requests[1].Method != http.MethodGet || doer.requests[1].Path != "/article/1" {
-		t.Fatalf("unexpected second request: %#v", doer.requests[1])
-	}
-	if doer.requests[2].Method != http.MethodGet || doer.requests[2].Path != "/login" {
-		t.Fatalf("unexpected third request: %#v", doer.requests[2])
-	}
-	if len(sleeps) == 0 {
-		t.Fatalf("expected think-time pauses to be recorded")
+	if len(sleeps) != 0 {
+		t.Fatalf("pre-connect landing-only scenario must not add extra pauses, got %#v", sleeps)
 	}
 }
 

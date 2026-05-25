@@ -26,16 +26,34 @@ type H2Stream struct {
 	ActiveStream uint32
 }
 
+type H2FlowState struct {
+	ConnWindow   int32
+	StreamWindow int32
+}
+
 func NewH2Stream(conn net.Conn) *H2Stream {
 	return NewH2StreamWithFramer(conn, http2.NewFramer(conn, conn), 1)
 }
 
 func NewH2StreamWithFramer(conn net.Conn, framer *http2.Framer, activeStream uint32) *H2Stream {
+	return NewH2StreamWithFramerState(conn, framer, activeStream, H2FlowState{
+		ConnWindow:   65535,
+		StreamWindow: 65535,
+	})
+}
+
+func NewH2StreamWithFramerState(conn net.Conn, framer *http2.Framer, activeStream uint32, flow H2FlowState) *H2Stream {
+	if flow.ConnWindow <= 0 {
+		flow.ConnWindow = 65535
+	}
+	if flow.StreamWindow <= 0 {
+		flow.StreamWindow = 65535
+	}
 	s := &H2Stream{
 		conn:         conn,
 		framer:       framer,
-		connWindow:   65535,
-		streamWind:   65535,
+		connWindow:   flow.ConnWindow,
+		streamWind:   flow.StreamWindow,
 		ActiveStream: activeStream,
 	}
 	s.readCond = sync.NewCond(&sync.Mutex{})
@@ -84,6 +102,15 @@ func (s *H2Stream) readLoop() {
 			}
 		case *http2.SettingsFrame:
 			if !f.IsAck() {
+				f.ForeachSetting(func(setting http2.Setting) error {
+					if setting.ID == http2.SettingInitialWindowSize {
+						s.sendCond.L.Lock()
+						s.streamWind = int32(setting.Val)
+						s.sendCond.Broadcast()
+						s.sendCond.L.Unlock()
+					}
+					return nil
+				})
 				s.writeMut.Lock()
 				s.framer.WriteSettingsAck()
 				s.writeMut.Unlock()

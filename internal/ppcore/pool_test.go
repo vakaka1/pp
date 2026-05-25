@@ -62,16 +62,13 @@ func TestOpenStreamStatusTimeoutDoesNotCloseSession(t *testing.T) {
 	}
 }
 
-func TestClientSmuxConfigClampsUnsafeKeepaliveInterval(t *testing.T) {
+func TestClientSmuxConfigKeepsKeepaliveDisabled(t *testing.T) {
 	cfg := &config.ClientConfig{}
-	cfg.Transport.KeepaliveIntervalSeconds = 120
+	cfg.Transport.KeepaliveIntervalSeconds = 300
 
 	smuxCfg := clientSmuxConfig(cfg)
-	if smuxCfg.KeepAliveInterval >= smuxCfg.KeepAliveTimeout {
-		t.Fatalf("keepalive interval must be below timeout, got interval=%s timeout=%s", smuxCfg.KeepAliveInterval, smuxCfg.KeepAliveTimeout)
-	}
-	if smuxCfg.KeepAliveInterval != protocol.DefaultSmuxConfig().KeepAliveTimeout/2 {
-		t.Fatalf("unexpected clamped keepalive interval: %s", smuxCfg.KeepAliveInterval)
+	if !smuxCfg.KeepAliveDisabled {
+		t.Fatalf("smux keepalive must stay disabled")
 	}
 }
 

@@ -66,9 +66,13 @@ func ConnectToServer(ctx context.Context, cfg *config.ClientConfig, noise *brows
 	}
 
 	streamID := uint32(1)
+	flowState := protocol.H2FlowState{
+		ConnWindow:   65535,
+		StreamWindow: 65535,
+	}
 	if noise != nil {
 		browseCtx, cancel := context.WithTimeout(ctx, browserNoisePreconnectTimeout)
-		streamID, err = runBrowserWarmupOnH2(browseCtx, framer, cfg, noise, streamID)
+		streamID, flowState, err = runBrowserWarmupOnH2(browseCtx, framer, cfg, noise, streamID, flowState)
 		cancel()
 		if err != nil {
 			conn.Close()
@@ -76,7 +80,9 @@ func ConnectToServer(ctx context.Context, cfg *config.ClientConfig, noise *brows
 		}
 	}
 
-	h2 := protocol.NewH2StreamWithFramer(conn, framer, streamID)
+	// The authenticated gRPC request is the login action. There is no separate
+	// GET /login before it: the POST /login with a valid token is the tunnel.
+	h2 := protocol.NewH2StreamWithFramerState(conn, framer, streamID, flowState)
 	h2.LockWrite()
 
 	if err := h2.Framer().WriteWindowUpdate(streamID, 15663105); err != nil {
@@ -95,8 +101,6 @@ func ConnectToServer(ctx context.Context, cfg *config.ClientConfig, noise *brows
 		return nil, fmt.Errorf("jwt generation failed: %w", err)
 	}
 
-	// The authenticated gRPC request is the login action. A normal GET /login
-	// renders the fallback page; a POST /login with a valid token opens the tunnel.
 	headers := protocol.GenerateGRPCClientHeaders(cfg.Server.Domain, protocol.LoginTunnelPath, jwtToken, cfg.Server.GRPCUserAgent)
 	if err := protocol.WriteHeaders(h2.Framer(), streamID, false, headers); err != nil {
 		h2.UnlockWrite()
@@ -138,27 +142,22 @@ func ConnectToServer(ctx context.Context, cfg *config.ClientConfig, noise *brows
 	return session, nil
 }
 
-func runBrowserWarmupOnH2(ctx context.Context, framer *http2.Framer, cfg *config.ClientConfig, noise *browserNoiseRunner, streamID uint32) (uint32, error) {
-	if _, err := fetchWarmupPage(ctx, framer, cfg, noise, streamID, "/", ""); err != nil {
+func runBrowserWarmupOnH2(ctx context.Context, framer *http2.Framer, cfg *config.ClientConfig, noise *browserNoiseRunner, streamID uint32, flowState protocol.H2FlowState) (uint32, protocol.H2FlowState, error) {
+	var err error
+	if _, flowState, err = fetchWarmupPage(ctx, framer, cfg, noise, streamID, flowState, "/", ""); err != nil {
 		noise.log.Debug("browser warmup landing page failed", zap.Error(err))
-		return streamID, err
+		return streamID, flowState, err
 	}
 	streamID += 2
 
 	if !noise.pause(ctx, noise.randomDuration(browserNoiseThinkMin, browserNoiseThinkMax)) {
-		return streamID, ctx.Err()
+		return streamID, flowState, ctx.Err()
 	}
 
-	if _, err := fetchWarmupPage(ctx, framer, cfg, noise, streamID, protocol.LoginTunnelPath, "https://"+cfg.Server.Domain+"/"); err != nil {
-		noise.log.Debug("browser warmup login page failed", zap.Error(err))
-		return streamID, err
-	}
-	streamID += 2
-
-	return streamID, nil
+	return streamID, flowState, nil
 }
 
-func fetchWarmupPage(ctx context.Context, framer *http2.Framer, cfg *config.ClientConfig, noise *browserNoiseRunner, streamID uint32, path, referer string) (browserNoisePage, error) {
+func fetchWarmupPage(ctx context.Context, framer *http2.Framer, cfg *config.ClientConfig, noise *browserNoiseRunner, streamID uint32, flowState protocol.H2FlowState, path, referer string) (browserNoisePage, protocol.H2FlowState, error) {
 	headers := []hpack.HeaderField{
 		{Name: ":method", Value: http.MethodGet},
 		{Name: ":scheme", Value: "https"},
@@ -175,28 +174,28 @@ func fetchWarmupPage(ctx context.Context, framer *http2.Framer, cfg *config.Clie
 	}
 
 	if err := protocol.WriteHeaders(framer, streamID, true, headers); err != nil {
-		return browserNoisePage{}, err
+		return browserNoisePage{}, flowState, err
 	}
 
-	body, err := readWarmupResponse(ctx, framer, streamID)
+	body, flowState, err := readWarmupResponse(ctx, framer, streamID, flowState)
 	if err != nil {
-		return browserNoisePage{}, err
+		return browserNoisePage{}, flowState, err
 	}
-	return browserNoisePage{articlePaths: extractBrowserNoiseArticlePaths(string(body))}, nil
+	return browserNoisePage{articlePaths: extractBrowserNoiseArticlePaths(string(body))}, flowState, nil
 }
 
-func readWarmupResponse(ctx context.Context, framer *http2.Framer, streamID uint32) ([]byte, error) {
+func readWarmupResponse(ctx context.Context, framer *http2.Framer, streamID uint32, flowState protocol.H2FlowState) ([]byte, protocol.H2FlowState, error) {
 	var body []byte
 	for {
 		select {
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return nil, flowState, ctx.Err()
 		default:
 		}
 
 		frame, err := framer.ReadFrame()
 		if err != nil {
-			return nil, err
+			return nil, flowState, err
 		}
 
 		switch f := frame.(type) {
@@ -213,37 +212,47 @@ func readWarmupResponse(ctx context.Context, framer *http2.Framer, streamID uint
 				body = append(body, data...)
 			}
 			if f.StreamEnded() {
-				return body, nil
+				return body, flowState, nil
 			}
 		case *http2.HeadersFrame:
 			if f.StreamID == streamID && f.StreamEnded() {
-				return body, nil
+				return body, flowState, nil
 			}
 		case *http2.SettingsFrame:
 			if !f.IsAck() {
+				f.ForeachSetting(func(setting http2.Setting) error {
+					if setting.ID == http2.SettingInitialWindowSize {
+						flowState.StreamWindow = int32(setting.Val)
+					}
+					return nil
+				})
 				if err := framer.WriteSettingsAck(); err != nil {
-					return nil, err
+					return nil, flowState, err
 				}
 			}
 		case *http2.PingFrame:
 			if !f.IsAck() {
 				if err := framer.WritePing(true, f.Data); err != nil {
-					return nil, err
+					return nil, flowState, err
 				}
+			}
+		case *http2.WindowUpdateFrame:
+			if f.StreamID == 0 {
+				flowState.ConnWindow += int32(f.Increment)
 			}
 		case *http2.RSTStreamFrame:
 			if f.StreamID == streamID {
-				return nil, fmt.Errorf("warmup stream reset: %v", f.ErrCode)
+				return nil, flowState, fmt.Errorf("warmup stream reset: %v", f.ErrCode)
 			}
 		case *http2.GoAwayFrame:
-			return nil, io.EOF
+			return nil, flowState, io.EOF
 		}
 	}
 }
 
 func clientSmuxConfig(cfg *config.ClientConfig) *smux.Config {
 	smuxCfg := protocol.DefaultSmuxConfig()
-	if cfg == nil || cfg.Transport.KeepaliveIntervalSeconds <= 0 {
+	if smuxCfg.KeepAliveDisabled || cfg == nil || cfg.Transport.KeepaliveIntervalSeconds <= 0 {
 		return smuxCfg
 	}
 

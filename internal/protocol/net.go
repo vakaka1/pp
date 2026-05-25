@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/flynn/noise"
@@ -16,6 +17,8 @@ type NoiseConn struct {
 	sendCipher *noise.CipherState
 	recvCipher *noise.CipherState
 	readBuf    bytes.Buffer
+	readMu     sync.Mutex
+	writeMu    sync.Mutex
 }
 
 func NewNoiseConn(conn net.Conn, sendCipher, recvCipher *noise.CipherState) *NoiseConn {
@@ -27,6 +30,9 @@ func NewNoiseConn(conn net.Conn, sendCipher, recvCipher *noise.CipherState) *Noi
 }
 
 func (c *NoiseConn) Read(b []byte) (n int, err error) {
+	c.readMu.Lock()
+	defer c.readMu.Unlock()
+
 	if c.readBuf.Len() > 0 {
 		return c.readBuf.Read(b)
 	}
@@ -51,6 +57,9 @@ func (c *NoiseConn) Read(b []byte) (n int, err error) {
 }
 
 func (c *NoiseConn) Write(b []byte) (n int, err error) {
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
+
 	const maxPlaintext = 16384 - 16 - 2 // Max GRPC payload (16384) minus MAC (16) minus len prefix (2)
 
 	for len(b) > 0 {

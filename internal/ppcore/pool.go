@@ -70,15 +70,10 @@ func (p *ConnectionPool) maintainConnection(ctx context.Context) {
 		p.setSession(sess)
 		p.log.Info("connected to server successfully")
 
-		presenceCtx, presenceCancel := context.WithCancel(ctx)
-		go noiseRunner.RunPresenceLoop(presenceCtx)
-
 		select {
 		case <-sess.CloseChan():
-			presenceCancel()
 			p.log.Warn("session closed")
 		case <-ctx.Done():
-			presenceCancel()
 			sess.Close()
 			return
 		}

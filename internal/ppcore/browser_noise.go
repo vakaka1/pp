@@ -81,33 +81,11 @@ func NewBrowserNoiseRunner(cfg *config.ClientConfig, log *zap.Logger) *browserNo
 
 func (b *browserNoiseRunner) runPreConnectScenario(ctx context.Context) {
 	b.log.Info("browser noise: starting pre-connect scenario")
-	page, err := b.fetchPage(ctx, http.MethodGet, "/", "", "")
-	if err != nil {
+	if _, err := b.fetchPage(ctx, http.MethodGet, "/", "", ""); err != nil {
 		b.log.Debug("browser noise landing page failed", zap.Error(err))
 		return
 	}
 	b.log.Info("browser noise: visited landing page", zap.String("path", "/"))
-
-	if !b.pause(ctx, b.randomDuration(browserNoiseThinkMin, browserNoiseThinkMax)) {
-		return
-	}
-
-	if articlePath := b.pickArticlePath(page.articlePaths); articlePath != "" {
-		if _, err := b.fetchPage(ctx, http.MethodGet, articlePath, "", b.baseURL+"/"); err != nil {
-			b.log.Debug("browser noise article visit failed", zap.String("path", articlePath), zap.Error(err))
-		} else {
-			b.log.Info("browser noise: visited article", zap.String("path", articlePath))
-		}
-		if !b.pause(ctx, b.randomDuration(browserNoiseThinkMin, browserNoiseThinkMax)) {
-			return
-		}
-	}
-
-	if _, err := b.fetchPage(ctx, http.MethodGet, "/login", "", b.baseURL+"/"); err != nil {
-		b.log.Debug("browser noise login page failed", zap.Error(err))
-		return
-	}
-	b.log.Info("browser noise: visited login page", zap.String("path", "/login"))
 
 	b.log.Info("browser noise pre-connect scenario completed successfully")
 }
