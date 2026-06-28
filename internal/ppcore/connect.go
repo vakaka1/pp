@@ -252,10 +252,11 @@ func readWarmupResponse(ctx context.Context, framer *http2.Framer, streamID uint
 
 func clientSmuxConfig(cfg *config.ClientConfig) *smux.Config {
 	smuxCfg := protocol.DefaultSmuxConfig()
-	if smuxCfg.KeepAliveDisabled || cfg == nil || cfg.Transport.KeepaliveIntervalSeconds <= 0 {
+	if cfg == nil || cfg.Transport.KeepaliveIntervalSeconds <= 0 {
 		return smuxCfg
 	}
 
+	smuxCfg.KeepAliveDisabled = false
 	keepAliveInterval := time.Duration(cfg.Transport.KeepaliveIntervalSeconds) * time.Second
 	if keepAliveInterval >= smuxCfg.KeepAliveTimeout {
 		keepAliveInterval = smuxCfg.KeepAliveTimeout / 2

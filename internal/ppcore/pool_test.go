@@ -62,13 +62,34 @@ func TestOpenStreamStatusTimeoutDoesNotCloseSession(t *testing.T) {
 	}
 }
 
-func TestClientSmuxConfigKeepsKeepaliveDisabled(t *testing.T) {
+func TestClientSmuxConfigUsesConfiguredKeepalive(t *testing.T) {
+	disabled := clientSmuxConfig(&config.ClientConfig{})
+	if !disabled.KeepAliveDisabled {
+		t.Fatalf("smux keepalive must stay disabled without a configured interval")
+	}
+
+	cfg := &config.ClientConfig{}
+	cfg.Transport.KeepaliveIntervalSeconds = 25
+
+	smuxCfg := clientSmuxConfig(cfg)
+	if smuxCfg.KeepAliveDisabled {
+		t.Fatalf("smux keepalive must be enabled when configured")
+	}
+	if smuxCfg.KeepAliveInterval != 25*time.Second {
+		t.Fatalf("unexpected keepalive interval: %v", smuxCfg.KeepAliveInterval)
+	}
+}
+
+func TestClientSmuxConfigCapsKeepaliveInterval(t *testing.T) {
 	cfg := &config.ClientConfig{}
 	cfg.Transport.KeepaliveIntervalSeconds = 300
 
 	smuxCfg := clientSmuxConfig(cfg)
-	if !smuxCfg.KeepAliveDisabled {
-		t.Fatalf("smux keepalive must stay disabled")
+	if smuxCfg.KeepAliveDisabled {
+		t.Fatalf("smux keepalive must be enabled when configured")
+	}
+	if smuxCfg.KeepAliveInterval != smuxCfg.KeepAliveTimeout/2 {
+		t.Fatalf("expected keepalive interval capped to half timeout, got %v", smuxCfg.KeepAliveInterval)
 	}
 }
 

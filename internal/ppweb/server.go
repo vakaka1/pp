@@ -480,6 +480,7 @@ func (s *Server) handleOverview(w http.ResponseWriter, r *http.Request, _ *Admin
 	}
 
 	binaryStatus := s.inspectPPCoreBinary()
+	processRunning := inferCoreRuntimeRunning(s.isCoreRunning(), activeConnections, reachableCount)
 
 	if buildErr != nil {
 		settings.LastSyncError = buildErr.Error()
@@ -504,7 +505,7 @@ func (s *Server) handleOverview(w http.ResponseWriter, r *http.Request, _ *Admin
 			"configPreview":   configPreview,
 			"lastSyncAt":      settings.LastSyncAt,
 			"lastSyncError":   settings.LastSyncError,
-			"processRunning":  s.isCoreRunning(),
+			"processRunning":  processRunning,
 		},
 		"protocols":     protocolCards,
 		"listeners":     listenerCards,

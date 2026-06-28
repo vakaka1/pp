@@ -38,12 +38,19 @@ func (s *Server) isCoreRunning() bool {
 		if s.coreCmd.ProcessState != nil {
 			return false
 		}
-		
+
 		// If not exited, we can assume it's running because we started it and haven't reaped it
 		// (exec.Cmd doesn't automatically reap unless Wait is called, which isn't in restartCore).
 		return true
 	}
 	return false
+}
+
+func inferCoreRuntimeRunning(processVisible bool, activeConnections int, reachableListeners int) bool {
+	if processVisible {
+		return true
+	}
+	return activeConnections > 0 && reachableListeners > 0
 }
 
 func (s *Server) applyCoreConfig(ctx context.Context) error {

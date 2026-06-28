@@ -44,6 +44,46 @@ func TestShouldManageNginx(t *testing.T) {
 	}
 }
 
+func TestInferCoreRuntimeRunning(t *testing.T) {
+	tests := []struct {
+		name               string
+		processVisible     bool
+		activeConnections  int
+		reachableListeners int
+		want               bool
+	}{
+		{
+			name:           "visible process",
+			processVisible: true,
+			want:           true,
+		},
+		{
+			name:               "reachable listener implies runtime is up",
+			activeConnections:  2,
+			reachableListeners: 1,
+			want:               true,
+		},
+		{
+			name:              "active connections without reachable listeners",
+			activeConnections: 1,
+			want:              false,
+		},
+		{
+			name: "no active connections",
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := inferCoreRuntimeRunning(tt.processVisible, tt.activeConnections, tt.reachableListeners)
+			if got != tt.want {
+				t.Fatalf("inferCoreRuntimeRunning() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestBuildCoreConfigInjectsTrackedClientsAndStatusPath(t *testing.T) {
 	registry := newProtocolRegistry()
 	secrets, err := registry.GenerateSecrets("pp-fallback")
