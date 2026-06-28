@@ -31,7 +31,7 @@ const (
 	releaseCacheLifetime = 15 * time.Minute
 )
 
-var releaseVersionPattern = regexp.MustCompile(`^v?(\d+)\.(\d+)\.(\d+)(-.+)?$`)
+var releaseVersionPattern = regexp.MustCompile(`^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$`)
 
 type gitHubRelease struct {
 	TagName     string               `json:"tag_name"`
@@ -109,9 +109,10 @@ type updateRunStatus struct {
 }
 
 type versionTriplet struct {
-	Major int
-	Minor int
-	Patch int
+	Major      int
+	Minor      int
+	Patch      int
+	Prerelease string
 }
 
 func (s *Server) handleAbout(w http.ResponseWriter, r *http.Request, _ *Admin) {
@@ -546,7 +547,12 @@ func parseVersionTriplet(raw string) (versionTriplet, bool) {
 		return versionTriplet{}, false
 	}
 
-	return versionTriplet{Major: major, Minor: minor, Patch: patch}, true
+	prerelease := ""
+	if len(matches) > 4 {
+		prerelease = matches[4]
+	}
+
+	return versionTriplet{Major: major, Minor: minor, Patch: patch, Prerelease: prerelease}, true
 }
 
 func compareVersions(left, right versionTriplet) int {
@@ -555,9 +561,66 @@ func compareVersions(left, right versionTriplet) int {
 		return compareInts(left.Major, right.Major)
 	case left.Minor != right.Minor:
 		return compareInts(left.Minor, right.Minor)
-	default:
+	case left.Patch != right.Patch:
 		return compareInts(left.Patch, right.Patch)
+	default:
+		return comparePrerelease(left.Prerelease, right.Prerelease)
 	}
+}
+
+func comparePrerelease(left, right string) int {
+	switch {
+	case left == right:
+		return 0
+	case left == "":
+		return 1
+	case right == "":
+		return -1
+	}
+
+	leftParts := strings.Split(left, ".")
+	rightParts := strings.Split(right, ".")
+	for index := 0; index < len(leftParts) && index < len(rightParts); index++ {
+		leftPart := leftParts[index]
+		rightPart := rightParts[index]
+		if leftPart == rightPart {
+			continue
+		}
+
+		leftNumber, leftNumeric := parseNumericIdentifier(leftPart)
+		rightNumber, rightNumeric := parseNumericIdentifier(rightPart)
+		switch {
+		case leftNumeric && rightNumeric:
+			return compareInts(leftNumber, rightNumber)
+		case leftNumeric:
+			return -1
+		case rightNumeric:
+			return 1
+		default:
+			if leftPart > rightPart {
+				return 1
+			}
+			return -1
+		}
+	}
+
+	return compareInts(len(leftParts), len(rightParts))
+}
+
+func parseNumericIdentifier(value string) (int, bool) {
+	if value == "" {
+		return 0, false
+	}
+	for _, r := range value {
+		if r < '0' || r > '9' {
+			return 0, false
+		}
+	}
+	number, err := strconv.Atoi(value)
+	if err != nil {
+		return 0, false
+	}
+	return number, true
 }
 
 func compareInts(left, right int) int {

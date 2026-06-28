@@ -61,6 +61,38 @@ func TestDescribeReleaseStatusPrereleaseUpdate(t *testing.T) {
 	}
 }
 
+func TestDescribeReleaseStatusPrereleaseSamePatchUpdate(t *testing.T) {
+	info := describeReleaseStatus(
+		"v1.0.58-rc.1",
+		&gitHubRelease{TagName: "v1.0.58-rc.2"},
+		time.Time{},
+		"",
+	)
+
+	if !info.UpdateAvailable {
+		t.Fatalf("expected newer prerelease to be available")
+	}
+	if info.Severity != "patch" {
+		t.Fatalf("expected patch severity, got %q", info.Severity)
+	}
+}
+
+func TestDescribeReleaseStatusStableReleaseIsNewerThanPrerelease(t *testing.T) {
+	info := describeReleaseStatus(
+		"v1.0.58-rc.2",
+		&gitHubRelease{TagName: "v1.0.58"},
+		time.Time{},
+		"",
+	)
+
+	if !info.UpdateAvailable {
+		t.Fatalf("expected stable release to be available")
+	}
+	if info.Severity != "patch" {
+		t.Fatalf("expected patch severity, got %q", info.Severity)
+	}
+}
+
 func TestDescribeReleaseStatusDevBuildDoesNotOfferUpdate(t *testing.T) {
 	info := describeReleaseStatus(
 		"dev",
