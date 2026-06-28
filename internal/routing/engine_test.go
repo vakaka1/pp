@@ -54,6 +54,14 @@ func TestRoutingRules(t *testing.T) {
 		t.Fatalf("regex match should have failed")
 	}
 
+	legacyReMatcher, err := CreateMatcher("regexp", "^api\\.example\\.com$", nil, nil)
+	if err != nil {
+		t.Fatalf("legacy regexp matcher failed: %v", err)
+	}
+	if !legacyReMatcher.Match("api.example.com", nil) {
+		t.Fatalf("legacy regexp match failed")
+	}
+
 	// Geosite mock
 	geositeMatcher, _ := CreateMatcher("geosite", "ru", nil, &GeoSiteDB{})
 	if !geositeMatcher.Match("yandex.ru", nil) {

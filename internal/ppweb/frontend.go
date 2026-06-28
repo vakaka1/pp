@@ -37,6 +37,15 @@ func (s *Server) serveFrontendFromDisk(w http.ResponseWriter, r *http.Request) b
 		http.ServeFile(w, r, targetPath)
 		return true
 	}
+	if assetPath := nestedFrontendAssetPath(requestPath); assetPath != "" {
+		targetPath = filepath.Join(s.opts.FrontendDist, filepath.FromSlash(assetPath))
+		if info, err := os.Stat(targetPath); err == nil && !info.IsDir() {
+			http.ServeFile(w, r, targetPath)
+			return true
+		}
+		http.NotFound(w, r)
+		return true
+	}
 
 	http.ServeFile(w, r, indexPath)
 	return true
@@ -57,6 +66,16 @@ func (s *Server) serveEmbeddedFrontend(w http.ResponseWriter, r *http.Request) {
 			http.FileServer(http.FS(webUI)).ServeHTTP(w, req)
 			return
 		}
+		if assetPath := nestedEmbeddedAssetPath(requestPath); assetPath != "" {
+			if _, err := fs.Stat(webUI, assetPath); err == nil {
+				req := r.Clone(r.Context())
+				req.URL.Path = "/" + assetPath
+				http.FileServer(http.FS(webUI)).ServeHTTP(w, req)
+				return
+			}
+			http.NotFound(w, r)
+			return
+		}
 	}
 
 	index, err := fs.ReadFile(webUI, "index.html")
@@ -68,6 +87,28 @@ func (s *Server) serveEmbeddedFrontend(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(index)
+}
+
+func nestedFrontendAssetPath(requestPath string) string {
+	const marker = "assets/"
+	if strings.HasPrefix(requestPath, marker) {
+		return requestPath
+	}
+	if index := strings.Index(requestPath, "/"+marker); index >= 0 {
+		return requestPath[index+1:]
+	}
+	return ""
+}
+
+func nestedEmbeddedAssetPath(requestPath string) string {
+	switch path.Base(requestPath) {
+	case "app.js":
+		return "app.js"
+	case "styles.css":
+		return "styles.css"
+	default:
+		return ""
+	}
 }
 
 func normalizeFrontendPath(requestPath string) string {

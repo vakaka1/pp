@@ -160,7 +160,7 @@ func (fallbackProtocol) Descriptor() ProtocolDescriptor {
 				Description: "Определяет режим работы и публичные параметры.",
 				Fields: []ProtocolField{
 					selectField("type", "Тип", true, "blog", []ProtocolOption{
-						{Value: "blog", Label: "Блог"},
+						{Value: "blog", Label: "Новости"},
 					}),
 					textField("domain", "Домен", true, "example.com", ""),
 					tagsField("scraper_keywords", "Теги", false, []string{"go", "linux"}, ""),

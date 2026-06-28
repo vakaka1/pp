@@ -95,7 +95,11 @@ func GeneratePanelCert(domain, certFile, keyFile string) error {
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	settings, _ := s.store.GetAppSettings(r.Context(), s.opts.CoreConfigPath)
+	settings, err := s.store.GetAppSettings(r.Context(), s.opts.CoreConfigPath)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load app settings: "+err.Error())
+		return
+	}
 	prefix := settings.PanelPrefix
 	if prefix != "" {
 		if !strings.HasPrefix(prefix, "/") {
@@ -103,24 +107,21 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		prefix = strings.TrimSuffix(prefix, "/")
 
-		if !strings.HasPrefix(r.URL.Path, prefix) {
-			// Redirect to prefix if not present?
-			// For now, just continue if prefix is empty or matches.
-			// Actually, if we are at / but prefix is /panel, we should probably redirect or 404.
-			if r.URL.Path == "/" || r.URL.Path == "" {
-				http.Redirect(w, r, prefix+"/", http.StatusFound)
-				return
-			}
-		} else {
-			// Strip prefix for internal routing
-			originalPath := r.URL.Path
-			r.URL.Path = strings.TrimPrefix(r.URL.Path, prefix)
-			if r.URL.Path == "" {
-				r.URL.Path = "/"
-			}
-			// Restore path after handling? Not really needed as we return.
-			defer func() { r.URL.Path = originalPath }()
+		if r.URL.Path == prefix {
+			http.Redirect(w, r, prefix+"/", http.StatusFound)
+			return
 		}
+		if !strings.HasPrefix(r.URL.Path, prefix+"/") {
+			http.NotFound(w, r)
+			return
+		}
+
+		originalPath := r.URL.Path
+		r.URL.Path = strings.TrimPrefix(r.URL.Path, prefix)
+		if r.URL.Path == "" {
+			r.URL.Path = "/"
+		}
+		defer func() { r.URL.Path = originalPath }()
 	}
 
 	if strings.HasPrefix(r.URL.Path, "/api/") {

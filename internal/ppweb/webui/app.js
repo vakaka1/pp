@@ -15,6 +15,7 @@ const viewerDialog = document.querySelector("#viewerDialog");
 const viewerTitle = document.querySelector("#viewerTitle");
 const viewerBody = document.querySelector("#viewerBody");
 const viewerClose = document.querySelector("#viewerClose");
+const panelBasePath = detectPanelBasePath();
 
 refreshButton.addEventListener("click", () => bootstrap());
 viewerClose.addEventListener("click", () => viewerDialog.close());
@@ -437,9 +438,6 @@ function bindDashboardEvents() {
     button.addEventListener("click", () => deleteClient(Number(button.dataset.deleteClient)));
   }
 
-  for (const button of document.querySelectorAll("[data-https-mode]")) {
-    button.addEventListener("click", () => setupHTTPS(Number(button.dataset.connectionId), button.dataset.httpsMode));
-  }
 }
 
 function renderConnectionCard(connection) {
@@ -457,14 +455,13 @@ function renderConnectionCard(connection) {
             <span class="pill ${connection.enabled ? "ok" : "bad"}">${connection.enabled ? "enabled" : "disabled"}</span>
             <span class="pill">${escapeHTML(connection.protocol)}</span>
             <span class="pill ${tlsEnabled ? "ok" : "warn"}">${tlsEnabled ? "https ready" : "tls not set"}</span>
-            <span class="pill">${escapeHTML(settings.type || "blog")}</span>
+            <span class="pill">${escapeHTML(siteTypeLabel(settings.type))}</span>
           </div>
         </div>
         <div class="connection-actions">
           <button class="subtle" data-edit-connection="${connection.id}">Edit</button>
           <button class="subtle" data-load-clients="${connection.id}">Clients</button>
           <button class="ghost" data-create-client="${connection.id}">New client</button>
-          <button class="ghost" data-https-mode="lets-encrypt" data-connection-id="${connection.id}">Let's Encrypt</button>
           <button class="danger" data-delete-connection="${connection.id}">Delete</button>
         </div>
       </div>
@@ -545,8 +542,22 @@ async function submitConnectionForm(event) {
       method,
       body: JSON.stringify(payload),
     });
-    const warning = response.warning ? ` ${response.warning}` : "";
-    showNotice(`Connection saved.${warning}`.trim(), response.warning ? "error" : "success");
+    const connection = response.connection;
+    if (connection && !(connection.tls && connection.tls.enabled)) {
+      try {
+        const httpsResponse = await apiFetch(`/api/connections/${connection.id}/setup-https`, {
+          method: "POST",
+          body: JSON.stringify({ mode: "lets-encrypt" }),
+        });
+        const httpsWarning = httpsResponse.warning ? ` ${httpsResponse.warning}` : "";
+        showNotice(`Connection saved. HTTPS updated.${httpsWarning}`.trim(), httpsResponse.warning ? "error" : "success");
+      } catch (error) {
+        showNotice(`Connection saved, but HTTPS was not configured: ${error.message}`, "error");
+      }
+    } else {
+      const warning = response.warning ? ` ${response.warning}` : "";
+      showNotice(`Connection saved.${warning}`.trim(), response.warning ? "error" : "success");
+    }
     state.editingId = null;
     await bootstrap();
   });
@@ -638,9 +649,6 @@ async function showClientConfig(connectionId, clientId) {
     const content = [
       `URI`,
       response.uri || "n/a",
-      ``,
-      `JSON`,
-      JSON.stringify(response.config || {}, null, 2),
     ].join("\n");
     showViewer(`Client ${clientId} config`, content);
   });
@@ -654,28 +662,6 @@ async function deleteClient(clientId) {
   await runAction(async () => {
     const response = await apiFetch(`/api/clients/${clientId}`, { method: "DELETE" });
     showNotice(response.warning ? response.warning : "Client deleted.", response.warning ? "error" : "success");
-    await bootstrap();
-  });
-}
-
-async function setupHTTPS(connectionId, mode) {
-  if (mode !== "lets-encrypt") {
-    showNotice("Only Let's Encrypt certificates are supported now.", "error");
-    return;
-  }
-
-  const message = "Issue a Let's Encrypt certificate now? DNS for the domain must already point to this server.";
-
-  if (!window.confirm(message)) {
-    return;
-  }
-
-  await runAction(async () => {
-    const response = await apiFetch(`/api/connections/${connectionId}/setup-https`, {
-      method: "POST",
-      body: JSON.stringify({ mode }),
-    });
-    showNotice(response.warning ? response.warning : "HTTPS updated.", response.warning ? "error" : "success");
     await bootstrap();
   });
 }
@@ -714,7 +700,7 @@ function showViewer(title, content) {
 }
 
 async function apiFetch(url, options = {}) {
-  const response = await fetch(url, {
+  const response = await fetch(withPanelBasePath(url), {
     credentials: "same-origin",
     headers: {
       "Content-Type": "application/json",
@@ -733,6 +719,31 @@ async function apiFetch(url, options = {}) {
   }
 
   return payload;
+}
+
+function detectPanelBasePath() {
+  const pathname = window.location.pathname || "/";
+  for (const marker of ["/app", "/login", "/setup"]) {
+    if (pathname === marker || pathname.startsWith(`${marker}/`)) {
+      return "";
+    }
+    const index = pathname.lastIndexOf(`${marker}/`);
+    if (index > 0) {
+      return pathname.slice(0, index).replace(/\/+$/, "");
+    }
+    if (pathname.endsWith(marker)) {
+      return pathname.slice(0, -marker.length).replace(/\/+$/, "");
+    }
+  }
+  if (pathname === "/") {
+    return "";
+  }
+  return pathname.replace(/\/+$/, "");
+}
+
+function withPanelBasePath(path) {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${panelBasePath}${normalizedPath}` || "/";
 }
 
 function buildConnectionDraft(connection) {
@@ -791,7 +802,7 @@ function buildConnectionDraft(connection) {
 
 function connectionTypeOptions(currentValue) {
   const options = [
-    { value: "blog", label: "blog" },
+    { value: "blog", label: "Новости" },
     { value: "proxy", label: "proxy" },
   ];
 
@@ -850,6 +861,16 @@ function runtimeWarningForConnection(connection) {
     return "HTTPS is not configured yet. Clients are generated for domain:443, so enable HTTPS first and pp-web will publish this site through nginx automatically.";
   }
   return "";
+}
+
+function siteTypeLabel(type) {
+  if (type === "proxy") {
+    return "proxy";
+  }
+  if (type === "forum") {
+    return "forum";
+  }
+  return "Новости";
 }
 
 function suggestListenAddress(connections) {

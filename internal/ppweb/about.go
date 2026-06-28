@@ -52,6 +52,7 @@ type releaseCacheEntry struct {
 	Release   *gitHubRelease
 	CheckedAt time.Time
 	Error     string
+	Channel   string
 }
 
 type aboutPayload struct {
@@ -380,12 +381,15 @@ func (s *Server) fetchLatestRelease(ctx context.Context, forceRefresh bool) (*gi
 	cached := s.releaseCache
 	s.releaseMu.Unlock()
 
-	if !forceRefresh && cached.Release != nil && time.Since(cached.CheckedAt) < releaseCacheLifetime {
-		return cached.Release, cached.CheckedAt, cached.Error
-	}
-
 	settings, _ := s.store.GetAppSettings(ctx, s.opts.CoreConfigPath)
 	channel := settings.UpdateChannel
+	if channel != "testing" {
+		channel = "stable"
+	}
+
+	if !forceRefresh && cached.Release != nil && cached.Channel == channel && time.Since(cached.CheckedAt) < releaseCacheLifetime {
+		return cached.Release, cached.CheckedAt, cached.Error
+	}
 
 	endpoint := gitHubLatestRelease
 	if channel == "testing" {
@@ -397,6 +401,7 @@ func (s *Server) fetchLatestRelease(ctx context.Context, forceRefresh bool) (*gi
 	next := releaseCacheEntry{
 		Release:   release,
 		CheckedAt: checkedAt,
+		Channel:   channel,
 	}
 
 	if err != nil {

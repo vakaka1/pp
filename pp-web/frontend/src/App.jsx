@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { api } from "./api";
+import { api, stripPanelBasePath, withPanelBasePath } from "./api";
 import AboutPage from "./AboutPage";
 
 const DEFAULT_LISTEN = "127.0.0.1:8081";
@@ -57,14 +57,16 @@ const THEME_OPTIONS = [
   }
 ];
 
-const RULE_TYPES = ["geosite", "geoip", "domain", "ip_cidr", "regexp"];
+const RULE_TYPES = ["geosite", "geoip", "domain", "domain_suffix", "domain_keyword", "ip_cidr", "domain_regex"];
 const RULE_POLICIES = ["proxy", "direct", "block"];
 const TYPE_LABELS = {
   geosite: "Сайты (geosite)",
   geoip: "IP страны (geoip)",
   domain: "Домен",
+  domain_suffix: "Суффикс домена",
+  domain_keyword: "Ключевое слово домена",
   ip_cidr: "IP/CIDR",
-  regexp: "Regexp"
+  domain_regex: "Regexp"
 };
 const POLICY_LABELS = {
   proxy: "прокси",
@@ -135,7 +137,7 @@ function createStatusTone(good) {
 function getSiteTypeLabel(type) {
   if (type === "forum") return "Форум";
   if (type === "proxy") return "Прокси";
-  return "Блог";
+  return "Новости";
 }
 
 function getUpdateIndicator(aboutData, aboutError) {
@@ -270,7 +272,7 @@ function dedupeTags(values) {
 export default function App() {
   const [bootstrap, setBootstrap] = useState(null);
   const [bootstrapError, setBootstrapError] = useState(null);
-  const [route, setRoute] = useState(window.location.pathname || "/");
+  const [route, setRoute] = useState(() => stripPanelBasePath(window.location.pathname || "/"));
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState(null);
   const [theme, setTheme] = useState(readInitialTheme);
@@ -283,7 +285,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const handlePopState = () => setRoute(window.location.pathname || "/");
+    const handlePopState = () => setRoute(stripPanelBasePath(window.location.pathname || "/"));
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
@@ -384,7 +386,7 @@ export default function App() {
       const payload = await api.bootstrap();
       setBootstrap(payload);
       setBootstrapError(null);
-      setRoute(window.location.pathname || "/");
+      setRoute(stripPanelBasePath(window.location.pathname || "/"));
     } catch (error) {
       setBootstrap(null);
       setBootstrapError(error.message);
@@ -412,10 +414,11 @@ export default function App() {
   }
 
   function navigate(path, replace = false) {
+    const browserPath = withPanelBasePath(path);
     if (replace) {
-      window.history.replaceState({}, "", path);
+      window.history.replaceState({}, "", browserPath);
     } else {
-      window.history.pushState({}, "", path);
+      window.history.pushState({}, "", browserPath);
     }
 
     setRoute(path);
@@ -606,13 +609,17 @@ function SetupPage({ appName, theme, onThemeChange, onSetup }) {
 function LoginPage({ appName, theme, onThemeChange, onLogin }) {
   const [form, setForm] = useState({ username: "", password: "" });
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
   async function handleSubmit(event) {
     event.preventDefault();
     setSubmitting(true);
+    setError("");
 
     try {
       await onLogin(form);
+    } catch (loginError) {
+      setError(loginError.message || "Неверное имя пользователя или пароль.");
     } finally {
       setSubmitting(false);
     }
@@ -651,6 +658,8 @@ function LoginPage({ appName, theme, onThemeChange, onLogin }) {
           <button type="submit" className="primary-button primary-button--wide" disabled={submitting}>
             {submitting ? "Проверяем доступ..." : "Войти"}
           </button>
+
+          {error ? <div className="form-error">{error}</div> : null}
         </form>
       </div>
     </OnboardingLayout>
@@ -1125,7 +1134,6 @@ function ConnectionsPage({ onNotice }) {
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingConnection, setEditingConnection] = useState(null);
   const [clientsOpen, setClientsOpen] = useState(null);
-  const [httpsChoice, setHttpsChoice] = useState(null);
   const [nginxConfigOpen, setNginxConfigOpen] = useState(null);
 
   useEffect(() => {
@@ -1274,8 +1282,14 @@ function ConnectionsPage({ onNotice }) {
                 message: result.warning || "Подключение сохранено."
               });
 
-              if (!id) {
-                setHttpsChoice(result.connection);
+              if (!result.connection?.tls?.enabled) {
+                try {
+                  await api.setupHTTPS(result.connection.id, "lets-encrypt");
+                  await loadConnections();
+                  onNotice({ tone: "success", message: "Подключение сохранено, HTTPS настроен автоматически." });
+                } catch (error) {
+                  onNotice({ tone: "warning", message: `Подключение сохранено, но HTTPS не настроен: ${error.message}` });
+                }
               }
             } catch (error) {
               onNotice({ tone: "error", message: error.message });
@@ -1293,15 +1307,6 @@ function ConnectionsPage({ onNotice }) {
         />
       ) : null}
 
-      {httpsChoice ? (
-        <HTTPSChoiceModal
-          connection={httpsChoice}
-          onClose={() => setHttpsChoice(null)}
-          onNotice={onNotice}
-          onUpdated={loadConnections}
-        />
-      ) : null}
-
       {nginxConfigOpen ? (
         <NginxModal
           connection={nginxConfigOpen}
@@ -1310,81 +1315,6 @@ function ConnectionsPage({ onNotice }) {
         />
       ) : null}
     </div>
-  );
-}
-
-function HTTPSChoiceModal({ connection, onClose, onNotice, onUpdated }) {
-  const [busy, setBusy] = useState(false);
-
-  async function handleApply() {
-    setBusy(true);
-
-    try {
-      await api.setupHTTPS(connection.id, "lets-encrypt");
-      onNotice({ tone: "success", message: "HTTPS через Let's Encrypt успешно настроен." });
-      await onUpdated();
-      onClose();
-    } catch (error) {
-      onNotice({ tone: "error", message: error.message });
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return createPortal(
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-window" onClick={(event) => event.stopPropagation()}>
-        <div className="modal-header">
-          <div>
-            <span className="eyebrow">HTTPS</span>
-            <h3>Настройка сертификата</h3>
-          </div>
-          <button className="icon-button" onClick={onClose}>
-            ×
-          </button>
-        </div>
-
-        <div className="modal-body">
-          {busy ? (
-            <div style={{ padding: "1.5rem 0", display: "flex", flexDirection: "column", gap: "1.2rem" }}>
-              <div className="status-stack">
-                <div className="status-orb" />
-                <div>
-                  <h4 style={{ margin: 0 }}>Выпуск сертификата</h4>
-                  <p style={{ margin: "0.25rem 0 0", opacity: 0.7, fontSize: "0.9rem" }}>
-                    Это может занять до минуты, пожалуйста, не закрывайте окно.
-                  </p>
-                </div>
-              </div>
-              <div className="loading-track" aria-hidden="true">
-                <span />
-              </div>
-            </div>
-          ) : (
-            <>
-              <p className="modal-intro">
-                Профиль создан. Можно сразу выпустить сертификат Let's Encrypt для домена{" "}
-                <strong>{connection.settings.domain}</strong>.
-              </p>
-
-              <div className="choice-grid choice-grid--single">
-                <button className="choice-card" onClick={handleApply} disabled={busy}>
-                  <h4>Let's Encrypt</h4>
-                  <p>Боевой сертификат. Для проверки нужен доступный 80 порт и настроенный DNS на этот сервер.</p>
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-
-        <div className="modal-footer">
-          <button className="ghost-button" onClick={onClose} disabled={busy}>
-            Пропустить сейчас
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body
   );
 }
 
@@ -1710,9 +1640,6 @@ function ConfigSummary({ config }) {
 }
 
 function ClientConfigModal({ preview, onClose, onNotice }) {
-  const [showUri, setShowUri] = useState(false);
-  const [showJson, setShowJson] = useState(false);
-
   function downloadJson() {
     const blob = new Blob([preview.configJson], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -1721,14 +1648,6 @@ function ClientConfigModal({ preview, onClose, onNotice }) {
     anchor.download = `${preview.name.replace(/[^a-zA-Z0-9_-]/g, "_")}.json`;
     anchor.click();
     URL.revokeObjectURL(url);
-  }
-
-  async function handleCopyJson() {
-    const copied = await copyToClipboard(preview.configJson);
-    onNotice({
-      tone: copied ? "success" : "error",
-      message: copied ? "JSON-конфиг скопирован." : "Не удалось скопировать JSON."
-    });
   }
 
   async function handleCopyUri() {
@@ -1759,51 +1678,22 @@ function ClientConfigModal({ preview, onClose, onNotice }) {
         <div className="modal-body scrollable">
           <div className="config-download-block">
             <div className="config-download-info">
-              <span className="config-format-badge">JSON</span>
+              <span className="config-format-badge">URI</span>
               <div>
-                <strong>Конфигурационный файл</strong>
-                <p className="muted-caption">Запуск: <code>pp-client start {preview.name || 'client'}</code></p>
+                <strong>URI подключения</strong>
+                <p className="muted-caption">JSON доступен только как скачиваемый файл.</p>
               </div>
             </div>
 
             <div className="button-group">
-              <button className="ghost-button ghost-button--small" onClick={handleCopyJson}>
-                Копировать JSON
-              </button>
               <button className="primary-button primary-button--sm" onClick={downloadJson}>
                 Скачать .json
               </button>
             </div>
           </div>
 
-          <div style={{ marginTop: '1.5rem' }}>
-            {showJson ? (
-              <pre className="json-panel json-panel--modal" style={{ maxHeight: '45vh', overflowY: 'auto' }}>{preview.configJson}</pre>
-            ) : (
-              <ConfigSummary config={preview.config} />
-            )}
-          </div>
-
-          <div style={{ display: "flex", gap: "0.5rem", marginTop: "1.5rem", flexWrap: "wrap" }}>
-            {preview.uri ? (
-              <button
-                className="ghost-button ghost-button--small"
-                onClick={() => setShowUri(!showUri)}
-              >
-                {showUri ? "Скрыть compact URI" : "Показать compact URI"}
-              </button>
-            ) : null}
-
-            <button
-              className="ghost-button ghost-button--small"
-              onClick={() => setShowJson(!showJson)}
-            >
-              {showJson ? "Показать инфо" : "Просмотреть JSON"}
-            </button>
-          </div>
-
-          {showUri && preview.uri ? (
-            <div className="uri-block" style={{ marginTop: "0.75rem" }}>
+          {preview.uri ? (
+            <div className="uri-block" style={{ marginTop: "1rem" }}>
               <div className="uri-label">
                 <span>ppf:// URI</span>
                 <button className="ghost-button ghost-button--small" onClick={handleCopyUri}>
@@ -1816,6 +1706,10 @@ function ClientConfigModal({ preview, onClose, onNotice }) {
               </p>
             </div>
           ) : null}
+
+          <div style={{ marginTop: '1.5rem' }}>
+            <ConfigSummary config={preview.config} />
+          </div>
         </div>
 
         <div className="modal-footer">
@@ -1891,8 +1785,8 @@ function PPSettingsPage({ onNotice }) {
     return <PageSkeleton title="Ядро PP" />;
   }
 
-  const isCoreReady = data.core.binaryAvailable && data.core.configValid;
-  const isRunning = data.listeners.some((listener) => listener.enabled && listener.reachable);
+  const isRunning = !!data.core.processRunning;
+  const isCoreReady = data.core.binaryAvailable && data.core.configValid && isRunning;
 
   return (
     <div className="page">
@@ -2070,7 +1964,7 @@ function SettingsPage({ bootstrap, onNotice }) {
       await api.restartPanel();
       onNotice({ tone: "success", message: "Панель перезапускается..." });
       setTimeout(() => {
-        window.location.reload();
+        window.location.href = previewUrl;
       }, 3000);
     } catch (error) {
       onNotice({ tone: "error", message: error.message });
@@ -2481,9 +2375,9 @@ function ConnectionEditor({ connection, connections, protocols, onClose, onSaved
   const siteTypeOptions = legacySiteType
     ? [
       { value: legacySiteType, label: `${getSiteTypeLabel(legacySiteType)} (устарел)`, disabled: true },
-      { value: "blog", label: "Блог" }
+      { value: "blog", label: "Новости" }
     ]
-    : [{ value: "blog", label: "Блог" }];
+    : [{ value: "blog", label: "Новости" }];
 
   async function handleCheckPort() {
     if (!form.port) return;
@@ -2509,7 +2403,7 @@ function ConnectionEditor({ connection, connections, protocols, onClose, onSaved
     const payload = {
       ...formData,
       tls: connection?.tls ?? null,
-      listen: `:${port}`,
+      listen: `127.0.0.1:${port}`,
       tag: formData.tag || `tag-${port}-${Math.random().toString(36).substring(2, 8)}`,
       settings: { ...settings, routing }
     };
@@ -2561,7 +2455,7 @@ function ConnectionEditor({ connection, connections, protocols, onClose, onSaved
                   required
                   value={form.name}
                   onChange={(event) => setForm({ ...form, name: event.target.value })}
-                  placeholder="Например: блог-1 или форум"
+                  placeholder="Например: новости-1"
                 />
               </div>
 

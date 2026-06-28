@@ -720,6 +720,16 @@ code {
   color: var(--error);
 }
 
+.form-error {
+  padding: 0.85rem 1rem;
+  border: 1px solid rgba(178, 109, 121, 0.2);
+  border-radius: var(--radius-md);
+  background: var(--error-bg);
+  color: var(--error);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
 .app-shell {
   position: relative;
   height: 100vh;
@@ -1290,6 +1300,12 @@ code {
   background: var(--surface-accent);
 }
 
+.client-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.1fr) minmax(220px, 1fr) auto;
+  align-items: center;
+}
+
 .listener-row strong,
 .client-row strong,
 .detail-row dd {
@@ -1308,6 +1324,12 @@ code {
   gap: 0.55rem;
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+
+.client-info,
+.client-stats,
+.client-actions {
+  min-width: 0;
 }
 
 .detail-row {
@@ -2467,7 +2489,7 @@ code {
   display: flex;
   align-items: center;
   gap: 1.2rem;
-  marginBottom: 0.6rem;
+  margin-bottom: 0.6rem;
 }
 
 .about-hero__title {
@@ -2530,26 +2552,26 @@ code {
 .about-detail-card__value {
   display: block;
   font-size: 1.5rem;
-  marginTop: 0.5rem;
+  margin-top: 0.5rem;
 }
 
 .about-detail-card__value-small {
   display: block;
   font-size: 1.2rem;
-  marginTop: 0.5rem;
+  margin-top: 0.5rem;
 }
 
 .about-detail-card__copy {
-  marginTop: 0.5rem;
+  margin-top: 0.5rem;
   font-size: 0.9rem;
   color: var(--text-muted);
   line-height: 1.5;
 }
 
 .about-paths {
-  marginTop: 2.5rem;
-  paddingTop: 1.8rem;
-  borderTop: 1px solid var(--border-color);
+  margin-top: 2.5rem;
+  padding-top: 1.8rem;
+  border-top: 1px solid var(--border-color);
 }
 
 .about-paths h4 {
@@ -2606,7 +2628,7 @@ code {
 }
 
 .about-github-promo {
-  marginTop: 1.5rem;
+  margin-top: 1.5rem;
   padding: 3.5rem 2rem;
   border-radius: var(--radius-xl);
   background: linear-gradient(145deg, #0d1117, #161b22);
@@ -2615,7 +2637,7 @@ code {
   display: flex;
   flex-direction: column;
   align-items: center;
-  textAlign: center;
+  text-align: center;
   box-shadow: 0 30px 60px rgba(0, 0, 0, 0.25);
   position: relative;
   overflow: hidden;
@@ -2633,24 +2655,24 @@ code {
 
 .about-github-promo__icon {
   color: #f0f6fc;
-  marginBottom: 1.2rem;
+  margin-bottom: 1.2rem;
 }
 
 .about-github-promo__title {
   color: #f0f6fc;
   font-size: 2.2rem;
-  marginBottom: 0.8rem;
+  margin-bottom: 0.8rem;
   font-family: var(--font-sans);
   font-weight: 800;
   letter-spacing: -0.02em;
 }
 
 .about-github-promo__copy {
-  maxWidth: 36rem;
+  max-width: 36rem;
   font-size: 1.1rem;
   line-height: 1.6;
   color: #8b949e;
-  marginBottom: 2.5rem;
+  margin-bottom: 2.5rem;
 }
 
 .about-github-promo__actions {
@@ -2664,7 +2686,7 @@ code {
   gap: 0.5rem;
   padding: 1rem 1.8rem;
   border-radius: var(--radius-pill);
-  fontWeight: 700;
+  font-weight: 700;
   font-size: 0.95rem;
   text-decoration: none;
   transition: transform 0.2s, background 0.2s;
@@ -3274,6 +3296,15 @@ code {
     justify-content: space-between;
     flex-wrap: wrap;
     gap: 0.5rem;
+  }
+
+  .client-row {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .client-stats {
+    flex-wrap: wrap;
   }
 
   .detail-row {

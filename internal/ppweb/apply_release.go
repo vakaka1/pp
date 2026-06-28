@@ -535,7 +535,7 @@ func sanitizeArchivePath(name string, stripComponents int) string {
 	if len(clean) == 0 {
 		return ""
 	}
-	return filepath.FromSlash(path.Join(clean...))
+	return path.Join(clean...)
 }
 
 func restartSystemService(name string) error {

@@ -2,8 +2,50 @@ const JSON_HEADERS = {
   "Content-Type": "application/json"
 };
 
+const ROUTE_PREFIX_MARKERS = ["/app", "/login", "/setup"];
+
+export function getPanelBasePath() {
+  if (typeof window === "undefined") return "";
+
+  const pathname = window.location.pathname || "/";
+  for (const marker of ROUTE_PREFIX_MARKERS) {
+    if (pathname === marker || pathname.startsWith(`${marker}/`)) {
+      return "";
+    }
+
+    const index = pathname.lastIndexOf(`${marker}/`);
+    if (index > 0) {
+      return pathname.slice(0, index).replace(/\/+$/, "");
+    }
+
+    if (pathname.endsWith(marker)) {
+      return pathname.slice(0, -marker.length).replace(/\/+$/, "");
+    }
+  }
+
+  if (pathname === "/") return "";
+  return pathname.replace(/\/+$/, "");
+}
+
+export function stripPanelBasePath(pathname) {
+  const basePath = getPanelBasePath();
+  const path = pathname || "/";
+  if (!basePath) return path;
+  if (path === basePath) return "/";
+  if (path.startsWith(`${basePath}/`)) {
+    return path.slice(basePath.length) || "/";
+  }
+  return path;
+}
+
+export function withPanelBasePath(path) {
+  const basePath = getPanelBasePath();
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${basePath}${normalizedPath}` || "/";
+}
+
 async function request(path, options = {}) {
-  const response = await fetch(path, {
+  const response = await fetch(withPanelBasePath(path), {
     credentials: "include",
     headers: {
       ...JSON_HEADERS,

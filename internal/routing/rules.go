@@ -87,6 +87,11 @@ func (m *GeoSiteMatcher) Match(host string, ip net.IP) bool {
 
 func CreateMatcher(ruleType, value string, geoip *GeoIPDB, geosite *GeoSiteDB) (Matcher, error) {
 	switch ruleType {
+	case "regexp":
+		ruleType = "domain_regex"
+	}
+
+	switch ruleType {
 	case "domain":
 		return &DomainMatcher{Domain: value}, nil
 	case "domain_suffix":
