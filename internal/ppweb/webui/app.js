@@ -603,7 +603,13 @@ async function logout() {
 }
 
 async function deleteConnection(connectionId) {
-  if (!window.confirm("Delete this connection?")) {
+  const confirmed = await showConfirm({
+    title: "Delete connection?",
+    message: "This connection and its client records will be removed.",
+    confirmLabel: "Delete",
+    danger: true,
+  });
+  if (!confirmed) {
     return;
   }
 
@@ -626,7 +632,12 @@ async function loadClients(connectionId) {
 }
 
 async function createClient(connectionId) {
-  const name = window.prompt("Client name");
+  const name = await showPrompt({
+    title: "New client",
+    message: "Enter a name for this client.",
+    label: "Client name",
+    confirmLabel: "Create",
+  });
   if (!name) {
     return;
   }
@@ -655,7 +666,13 @@ async function showClientConfig(connectionId, clientId) {
 }
 
 async function deleteClient(clientId) {
-  if (!window.confirm("Delete this client?")) {
+  const confirmed = await showConfirm({
+    title: "Delete client?",
+    message: "The existing client config will no longer be able to connect.",
+    confirmLabel: "Delete",
+    danger: true,
+  });
+  if (!confirmed) {
     return;
   }
 
@@ -697,6 +714,71 @@ function showViewer(title, content) {
   viewerTitle.textContent = title;
   viewerBody.textContent = content;
   viewerDialog.showModal();
+}
+
+function showConfirm({ title, message, confirmLabel = "Continue", cancelLabel = "Cancel", danger = false }) {
+  return showActionDialog({ title, message, confirmLabel, cancelLabel, danger });
+}
+
+function showPrompt({ title, message, label, confirmLabel = "Continue", cancelLabel = "Cancel" }) {
+  return showActionDialog({ title, message, label, confirmLabel, cancelLabel, prompt: true });
+}
+
+function showActionDialog(options) {
+  return new Promise((resolve) => {
+    const backdrop = document.createElement("div");
+    backdrop.className = "action-dialog-backdrop";
+    backdrop.innerHTML = `
+      <div class="action-dialog" role="dialog" aria-modal="true">
+        <div class="action-dialog-head">
+          <p class="eyebrow">Confirm</p>
+          <h2>${escapeHTML(options.title)}</h2>
+        </div>
+        <p class="action-dialog-message">${escapeHTML(options.message || "")}</p>
+        ${options.prompt ? `
+          <label class="action-dialog-field">
+            <span>${escapeHTML(options.label || "Value")}</span>
+            <input type="text" />
+          </label>
+        ` : ""}
+        <div class="action-dialog-actions">
+          <button type="button" class="ghost" data-action="cancel">${escapeHTML(options.cancelLabel || "Cancel")}</button>
+          <button type="button" class="${options.danger ? "danger" : "primary"}" data-action="confirm">${escapeHTML(options.confirmLabel || "Continue")}</button>
+        </div>
+      </div>
+    `;
+
+    const input = backdrop.querySelector("input");
+    const close = (value) => {
+      backdrop.remove();
+      resolve(value);
+    };
+
+    backdrop.addEventListener("click", (event) => {
+      if (event.target === backdrop || event.target.dataset.action === "cancel") {
+        close(options.prompt ? "" : false);
+      }
+      if (event.target.dataset.action === "confirm") {
+        close(options.prompt ? input.value.trim() : true);
+      }
+    });
+    backdrop.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        close(options.prompt ? "" : false);
+      }
+      if (event.key === "Enter" && options.prompt) {
+        event.preventDefault();
+        close(input.value.trim());
+      }
+    });
+
+    document.body.appendChild(backdrop);
+    if (input) {
+      input.focus();
+    } else {
+      backdrop.querySelector("[data-action='confirm']").focus();
+    }
+  });
 }
 
 async function apiFetch(url, options = {}) {

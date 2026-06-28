@@ -148,7 +148,7 @@ const IconRocket = () => (
   </svg>
 );
 
-export default function AboutPage({ data, loading, error, onRefresh, onNotice }) {
+export default function AboutPage({ data, loading, error, onRefresh, onNotice, onConfirm }) {
   const [submitting, setSubmitting] = useState(false);
 
   const release = data?.release;
@@ -160,6 +160,7 @@ export default function AboutPage({ data, loading, error, onRefresh, onNotice })
   const updateBusy = submitting || updateState === "queued" || updateState === "running";
   const busy = loading || updateBusy;
   const visibleError = error || release?.error;
+  const canRollback = Boolean(update?.canRollback);
   
   const githubUrl = github?.url || "https://github.com/vakaka1/pp";
   const releasesUrl = github?.releasesUrl || `${githubUrl}/releases`;
@@ -178,7 +179,13 @@ export default function AboutPage({ data, loading, error, onRefresh, onNotice })
   }
 
   async function handleRollback() {
-    if (!confirm("Вы уверены, что хотите откатиться к предыдущей версии? Это восстановит бинарные файлы и фронтенд из резервных копий .bak. Система будет перезапущена.")) return;
+    const confirmed = await onConfirm?.({
+      title: "Откатить обновление?",
+      message: "Будут восстановлены бинарные файлы и frontend из резервных копий .bak. Панель и ядро PP могут кратко перезапуститься.",
+      confirmLabel: "Откатить",
+      tone: "danger"
+    });
+    if (!confirmed) return;
     setSubmitting(true);
     try {
       const payload = await api.rollback();
@@ -243,9 +250,11 @@ export default function AboutPage({ data, loading, error, onRefresh, onNotice })
            <button className="ghost-button" onClick={() => onRefresh?.({ force: true })} disabled={busy}>
              <IconRefresh /> Проверить обновления
            </button>
-           <button className="ghost-button" onClick={handleRollback} disabled={busy} title="Откат к предыдущей версии из .bak файлов">
-             Откатить изменения
-           </button>
+           {canRollback ? (
+             <button className="ghost-button" onClick={handleRollback} disabled={busy} title="Откат к предыдущей версии из .bak файлов">
+               Откатить изменения
+             </button>
+           ) : null}
            {release?.updateAvailable && (
              <button className="primary-button" onClick={handleUpdate} disabled={busy || !update?.canStart}>
                <IconRocket /> {updateBusy ? "Запуск обновления..." : `Установить ${release.latestVersion}`}

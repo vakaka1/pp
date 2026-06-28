@@ -347,6 +347,8 @@ export default function App() {
   const [aboutData, setAboutData] = useState(null);
   const [aboutLoading, setAboutLoading] = useState(false);
   const [aboutError, setAboutError] = useState(null);
+  const [confirmDialog, setConfirmDialog] = useState(null);
+  const [notifiedUpdateVersion, setNotifiedUpdateVersion] = useState("");
 
   useEffect(() => {
     loadBootstrap();
@@ -445,6 +447,18 @@ export default function App() {
 
     return () => window.clearInterval(timer);
   }, [aboutData?.update?.status?.state, aboutData?.release?.currentVersion]);
+
+  useEffect(() => {
+    const release = aboutData?.release;
+    if (!release?.updateAvailable || !release.latestVersion) return;
+    if (release.latestVersion === notifiedUpdateVersion) return;
+
+    setNotifiedUpdateVersion(release.latestVersion);
+    setNotice({
+      tone: release.indicatorTone === "danger" ? "warning" : "success",
+      message: `Доступно обновление ${release.latestVersion}. Откройте «О программе», чтобы запустить установку вручную.`
+    });
+  }, [aboutData?.release?.updateAvailable, aboutData?.release?.latestVersion, notifiedUpdateVersion]);
 
   async function loadBootstrap() {
     setLoading(true);
@@ -570,6 +584,7 @@ export default function App() {
         onLogout={handleLogout}
         onRefreshAbout={loadAbout}
         onNotice={setNotice}
+        onConfirm={requestConfirmation}
       />
     );
   }
@@ -584,8 +599,34 @@ export default function App() {
           </div>,
           document.body
         )}
+      {confirmDialog ? (
+        <ConfirmDialog
+          {...confirmDialog}
+          onCancel={() => {
+            confirmDialog.resolve(false);
+            setConfirmDialog(null);
+          }}
+          onConfirm={() => {
+            confirmDialog.resolve(true);
+            setConfirmDialog(null);
+          }}
+        />
+      ) : null}
     </>
   );
+
+  function requestConfirmation(options) {
+    return new Promise((resolve) => {
+      setConfirmDialog({
+        title: options?.title || "Подтвердите действие",
+        message: options?.message || "",
+        confirmLabel: options?.confirmLabel || "Продолжить",
+        cancelLabel: options?.cancelLabel || "Отмена",
+        tone: options?.tone || "warning",
+        resolve
+      });
+    });
+  }
 }
 
 function SplashScreen({ error, theme, onThemeChange, onRetry }) {
@@ -801,7 +842,8 @@ function Shell({
   onNavigate,
   onLogout,
   onRefreshAbout,
-  onNotice
+  onNotice,
+  onConfirm
 }) {
   const routeMeta = getRouteMeta(route);
   const updateIndicator = getUpdateIndicator(aboutData, aboutError);
@@ -811,7 +853,7 @@ function Shell({
   if (route.startsWith("/app/overview")) {
     content = <OverviewPage onNotice={onNotice} />;
   } else if (route.startsWith("/app/connections")) {
-    content = <ConnectionsPage onNotice={onNotice} />;
+    content = <ConnectionsPage onNotice={onNotice} onConfirm={onConfirm} />;
   } else if (route.startsWith("/app/pp-settings")) {
     content = <PPSettingsPage onNotice={onNotice} />;
   } else if (route.startsWith("/app/settings")) {
@@ -819,6 +861,8 @@ function Shell({
       <SettingsPage
         bootstrap={bootstrap}
         onNotice={onNotice}
+        onConfirm={onConfirm}
+        onRefreshAbout={onRefreshAbout}
       />
     );
   } else if (route.startsWith("/app/about")) {
@@ -829,6 +873,7 @@ function Shell({
         error={aboutError}
         onRefresh={onRefreshAbout}
         onNotice={onNotice}
+        onConfirm={onConfirm}
       />
     );
   }
@@ -984,6 +1029,44 @@ function Banner({ notice, onClose }) {
         </button>
       ) : null}
     </div>
+  );
+}
+
+function ConfirmDialog({
+  title,
+  message,
+  confirmLabel,
+  cancelLabel,
+  tone,
+  onConfirm,
+  onCancel
+}) {
+  return createPortal(
+    <div className="modal-backdrop confirm-backdrop" onClick={onCancel}>
+      <div className="modal-window confirm-dialog" onClick={(event) => event.stopPropagation()}>
+        <div className="modal-header">
+          <div>
+            <span className="eyebrow">Подтверждение</span>
+            <h3>{title}</h3>
+          </div>
+          <button className="icon-button" onClick={onCancel} aria-label="Закрыть">
+            ×
+          </button>
+        </div>
+        <div className="modal-body confirm-dialog__body">
+          <p>{message}</p>
+        </div>
+        <div className="modal-footer">
+          <button type="button" className="ghost-button" onClick={onCancel}>
+            {cancelLabel}
+          </button>
+          <button type="button" className={`primary-button ${tone === "danger" ? "danger" : "warning"}`} onClick={onConfirm}>
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
   );
 }
 
@@ -1195,7 +1278,7 @@ function OverviewPage({ onNotice }) {
   );
 }
 
-function ConnectionsPage({ onNotice }) {
+function ConnectionsPage({ onNotice, onConfirm }) {
   const [connections, setConnections] = useState([]);
   const [protocols, setProtocols] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1223,7 +1306,13 @@ function ConnectionsPage({ onNotice }) {
   }
 
   async function handleDelete(connection) {
-    if (!window.confirm(`Удалить подключение «${connection.name}»?`)) return;
+    const confirmed = await onConfirm?.({
+      title: "Удалить подключение?",
+      message: `Подключение «${connection.name}» будет удалено вместе с его клиентскими записями. Конфиги, которые уже выданы клиентам, могут перестать работать.`,
+      confirmLabel: "Удалить",
+      tone: "danger"
+    });
+    if (!confirmed) return;
 
     try {
       const payload = await api.deleteConnection(connection.id);
@@ -1368,12 +1457,13 @@ function ConnectionsPage({ onNotice }) {
       ) : null}
 
       {clientsOpen ? (
-        <ClientsModal
-          connection={clientsOpen}
-          onClose={() => setClientsOpen(null)}
-          onNotice={onNotice}
-        />
-      ) : null}
+          <ClientsModal
+            connection={clientsOpen}
+            onClose={() => setClientsOpen(null)}
+            onNotice={onNotice}
+            onConfirm={onConfirm}
+          />
+        ) : null}
 
       {nginxConfigOpen ? (
         <NginxModal
@@ -1458,7 +1548,7 @@ function NginxModal({ connection, onClose, onNotice }) {
   );
 }
 
-function ClientsModal({ connection, onClose, onNotice }) {
+function ClientsModal({ connection, onClose, onNotice, onConfirm }) {
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState("");
@@ -1513,7 +1603,13 @@ function ClientsModal({ connection, onClose, onNotice }) {
   }
 
   async function handleDelete(client) {
-    if (!window.confirm(`Удалить клиента «${client.name}»?`)) return;
+    const confirmed = await onConfirm?.({
+      title: "Удалить клиента?",
+      message: `Клиент «${client.name}» будет удален. Его текущий конфиг больше не сможет подключаться к этому серверу.`,
+      confirmLabel: "Удалить",
+      tone: "danger"
+    });
+    if (!confirmed) return;
 
     try {
       await api.deleteClient(client.id);
@@ -1992,10 +2088,11 @@ function PPSettingsPage({ onNotice }) {
   );
 }
 
-function SettingsPage({ bootstrap, onNotice }) {
+function SettingsPage({ bootstrap, onNotice, onConfirm, onRefreshAbout }) {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState(null);
+  const [initialUpdateChannel, setInitialUpdateChannel] = useState("stable");
 
   useEffect(() => {
     loadSettings();
@@ -2006,6 +2103,7 @@ function SettingsPage({ bootstrap, onNotice }) {
     try {
       const data = await api.getSettings();
       setForm(data);
+      setInitialUpdateChannel(data.updateChannel || "stable");
     } catch (error) {
       onNotice({ tone: "error", message: error.message });
     } finally {
@@ -2016,9 +2114,19 @@ function SettingsPage({ bootstrap, onNotice }) {
   async function handleSubmit(event) {
     event.preventDefault();
     setSubmitting(true);
+    const previousChannel = initialUpdateChannel;
+    const nextChannel = form.updateChannel || "stable";
     try {
       await api.saveSettings(form);
+      setInitialUpdateChannel(nextChannel);
       onNotice({ tone: "success", message: "Настройки сохранены. Используйте кнопку ниже для перезапуска панели." });
+      if (nextChannel !== previousChannel) {
+        await onRefreshAbout?.({ force: true, silent: true });
+        onNotice({
+          tone: "warning",
+          message: "Канал обновлений изменен. Если для выбранной ветки есть релиз, он появится на странице «О программе» и будет установлен только после вашего подтверждения."
+        });
+      }
     } catch (error) {
       onNotice({ tone: "error", message: error.message });
     } finally {
@@ -2027,7 +2135,13 @@ function SettingsPage({ bootstrap, onNotice }) {
   }
 
   async function handleRestart() {
-    if (!confirm("Вы уверены, что хотите перезапустить панель? Соединение будет временно разорвано.")) return;
+    const confirmed = await onConfirm?.({
+      title: "Перезапустить панель?",
+      message: "Соединение с PP Web будет временно разорвано. Через несколько секунд браузер перейдет на новый адрес панели.",
+      confirmLabel: "Перезапустить",
+      tone: "warning"
+    });
+    if (!confirmed) return;
     try {
       await api.restartPanel();
       onNotice({ tone: "success", message: "Панель перезапускается..." });
@@ -2047,6 +2161,20 @@ function SettingsPage({ bootstrap, onNotice }) {
   const port = form.panelPort || 4090;
   const prefix = form.panelPrefix ? `/${form.panelPrefix.replace(/^\//, "")}` : "";
   const previewUrl = `${protocol}://${domain}:${port}${prefix}`;
+
+  async function handleUpdateChannelChange(nextChannel) {
+    if (nextChannel === form.updateChannel) return;
+    const confirmed = await onConfirm?.({
+      title: nextChannel === "testing" ? "Перейти на тестовую ветку?" : "Сменить канал обновлений?",
+      message: nextChannel === "testing"
+        ? "В тестовой ветке могут появиться параметры, которых еще нет у клиентов, или измениться логика подключений. После смены канала проверьте доступные обновления и запускайте установку только когда готовы."
+        : "После смены канала набор доступных релизов может измениться. Проверьте обновление на странице «О программе» и запускайте установку только когда готовы.",
+      confirmLabel: "Сменить канал",
+      tone: "warning"
+    });
+    if (!confirmed) return;
+    setForm({ ...form, updateChannel: nextChannel });
+  }
 
   return (
     <div className="page">
@@ -2116,7 +2244,7 @@ function SettingsPage({ bootstrap, onNotice }) {
                 <label>Канал обновлений</label>
                 <select
                   value={form.updateChannel || "stable"}
-                  onChange={(e) => setForm({ ...form, updateChannel: e.target.value })}
+                  onChange={(e) => handleUpdateChannelChange(e.target.value)}
                 >
                   <option value="stable">Стабильный (рекомендуется)</option>
                   <option value="testing">Тестовый (Beta)</option>

@@ -2626,6 +2626,20 @@ code {
   border-color: rgba(184, 135, 82, 0.16);
 }
 
+.confirm-backdrop {
+  z-index: 120;
+}
+
+.confirm-dialog {
+  width: min(520px, 100%);
+}
+
+.confirm-dialog__body p {
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
 .mobile-dock {
   display: none;
 }

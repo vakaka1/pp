@@ -95,9 +95,10 @@ type aboutReleaseInfo struct {
 }
 
 type aboutUpdateInfo struct {
-	CanStart bool            `json:"canStart"`
-	Mode     string          `json:"mode"`
-	Status   updateRunStatus `json:"status"`
+	CanStart    bool            `json:"canStart"`
+	CanRollback bool            `json:"canRollback"`
+	Mode        string          `json:"mode"`
+	Status      updateRunStatus `json:"status"`
 }
 
 type updateRunStatus struct {
@@ -205,6 +206,10 @@ func (s *Server) handleAboutRollback(w http.ResponseWriter, r *http.Request, _ *
 	status := s.readUpdateStatus()
 	if status.State == "queued" || status.State == "running" {
 		writeError(w, http.StatusConflict, "обновление или откат уже запущены")
+		return
+	}
+	if !s.canRollbackRelease() {
+		writeError(w, http.StatusConflict, "откат недоступен: резервные копии предыдущей версии не найдены")
 		return
 	}
 
@@ -316,9 +321,10 @@ func (s *Server) buildAboutPayload(ctx context.Context, forceRefresh bool) (*abo
 		},
 		Release: releaseInfo,
 		Update: aboutUpdateInfo{
-			CanStart: updateMode != "disabled" && releaseInfo.UpdateAvailable && releaseInfo.LatestVersion != "",
-			Mode:     updateMode,
-			Status:   s.readUpdateStatus(),
+			CanStart:    updateMode != "disabled" && releaseInfo.UpdateAvailable && releaseInfo.LatestVersion != "",
+			CanRollback: s.canRollbackRelease(),
+			Mode:        updateMode,
+			Status:      s.readUpdateStatus(),
 		},
 	}, nil
 }
@@ -353,6 +359,30 @@ func (s *Server) canWriteReleaseTargets() bool {
 	return pathLikelyWritable(executablePath) &&
 		pathLikelyWritable(ppPath) &&
 		pathLikelyWritable(s.opts.FrontendDist)
+}
+
+func (s *Server) canRollbackRelease() bool {
+	executablePath, err := os.Executable()
+	if err != nil {
+		return false
+	}
+
+	ppPath, err := s.resolvePPCoreBinaryPath()
+	if err != nil {
+		return false
+	}
+
+	return backupPathExists(executablePath) &&
+		backupPathExists(ppPath) &&
+		backupPathExists(s.opts.FrontendDist)
+}
+
+func backupPathExists(path string) bool {
+	if strings.TrimSpace(path) == "" {
+		return false
+	}
+	_, err := os.Stat(path + ".bak")
+	return err == nil
 }
 
 func pathLikelyWritable(path string) bool {

@@ -2,6 +2,8 @@ package ppweb
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -160,5 +162,22 @@ func TestUpdateRunStatusOmitsEmptyTimes(t *testing.T) {
 	body := string(payload)
 	if strings.Contains(body, "startedAt") || strings.Contains(body, "finishedAt") || strings.Contains(body, "0001-01-01") {
 		t.Fatalf("expected empty timestamps to be omitted, got %s", body)
+	}
+}
+
+func TestBackupPathExists(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "pp-web")
+
+	if backupPathExists(target) {
+		t.Fatalf("expected missing backup to be unavailable")
+	}
+
+	if err := os.WriteFile(target+".bak", []byte("backup"), 0o644); err != nil {
+		t.Fatalf("write backup: %v", err)
+	}
+
+	if !backupPathExists(target) {
+		t.Fatalf("expected existing backup to be available")
 	}
 }
