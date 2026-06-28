@@ -12,12 +12,15 @@ type Matcher interface {
 	Match(host string, ip net.IP) bool
 }
 
-// DomainMatcher matches exact domains.
+// DomainMatcher matches an apex domain and its subdomains.
 type DomainMatcher struct {
 	Domain string
 }
 
-func (m *DomainMatcher) Match(host string, ip net.IP) bool { return m.Domain == host }
+func (m *DomainMatcher) Match(host string, ip net.IP) bool {
+	host = normalizeDomainHost(host)
+	return host == m.Domain || strings.HasSuffix(host, "."+m.Domain)
+}
 
 // DomainSuffixMatcher matches domains ending with a suffix.
 type DomainSuffixMatcher struct {
@@ -25,6 +28,7 @@ type DomainSuffixMatcher struct {
 }
 
 func (m *DomainSuffixMatcher) Match(host string, ip net.IP) bool {
+	host = normalizeDomainHost(host)
 	return strings.HasSuffix(host, m.Suffix) || host == strings.TrimPrefix(m.Suffix, ".")
 }
 
@@ -34,7 +38,7 @@ type DomainKeywordMatcher struct {
 }
 
 func (m *DomainKeywordMatcher) Match(host string, ip net.IP) bool {
-	return strings.Contains(host, m.Keyword)
+	return strings.Contains(normalizeDomainHost(host), m.Keyword)
 }
 
 // DomainRegexMatcher matches domains against a regex.
@@ -42,7 +46,9 @@ type DomainRegexMatcher struct {
 	Regex *regexp.Regexp
 }
 
-func (m *DomainRegexMatcher) Match(host string, ip net.IP) bool { return m.Regex.MatchString(host) }
+func (m *DomainRegexMatcher) Match(host string, ip net.IP) bool {
+	return m.Regex.MatchString(normalizeDomainHost(host))
+}
 
 // IPCIDRMatcher matches IPs against a CIDR.
 type IPCIDRMatcher struct {
@@ -66,6 +72,9 @@ func (m *GeoIPMatcher) Match(host string, ip net.IP) bool {
 	if ip == nil {
 		return false
 	}
+	if m.DB == nil {
+		return false
+	}
 	return m.DB.Match(ip, m.Code)
 }
 
@@ -76,6 +85,7 @@ type GeoSiteMatcher struct {
 }
 
 func (m *GeoSiteMatcher) Match(host string, ip net.IP) bool {
+	host = normalizeDomainHost(host)
 	if host == "" {
 		return false
 	}
@@ -86,6 +96,7 @@ func (m *GeoSiteMatcher) Match(host string, ip net.IP) bool {
 }
 
 func CreateMatcher(ruleType, value string, geoip *GeoIPDB, geosite *GeoSiteDB) (Matcher, error) {
+	value = strings.TrimSpace(value)
 	switch ruleType {
 	case "regexp":
 		ruleType = "domain_regex"
@@ -93,11 +104,15 @@ func CreateMatcher(ruleType, value string, geoip *GeoIPDB, geosite *GeoSiteDB) (
 
 	switch ruleType {
 	case "domain":
-		return &DomainMatcher{Domain: value}, nil
+		return &DomainMatcher{Domain: normalizeDomainHost(value)}, nil
 	case "domain_suffix":
-		return &DomainSuffixMatcher{Suffix: value}, nil
+		suffix := normalizeDomainHost(value)
+		if suffix != "" && !strings.HasPrefix(suffix, ".") {
+			suffix = "." + suffix
+		}
+		return &DomainSuffixMatcher{Suffix: suffix}, nil
 	case "domain_keyword":
-		return &DomainKeywordMatcher{Keyword: value}, nil
+		return &DomainKeywordMatcher{Keyword: strings.ToLower(value)}, nil
 	case "domain_regex":
 		re, err := regexp.Compile(value)
 		if err != nil {
@@ -117,4 +132,10 @@ func CreateMatcher(ruleType, value string, geoip *GeoIPDB, geosite *GeoSiteDB) (
 	default:
 		return nil, fmt.Errorf("unsupported rule type: %s", ruleType)
 	}
+}
+
+func normalizeDomainHost(host string) string {
+	host = strings.TrimSpace(strings.ToLower(host))
+	host = strings.TrimSuffix(host, ".")
+	return host
 }

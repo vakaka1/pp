@@ -291,7 +291,7 @@ func (s *Inbound) handleGRPC(w http.ResponseWriter, r *http.Request) {
 	}
 
 	noiseConn := protocol.NewNoiseConn(tracked, sendCipher, recvCipher)
-	session, err := smux.Server(noiseConn, protocol.DefaultSmuxConfig())
+	session, err := smux.Server(noiseConn, protocol.ServerSmuxConfig())
 	if err != nil {
 		s.log.Debug("smux session failed", zap.Error(err))
 		return

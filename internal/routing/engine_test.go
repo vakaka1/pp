@@ -27,6 +27,14 @@ func TestRoutingEngine(t *testing.T) {
 		t.Fatalf("expected direct for example.com")
 	}
 
+	if engine.Route("www.example.com", nil) != PolicyDirect {
+		t.Fatalf("expected direct for www.example.com")
+	}
+
+	if engine.Route("EXAMPLE.COM.", nil) != PolicyDirect {
+		t.Fatalf("expected direct for normalized example.com")
+	}
+
 	if engine.Route("test.local", nil) != PolicyDirect {
 		t.Fatalf("expected direct for test.local")
 	}
@@ -41,6 +49,34 @@ func TestRoutingEngine(t *testing.T) {
 
 	if engine.Route("google.com", nil) != PolicyProxy {
 		t.Fatalf("expected default proxy for google.com")
+	}
+}
+
+func TestRoutingDomainRuleMatchesApexAndSubdomains(t *testing.T) {
+	engine, err := NewEngine(config.RoutingConfig{
+		DefaultPolicy: "block",
+		Rules: []config.RoutingRule{
+			{Type: "domain", Value: "2ip.ru", Policy: "direct"},
+		},
+	}, nil, nil)
+	if err != nil {
+		t.Fatalf("failed to create engine: %v", err)
+	}
+
+	for _, host := range []string{"2ip.ru", "www.2ip.ru", "WWW.2IP.RU."} {
+		if engine.Route(host, nil) != PolicyDirect {
+			t.Fatalf("expected direct for %s", host)
+		}
+	}
+}
+
+func TestGeoIPRuleWithoutDatabaseDoesNotMatch(t *testing.T) {
+	matcher, err := CreateMatcher("geoip", "ru", nil, nil)
+	if err != nil {
+		t.Fatalf("failed to create matcher: %v", err)
+	}
+	if matcher.Match("", net.ParseIP("8.8.8.8")) {
+		t.Fatalf("geoip matcher without database must not match")
 	}
 }
 

@@ -1921,6 +1921,195 @@ code {
   background: var(--surface-accent);
 }
 
+.routing-map-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 1rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  background: var(--surface-accent);
+}
+
+.routing-map-panel,
+.routing-control-panel,
+.route-row {
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  background: var(--surface-strong);
+}
+
+.routing-map-panel {
+  padding: 1rem;
+}
+
+.routing-map-panel__head,
+.route-row__summary,
+.routing-default-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.routing-map-panel__head div,
+.route-row__summary div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+  min-width: 0;
+}
+
+.routing-map-panel__head strong,
+.route-row__summary strong {
+  font-size: 0.95rem;
+}
+
+.routing-map-panel__head span,
+.route-row__summary span,
+.routing-default-line span,
+.rule-help {
+  color: var(--text-soft);
+  font-size: 0.78rem;
+}
+
+.routing-draft-badge,
+.route-row__summary em,
+.routing-map-list em {
+  flex-shrink: 0;
+  padding: 0.28rem 0.55rem;
+  border-radius: var(--radius-pill);
+  background: var(--surface-muted);
+  color: var(--text-soft);
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.routing-default-line {
+  margin-top: 0.8rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: var(--radius-sm);
+  background: var(--code-bg);
+}
+
+.routing-default-line strong {
+  font-size: 0.86rem;
+}
+
+.routing-map-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0;
+  margin: 0.75rem 0 0;
+  list-style: none;
+}
+
+.routing-map-list li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface-accent);
+}
+
+.routing-map-list li > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.45rem;
+  height: 1.45rem;
+  border-radius: var(--radius-pill);
+  background: var(--code-bg);
+  color: var(--text-soft);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.routing-empty {
+  margin-top: 0.75rem;
+  font-size: 0.82rem;
+}
+
+.routing-control-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 0.9rem;
+}
+
+.routing-presets {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.routing-preset-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.route-list-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.route-row {
+  padding: 0.85rem;
+}
+
+.route-row--draft {
+  border-style: dashed;
+}
+
+.route-row__controls {
+  display: grid;
+  grid-template-columns: minmax(130px, 0.9fr) minmax(180px, 1.2fr) minmax(130px, 0.8fr);
+  gap: 0.55rem;
+  margin-top: 0.75rem;
+}
+
+.route-row__footer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.route-row .rule-value-input,
+.route-row .rule-comment-input {
+  margin-top: 0;
+}
+
+.rule-help {
+  margin: 0.45rem 0 0.65rem;
+}
+
+.routing-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.85rem 0.95rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  background: var(--surface-strong);
+}
+
+.routing-summary strong {
+  font-size: 0.9rem;
+}
+
+.routing-summary span {
+  color: var(--text-soft);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
 .routing-policy-row {
   display: flex;
   align-items: center;
@@ -3423,6 +3612,20 @@ code {
   .add-client-form,
   .input-with-action {
     grid-template-columns: 1fr;
+  }
+
+  .route-row__controls,
+  .route-row__footer {
+    grid-template-columns: 1fr;
+  }
+
+  .routing-map-list li {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .routing-map-list em {
+    grid-column: 2;
+    justify-self: flex-start;
   }
 
   .modal-backdrop {

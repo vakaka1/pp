@@ -69,10 +69,78 @@ const TYPE_LABELS = {
   domain_regex: "Regexp"
 };
 const POLICY_LABELS = {
-  proxy: "прокси",
-  direct: "напрямую",
+  proxy: "через сервер",
+  direct: "разрешить",
   block: "блокировать"
 };
+
+const POLICY_DESCRIPTIONS = {
+  proxy: "Трафик будет открыт сервером PP.",
+  direct: "Разрешить трафик на сервере PP. Это не обход full-tunnel на клиенте.",
+  block: "Сервер PP отклонит соединение."
+};
+
+const RULE_TYPE_HELP = {
+  geosite: "Категория доменов из geosite, например ru.",
+  geoip: "Страна IP из GeoIP, например ru.",
+  domain: "Домен и его поддомены, например 2ip.ru.",
+  domain_suffix: "Суффикс домена, например .ru.",
+  domain_keyword: "Любой домен с этим фрагментом.",
+  ip_cidr: "Диапазон IP, например 192.168.0.0/16.",
+  domain_regex: "Регулярное выражение для домена."
+};
+
+const ROUTING_PRESETS = [
+  {
+    label: "Разрешить 2ip.ru",
+    rule: { type: "domain", value: "2ip.ru", policy: "direct", comment: "2ip.ru и www.2ip.ru" }
+  },
+  {
+    label: "Разрешить RU сайты",
+    rule: { type: "geosite", value: "ru", policy: "direct", comment: "Домены из geosite:ru" }
+  },
+  {
+    label: "Блокировать домен",
+    rule: { type: "domain", value: "", policy: "block", comment: "" }
+  }
+];
+
+function normalizeRoutingForSave(routing) {
+  const defaultPolicy = routing?.default_policy || "proxy";
+  const rules = (routing?.rules || [])
+    .map((rule) => ({
+      ...rule,
+      value: rule.value?.trim() || "",
+      comment: rule.comment?.trim() || ""
+    }))
+    .filter((rule) => rule.type && rule.policy && rule.value);
+
+  return { ...routing, default_policy: defaultPolicy, rules };
+}
+
+function describeRoutingRule(rule) {
+  const value = rule.value?.trim();
+  if (!value) return "Черновик без цели";
+
+  switch (rule.type) {
+    case "domain":
+      return `${value} и поддомены`;
+    case "domain_suffix":
+      return `домены с суффиксом ${value}`;
+    case "domain_keyword":
+      return `домены с фрагментом "${value}"`;
+    case "ip_cidr":
+      return `IP диапазон ${value}`;
+    case "geoip":
+      return `IP страны ${value.toUpperCase()}`;
+    case "geosite":
+      return `сайты категории ${value}`;
+    case "domain_regex":
+      return `домены по regexp ${value}`;
+    default:
+      return value;
+  }
+}
 
 function readInitialTheme() {
   if (typeof window === "undefined") return "light";
@@ -2089,8 +2157,215 @@ function SettingsPage({ bootstrap, onNotice }) {
   );
 }
 
+function RoutingMapEditor({ routing, onChange }) {
+  const rules = routing.rules || [];
+  const activeRules = rules.filter((rule) => rule.value?.trim()).length;
+  const draftRules = rules.length - activeRules;
+  const defaultPolicy = routing.default_policy || "proxy";
+
+  function updateRouting(nextRules) {
+    onChange({ ...routing, rules: nextRules });
+  }
+
+  function setPolicy(value) {
+    onChange({ ...routing, default_policy: value });
+  }
+
+  function addRule(rule = { type: "domain", value: "", policy: "direct", comment: "" }) {
+    updateRouting([...rules, rule]);
+  }
+
+  function updateRule(index, field, value) {
+    updateRouting(rules.map((rule, ruleIndex) => (ruleIndex === index ? { ...rule, [field]: value } : rule)));
+  }
+
+  function deleteRule(index) {
+    updateRouting(rules.filter((_, ruleIndex) => ruleIndex !== index));
+  }
+
+  function moveRule(index, direction) {
+    const nextRules = [...rules];
+    const swapIndex = index + direction;
+    if (swapIndex < 0 || swapIndex >= nextRules.length) return;
+    [nextRules[index], nextRules[swapIndex]] = [nextRules[swapIndex], nextRules[index]];
+    updateRouting(nextRules);
+  }
+
+  return (
+    <div className="routing-map-editor">
+      <section className="routing-map-panel">
+        <div className="routing-map-panel__head">
+          <div>
+            <strong>Карта маршрутов</strong>
+            <span>{activeRules ? `${activeRules} правил настроено` : "Правил пока нет"}</span>
+          </div>
+          {draftRules ? <span className="routing-draft-badge">{draftRules} черновик</span> : null}
+        </div>
+
+        <div className="routing-default-line">
+          <span>Если ни одно правило не подошло</span>
+          <strong>{POLICY_LABELS[defaultPolicy] || defaultPolicy}</strong>
+        </div>
+
+        {activeRules ? (
+          <ol className="routing-map-list">
+            {rules.map((rule, index) =>
+              rule.value?.trim() ? (
+                <li key={`${rule.type}-${rule.value}-${index}`}>
+                  <span>{index + 1}</span>
+                  <strong>{describeRoutingRule(rule)}</strong>
+                  <em>{POLICY_LABELS[rule.policy] || rule.policy}</em>
+                </li>
+              ) : null
+            )}
+          </ol>
+        ) : (
+          <p className="routing-empty">
+            Сейчас действует только правило "иначе". Добавьте маршрут ниже, чтобы явно задать поведение для домена,
+            категории или IP-диапазона.
+          </p>
+        )}
+      </section>
+
+      <section className="routing-control-panel">
+        <div className="routing-policy-row">
+          <span className="routing-policy-label">Правило "иначе"</span>
+          <div className="routing-policy-btns">
+            {RULE_POLICIES.map((policy) => (
+              <button
+                key={policy}
+                type="button"
+                className={`policy-pill policy-pill--${policy} ${defaultPolicy === policy ? "policy-pill--active" : ""}`}
+                onClick={() => setPolicy(policy)}
+                title={POLICY_DESCRIPTIONS[policy]}
+              >
+                {POLICY_LABELS[policy]}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="routing-presets">
+          <span className="routing-policy-label">Быстро добавить</span>
+          <div className="routing-preset-buttons">
+            {ROUTING_PRESETS.map((preset) => (
+              <button
+                key={preset.label}
+                type="button"
+                className="ghost-button ghost-button--small"
+                onClick={() => addRule({ ...preset.rule })}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <div className="route-list-editor">
+        {rules.map((rule, index) => (
+          <article className={`route-row ${rule.value?.trim() ? "" : "route-row--draft"}`} key={index}>
+            <div className="route-row__summary">
+              <div>
+                <span>Маршрут {index + 1}</span>
+                <strong>{describeRoutingRule(rule)}</strong>
+              </div>
+              <em>{rule.value?.trim() ? POLICY_LABELS[rule.policy] || rule.policy : "не сохранится без цели"}</em>
+            </div>
+
+            <div className="route-row__controls">
+              <select
+                className="rule-select"
+                value={rule.type}
+                onChange={(event) => updateRule(index, "type", event.target.value)}
+              >
+                {RULE_TYPES.map((type) => (
+                  <option key={type} value={type}>
+                    {TYPE_LABELS[type] || type}
+                  </option>
+                ))}
+              </select>
+
+              <input
+                className="rule-value-input"
+                placeholder={
+                  rule.type === "geosite" || rule.type === "geoip"
+                    ? "ru"
+                    : rule.type === "ip_cidr"
+                      ? "10.0.0.0/8"
+                      : "2ip.ru"
+                }
+                value={rule.value}
+                onChange={(event) => updateRule(index, "value", event.target.value)}
+              />
+
+              <select
+                className={`rule-select rule-policy-select rule-policy-select--${rule.policy}`}
+                value={rule.policy}
+                onChange={(event) => updateRule(index, "policy", event.target.value)}
+                title={POLICY_DESCRIPTIONS[rule.policy]}
+              >
+                {RULE_POLICIES.map((policy) => (
+                  <option key={policy} value={policy}>
+                    {POLICY_LABELS[policy] || policy}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <p className="rule-help">{RULE_TYPE_HELP[rule.type]}</p>
+
+            <div className="route-row__footer">
+              <input
+                className="rule-comment-input"
+                placeholder="Комментарий"
+                value={rule.comment || ""}
+                onChange={(event) => updateRule(index, "comment", event.target.value)}
+              />
+              <div className="rule-card-actions">
+                <button
+                  type="button"
+                  className="icon-button icon-button--tiny"
+                  onClick={() => moveRule(index, -1)}
+                  disabled={index === 0}
+                  title="Выше"
+                >
+                  ↑
+                </button>
+                <button
+                  type="button"
+                  className="icon-button icon-button--tiny"
+                  onClick={() => moveRule(index, 1)}
+                  disabled={index === rules.length - 1}
+                  title="Ниже"
+                >
+                  ↓
+                </button>
+                <button
+                  type="button"
+                  className="icon-button icon-button--del"
+                  onClick={() => deleteRule(index)}
+                  title="Удалить"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+          </article>
+        ))}
+      </div>
+
+      <button type="button" className="ghost-button ghost-button--small rule-add-btn" onClick={() => addRule()}>
+        Добавить маршрут
+      </button>
+    </div>
+  );
+}
+
 function RoutingRulesEditor({ routing, onChange }) {
   const rules = routing.rules || [];
+  const activeRules = rules.filter((rule) => rule.value?.trim()).length;
+  const defaultPolicy = routing.default_policy || "proxy";
 
   function setPolicy(value) {
     onChange({ ...routing, default_policy: value });
@@ -2124,6 +2399,14 @@ function RoutingRulesEditor({ routing, onChange }) {
 
   return (
     <div className="routing-editor">
+      <div className="routing-summary">
+        <strong>{activeRules ? `${activeRules} активных правил` : "Активных правил нет"}</strong>
+        <span>
+          Остальной трафик: {POLICY_LABELS[defaultPolicy] || defaultPolicy}. Правила проверяются сверху вниз и
+          применяются после сохранения подключения.
+        </span>
+      </div>
+
       <div className="routing-policy-row">
         <span className="routing-policy-label">Политика по умолчанию</span>
         <div className="routing-policy-btns">
@@ -2134,6 +2417,7 @@ function RoutingRulesEditor({ routing, onChange }) {
               className={`policy-pill policy-pill--${policy} ${routing.default_policy === policy ? "policy-pill--active" : ""
                 }`}
               onClick={() => setPolicy(policy)}
+              title={POLICY_DESCRIPTIONS[policy]}
             >
               {POLICY_LABELS[policy]}
             </button>
@@ -2170,6 +2454,7 @@ function RoutingRulesEditor({ routing, onChange }) {
                   className={`rule-select rule-policy-select rule-policy-select--${rule.policy}`}
                   value={rule.policy}
                   onChange={(event) => updateRule(index, "policy", event.target.value)}
+                  title={POLICY_DESCRIPTIONS[rule.policy]}
                 >
                   {RULE_POLICIES.map((policy) => (
                     <option key={policy} value={policy}>
@@ -2400,12 +2685,13 @@ function ConnectionEditor({ connection, connections, protocols, onClose, onSaved
     const { port, ...formData } = form;
     const settings = { ...formData.settings };
     delete settings.publish_interval_minutes;
+    const normalizedRouting = normalizeRoutingForSave(routing);
     const payload = {
       ...formData,
       tls: connection?.tls ?? null,
       listen: `127.0.0.1:${port}`,
       tag: formData.tag || `tag-${port}-${Math.random().toString(36).substring(2, 8)}`,
-      settings: { ...settings, routing }
+      settings: { ...settings, routing: normalizedRouting }
     };
 
     if (
@@ -2634,7 +2920,7 @@ function ConnectionEditor({ connection, connections, protocols, onClose, onSaved
                 Правила применяются на сервере для всех клиентов этого подключения. Клиенты обновляются автоматически.
               </p>
 
-              {showRouting ? <RoutingRulesEditor routing={routing} onChange={setRouting} /> : null}
+              {showRouting ? <RoutingMapEditor routing={routing} onChange={setRouting} /> : null}
 
               <div className="checkbox-group">
                 <label>

@@ -93,6 +93,19 @@ func TestClientSmuxConfigCapsKeepaliveInterval(t *testing.T) {
 	}
 }
 
+func TestServerSmuxConfigEnablesKeepalive(t *testing.T) {
+	smuxCfg := protocol.ServerSmuxConfig()
+	if smuxCfg.KeepAliveDisabled {
+		t.Fatalf("server smux keepalive must be enabled")
+	}
+	if smuxCfg.KeepAliveInterval <= 0 {
+		t.Fatalf("server smux keepalive interval must be positive")
+	}
+	if smuxCfg.KeepAliveInterval >= smuxCfg.KeepAliveTimeout {
+		t.Fatalf("server smux keepalive interval must be below timeout")
+	}
+}
+
 func TestConnectionPoolStreamTimeoutThreshold(t *testing.T) {
 	clientConn, serverConn := net.Pipe()
 	defer clientConn.Close()
