@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"fmt"
+	"net/http"
 	"net"
 	"os"
 	"os/exec"
@@ -141,6 +143,44 @@ func main() {
 		},
 	}
 
+
+	choiceCmd := &cobra.Command{
+		Use:   "choice",
+		Short: "Select update channel (release or prerelease)",
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := cmd.Help(); err != nil {
+				os.Exit(1)
+			}
+		},
+	}
+
+	choiceReleaseCmd := &cobra.Command{
+		Use:   "release",
+		Short: "Switch to the stable release channel (default)",
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := writeUpdateChannel("stable"); err != nil {
+				fmt.Println("Error:", err)
+				os.Exit(1)
+			}
+			fmt.Println("Switched to the stable release channel.")
+			fmt.Println("Run `pp-client update` to apply the latest stable version.")
+		},
+	}
+
+	choicePrereleaseCmd := &cobra.Command{
+		Use:   "prerelease",
+		Short: "Switch to the prerelease channel (testing, pre-release versions)",
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := writeUpdateChannel("testing"); err != nil {
+				fmt.Println("Error:", err)
+				os.Exit(1)
+			}
+			fmt.Println("Switched to the prerelease channel.")
+			fmt.Println("Run `pp-client update` to apply the latest pre-release version.")
+		},
+	}
+
+	choiceCmd.AddCommand(choiceReleaseCmd, choicePrereleaseCmd)
 	testCmd := &cobra.Command{
 		Use:   "test [config-name]",
 		Short: "Validate config and test server availability",
@@ -400,25 +440,41 @@ func main() {
 
 	fullTunnelCmd.AddCommand(fullTunnelUpCmd, fullTunnelDownCmd)
 
-	rootCmd.AddCommand(versionCmd, updateCmd, testCmd, validateCmd, clientCmd, fullTunnelCmd, importCmd, listCmd, deleteCmd)
+	rootCmd.AddCommand(versionCmd, updateCmd, choiceCmd, testCmd, validateCmd, clientCmd, fullTunnelCmd, importCmd, listCmd, deleteCmd)
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}
 }
 
 func runSelfUpdate() error {
+	channel := readUpdateChannel()
+	releaseTag := "latest"
+	if channel == "testing" {
+		fmt.Println("Checking for the latest prerelease...")
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		var err error
+		releaseTag, err = fetchLatestReleaseTag(ctx, channel)
+		if err != nil {
+			return fmt.Errorf("failed to fetch prerelease: %w", err)
+		}
+		fmt.Printf("Latest prerelease: %s\n", releaseTag)
+	}
+
 	switch runtime.GOOS {
 	case "windows":
-		err := startCommand("powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "irm https://raw.githubusercontent.com/vakaka1/pp/main/scripts/install-client.ps1 | iex")
+		cmd := "$env:RELEASE_TAG='" + releaseTag + "'; irm https://raw.githubusercontent.com/vakaka1/pp/main/scripts/install-client.ps1 | iex"
+		err := startCommand("powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", cmd)
 		if err == nil {
 			fmt.Println("update started in PowerShell")
 		}
 		return err
 	case "linux":
+		scriptCmd := "RELEASE_TAG=" + releaseTag + " curl -fsSL https://raw.githubusercontent.com/vakaka1/pp/main/scripts/install-client.sh | bash"
 		if os.Geteuid() == 0 {
-			return runCommand("bash", "-c", "curl -fsSL https://raw.githubusercontent.com/vakaka1/pp/main/scripts/install-client.sh | bash")
+			return runCommand("bash", "-c", scriptCmd)
 		}
-		return runCommand("sudo", "bash", "-c", "curl -fsSL https://raw.githubusercontent.com/vakaka1/pp/main/scripts/install-client.sh | bash")
+		return runCommand("sudo", "bash", "-c", scriptCmd)
 	default:
 		return fmt.Errorf("update is not supported on %s", runtime.GOOS)
 	}
@@ -455,4 +511,104 @@ func initLog(cfg config.LogConfig, verbose bool) *zap.Logger {
 		level,
 	)
 	return zap.New(core)
+}
+
+func updateChannelDir() string {
+	switch runtime.GOOS {
+	case "windows":
+		appData := os.Getenv("APPDATA")
+		if appData != "" {
+			return filepath.Join(appData, "pp")
+		}
+		exePath, err := os.Executable()
+		if err == nil {
+			return filepath.Dir(exePath)
+		}
+		return "."
+	default:
+		home, err := os.UserHomeDir()
+		if err == nil {
+			return filepath.Join(home, ".config", "pp-client")
+		}
+		return "/etc/pp-client"
+	}
+}
+
+func updateChannelPath() string {
+	return filepath.Join(updateChannelDir(), "update-channel")
+}
+
+func readUpdateChannel() string {
+	data, err := os.ReadFile(updateChannelPath())
+	if err != nil {
+		return "stable"
+	}
+	channel := strings.TrimSpace(string(data))
+	if channel != "testing" {
+		channel = "stable"
+	}
+	return channel
+}
+
+func writeUpdateChannel(channel string) error {
+	dir := updateChannelDir()
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+	if err := os.WriteFile(updateChannelPath(), []byte(channel+"\n"), 0644); err != nil {
+		return fmt.Errorf("failed to write channel preference: %w", err)
+	}
+	return nil
+}
+
+const gitHubRepoSlug = "vakaka1/pp"
+
+type gitHubRelease struct {
+	TagName string `json:"tag_name"`
+}
+
+func fetchLatestReleaseTag(ctx context.Context, channel string) (string, error) {
+	endpoint := "https://api.github.com/repos/" + gitHubRepoSlug + "/releases/latest"
+	if channel == "testing" {
+		endpoint = "https://api.github.com/repos/" + gitHubRepoSlug + "/releases"
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("User-Agent", "pp-client-update-checker")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
+		message := strings.TrimSpace(string(body))
+		if message == "" {
+			message = resp.Status
+		}
+		return "", fmt.Errorf("github release request failed: %s", message)
+	}
+
+	if channel == "testing" {
+		var releases []gitHubRelease
+		if err := json.NewDecoder(resp.Body).Decode(&releases); err != nil {
+			return "", fmt.Errorf("failed to decode github releases list: %w", err)
+		}
+		if len(releases) == 0 {
+			return "", fmt.Errorf("no releases found")
+		}
+		return releases[0].TagName, nil
+	}
+
+	var release gitHubRelease
+	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+		return "", fmt.Errorf("failed to decode github release: %w", err)
+	}
+	return release.TagName, nil
 }
