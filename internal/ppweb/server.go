@@ -499,8 +499,13 @@ func (s *Server) handleOverview(w http.ResponseWriter, r *http.Request, _ *Admin
 		serverUptime = uptime.Round(time.Second).String()
 	}
 	coreUptime := "—"
-	if processRunning && !s.coreStartedAt.IsZero() {
-		coreUptime = now.Sub(s.coreStartedAt).Round(time.Second).String()
+	if processRunning {
+		if s.coreStartedAt.IsZero() {
+			s.coreStartedAt = s.detectCoreStartTimeFromSystemd()
+		}
+		if !s.coreStartedAt.IsZero() {
+			coreUptime = now.Sub(s.coreStartedAt).Round(time.Second).String()
+		}
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{

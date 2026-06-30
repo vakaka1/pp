@@ -1476,9 +1476,10 @@ function OverviewPage({ onNotice, onNavigate }) {
       <div className="dashboard-layout">
 
         <header className="dashboard-hero">
-          <span className="eyebrow" style={{ color: "var(--accent-strong)" }}>Сводка</span>
+          <span className="eyebrow" style={{ color: "var(--accent-strong)" }}>Добро пожаловать!</span>
           <p>
-            Система работает в штатном режиме. У вас запущено <strong>{runningListeners.length}</strong> слушателей
+            Панель управления PP работает в штатном режиме.
+            Запущено <strong>{runningListeners.length}</strong> слушателей
             и настроено <strong>{data.summary.connectionsTotal}</strong> профилей подключений.
           </p>
         </header>
@@ -1562,14 +1563,6 @@ function OverviewPage({ onNotice, onNavigate }) {
             </button>
           </div>
         </section>
-
-        <div className="dashboard-insights">
-          <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem", width: "97%" }}>
-            <CoreStatusCard core={data.core} activeConnections={data.summary.connectionsActive} />
-            <ProtocolUsageList protocols={data.protocols} />
-          </div>
-          <ListenersSummaryList listeners={data.listeners} />
-        </div>
 
       </div>
     </div>

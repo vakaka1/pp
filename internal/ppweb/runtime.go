@@ -91,6 +91,7 @@ func (s *Server) restartCore() (*coreRestartResult, error) {
 
 		out, err := runPrivilegedCommand(ctx, "systemctl", "restart", "pp-core")
 		if err == nil {
+			s.coreStartedAt = s.detectCoreStartTimeFromSystemd()
 			return &coreRestartResult{
 				Method: "systemctl",
 				Output: strings.TrimSpace(string(out)),
@@ -475,4 +476,36 @@ func joinWarnings(parts ...string) string {
 		}
 	}
 	return strings.Join(filtered, " ")
+}
+
+func (s *Server) detectCoreStartTimeFromSystemd() time.Time {
+	if !s.serviceUnitExists("pp-core") {
+		return time.Time{}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	out, err := runPrivilegedCommand(ctx, "systemctl", "show", "pp-core", "--property=ActiveEnterTimestamp", "--value")
+	if err != nil {
+		return time.Time{}
+	}
+
+	ts := strings.TrimSpace(string(out))
+	if ts == "" || ts == "0" {
+		return time.Time{}
+	}
+
+	t, err := time.Parse("Mon 2006-01-02 15:04:05 MST", ts)
+	if err != nil {
+		t, err = time.Parse(time.RFC3339, ts)
+	}
+	if err != nil {
+		t, err = time.Parse("2006-01-02 15:04:05", ts)
+	}
+	if err != nil {
+		s.log.Warn("failed to parse core start time from systemd", zap.String("raw", ts), zap.Error(err))
+		return time.Time{}
+	}
+	return t
 }
