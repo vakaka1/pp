@@ -2476,16 +2476,16 @@ function SettingsPage({ bootstrap, onNotice, onConfirm, onRefreshAbout }) {
 
   return (
     <div className="page">
-      <section className="settings-grid">
-        <article className="surface-card surface-card--wide">
-          <div className="surface-card__head">
-            <div>
-              <span className="eyebrow">Panel</span>
-              <h3>Конфигурация доступа</h3>
-            </div>
-          </div>
+      <PageHero
+        eyebrow="Panel"
+        title="Настройки панели"
+        description="Настройте параметры сетевого доступа, безопасности и обновлений веб-интерфейса"
+        tone="settings"
+      />
 
-          <form onSubmit={handleSubmit} className="auth-form" style={{ maxWidth: "600px" }}>
+      <div className="settings-form-card">
+        <article className="surface-card">
+          <form onSubmit={handleSubmit}>
             <div className="settings-section">
               <h4>Сетевые настройки</h4>
               <div className="input-group">
@@ -2500,19 +2500,19 @@ function SettingsPage({ bootstrap, onNotice, onConfirm, onRefreshAbout }) {
               </div>
 
               <div className="input-group">
-                <label>Префикс пути (напр. /panel)</label>
+                <label>Префикс пути</label>
                 <input
                   type="text"
-                  placeholder="/"
+                  placeholder="Например: /panel"
                   value={form.panelPrefix || ""}
                   onChange={(e) => setForm({ ...form, panelPrefix: e.target.value })}
                 />
-                <p className="muted-caption">Если указать "panel", доступ к системе будет через /panel/</p>
+                <p className="muted-caption">Если указать &quot;panel&quot;, доступ к системе будет через /panel/</p>
               </div>
             </div>
 
             <div className="settings-section">
-              <h4>Безопасность и HTTPS</h4>
+              <h4>Безопасность</h4>
               <div className="input-group">
                 <label>Домен (для HTTPS)</label>
                 <input
@@ -2531,7 +2531,7 @@ function SettingsPage({ bootstrap, onNotice, onConfirm, onRefreshAbout }) {
                     checked={!!form.panelHttps}
                     onChange={(e) => setForm({ ...form, panelHttps: e.target.checked })}
                   />
-                  <span>Включить HTTPS (самоподписанный)</span>
+                  <span>Включить HTTPS (самоподписанный сертификат)</span>
                 </label>
               </div>
             </div>
@@ -2558,13 +2558,15 @@ function SettingsPage({ bootstrap, onNotice, onConfirm, onRefreshAbout }) {
               <code>{previewUrl}</code>
             </div>
 
-            <button type="submit" className="primary-button" disabled={submitting}>
-              {submitting ? "Сохранение..." : "Сохранить изменения"}
-            </button>
+            <div className="settings-form-footer">
+              <button type="submit" className="primary-button" disabled={submitting}>
+                {submitting ? "Сохранение..." : "Сохранить изменения"}
+              </button>
+            </div>
 
-            <div style={{ marginTop: "2rem", borderTop: "1px solid var(--border-color)", paddingTop: "1.5rem" }}>
+            <div className="settings-restart-section">
               <h4>Перезапуск панели</h4>
-              <p className="muted-caption" style={{ marginBottom: "1rem" }}>
+              <p className="muted-caption">
                 Нажмите кнопку ниже, чтобы полностью перезапустить веб-интерфейс.
                 Это необходимо для применения изменений порта, HTTPS или префикса пути.
               </p>
@@ -2578,7 +2580,7 @@ function SettingsPage({ bootstrap, onNotice, onConfirm, onRefreshAbout }) {
             </div>
           </form>
         </article>
-      </section>
+      </div>
     </div>
   );
 }

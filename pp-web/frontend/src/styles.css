@@ -1760,6 +1760,46 @@ code {
   word-break: break-all;
 }
 
+.settings-form-card {
+  max-width: 680px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.settings-form-card .surface-card {
+  padding: 2rem;
+}
+
+.settings-form-card form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.settings-form-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border-color);
+  margin-top: 0.5rem;
+}
+
+.settings-restart-section {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.settings-restart-section h4 {
+  margin-bottom: 0.5rem;
+  font-size: 1.05rem;
+  color: var(--text-color);
+}
+
+.settings-restart-section .muted-caption {
+  margin-bottom: 1rem;
+}
+
 .theme-preview-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
