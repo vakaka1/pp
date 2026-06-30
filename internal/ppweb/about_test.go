@@ -181,3 +181,37 @@ func TestBackupPathExists(t *testing.T) {
 		t.Fatalf("expected existing backup to be available")
 	}
 }
+
+func TestWriteServiceUpdateEnvironment(t *testing.T) {
+	dir := t.TempDir()
+	server := &Server{opts: Options{DatabasePath: filepath.Join(dir, "pp-web.sqlite")}}
+
+	if err := server.writeServiceUpdateEnvironment("v1.2.3-rc.1"); err != nil {
+		t.Fatalf("writeServiceUpdateEnvironment() error = %v", err)
+	}
+
+	payload, err := os.ReadFile(filepath.Join(dir, "update.env"))
+	if err != nil {
+		t.Fatalf("read update env: %v", err)
+	}
+	if string(payload) != "PP_WEB_UPDATE_TAG=\"v1.2.3-rc.1\"\n" {
+		t.Fatalf("unexpected update env payload: %q", string(payload))
+	}
+}
+
+func TestWriteServiceUpdateEnvironmentDefaultsToLatest(t *testing.T) {
+	dir := t.TempDir()
+	server := &Server{opts: Options{DatabasePath: filepath.Join(dir, "pp-web.sqlite")}}
+
+	if err := server.writeServiceUpdateEnvironment(" "); err != nil {
+		t.Fatalf("writeServiceUpdateEnvironment() error = %v", err)
+	}
+
+	payload, err := os.ReadFile(filepath.Join(dir, "update.env"))
+	if err != nil {
+		t.Fatalf("read update env: %v", err)
+	}
+	if string(payload) != "PP_WEB_UPDATE_TAG=\"latest\"\n" {
+		t.Fatalf("unexpected update env payload: %q", string(payload))
+	}
+}

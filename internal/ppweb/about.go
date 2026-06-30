@@ -28,6 +28,7 @@ const (
 	gitHubLatestRelease  = "https://api.github.com/repos/" + gitHubRepoSlug + "/releases/latest"
 	gitHubAllReleases    = "https://api.github.com/repos/" + gitHubRepoSlug + "/releases"
 	ppWebUpdateUnit      = "pp-web-update"
+	ppWebUpdateTagEnv    = "PP_WEB_UPDATE_TAG"
 	releaseCacheLifetime = 15 * time.Minute
 )
 
@@ -718,6 +719,10 @@ func execPathAvailable(name string) bool {
 func (s *Server) startReleaseUpdate(targetVersion string) (string, error) {
 	switch {
 	case s.serviceUnitExists(ppWebUpdateUnit):
+		if err := s.writeServiceUpdateEnvironment(targetVersion); err != nil {
+			return "", err
+		}
+
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
@@ -737,6 +742,17 @@ func (s *Server) startReleaseUpdate(targetVersion string) (string, error) {
 		}
 		return "direct", nil
 	}
+}
+
+func (s *Server) writeServiceUpdateEnvironment(targetVersion string) error {
+	targetVersion = strings.TrimSpace(targetVersion)
+	if targetVersion == "" {
+		targetVersion = "latest"
+	}
+
+	return writeSystemdEnvironmentFile(s.updateEnvironmentPath(), map[string]string{
+		ppWebUpdateTagEnv: targetVersion,
+	}, 0o644)
 }
 
 func (s *Server) startTransientReleaseUpdate(targetVersion string) error {
@@ -874,6 +890,10 @@ func (s *Server) updateStatusPath() string {
 	return filepath.Join(filepath.Dir(s.opts.DatabasePath), "update-status.json")
 }
 
+func (s *Server) updateEnvironmentPath() string {
+	return filepath.Join(filepath.Dir(s.opts.DatabasePath), "update.env")
+}
+
 func (s *Server) readUpdateStatus() updateRunStatus {
 	status := s.readUpdateStatusFromFile()
 
@@ -936,6 +956,57 @@ func (s *Server) writeUpdateStatus(status updateRunStatus) error {
 		return err
 	}
 	return writeJSONFileAtomic(s.updateStatusPath(), status, 0o644)
+}
+
+func writeSystemdEnvironmentFile(targetPath string, values map[string]string, mode os.FileMode) error {
+	if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
+		return err
+	}
+
+	var builder strings.Builder
+	for key, value := range values {
+		if strings.TrimSpace(key) == "" {
+			continue
+		}
+		builder.WriteString(key)
+		builder.WriteByte('=')
+		builder.WriteString(quoteSystemdEnvironmentValue(value))
+		builder.WriteByte('\n')
+	}
+
+	tmpFile, err := os.CreateTemp(filepath.Dir(targetPath), filepath.Base(targetPath)+".tmp-*")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmpFile.Name()
+
+	cleanup := func() {
+		_ = tmpFile.Close()
+		_ = os.Remove(tmpPath)
+	}
+
+	if _, err := tmpFile.WriteString(builder.String()); err != nil {
+		cleanup()
+		return err
+	}
+	if err := tmpFile.Chmod(mode); err != nil {
+		cleanup()
+		return err
+	}
+	if err := tmpFile.Close(); err != nil {
+		_ = os.Remove(tmpPath)
+		return err
+	}
+	if err := os.Rename(tmpPath, targetPath); err != nil {
+		_ = os.Remove(tmpPath)
+		return err
+	}
+	return nil
+}
+
+func quoteSystemdEnvironmentValue(value string) string {
+	replacer := strings.NewReplacer(`\`, `\\`, `"`, `\"`, "`", "\\`", "$", "\\$")
+	return `"` + replacer.Replace(value) + `"`
 }
 
 func writeJSONFileAtomic(targetPath string, payload any, mode os.FileMode) error {

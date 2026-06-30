@@ -347,10 +347,12 @@ Wants=network-online.target
 Type=oneshot
 User=root
 Group=root
+Environment=PP_WEB_UPDATE_TAG=latest
+EnvironmentFile=-${PP_WEB_DATA_DIR}/update.env
 ExecStart=${PP_WEB_BIN} \\
     apply-release \\
     --repo ${GITHUB_REPO} \\
-    --tag latest \\
+    --tag \${PP_WEB_UPDATE_TAG} \\
     --pp-path ${PP_BIN} \\
     --pp-web-path ${PP_WEB_BIN} \\
     --frontend-dist ${PP_WEB_FRONTEND_DIR} \\
