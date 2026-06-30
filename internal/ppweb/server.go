@@ -24,14 +24,17 @@ import (
 const sessionCookieName = "ppweb_session"
 
 type Server struct {
-	opts      Options
-	store     *Store
-	protocols *protocolRegistry
-	coreCmd   *exec.Cmd
-	log       *zap.Logger
+	opts          Options
+	store         *Store
+	protocols     *protocolRegistry
+	coreCmd       *exec.Cmd
+	coreStartedAt time.Time
+	log           *zap.Logger
 
 	releaseMu    sync.Mutex
 	releaseCache releaseCacheEntry
+
+	startedAt time.Time
 }
 
 func NewServer(opts Options) (*Server, error) {
@@ -68,6 +71,7 @@ func NewServer(opts Options) (*Server, error) {
 		store:     store,
 		protocols: newProtocolRegistry(),
 		log:       logger,
+		startedAt: time.Now(),
 	}
 
 	startupCtx, startupCancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -149,6 +153,8 @@ func (s *Server) serveAPI(w http.ResponseWriter, r *http.Request) {
 		s.withAdmin(w, r, s.handleProtocols)
 	case r.URL.Path == "/api/overview" && r.Method == http.MethodGet:
 		s.withAdmin(w, r, s.handleOverview)
+	case r.URL.Path == "/api/traffic" && r.Method == http.MethodGet:
+		s.withAdmin(w, r, s.handleTraffic)
 	case r.URL.Path == "/api/about" && r.Method == http.MethodGet:
 		s.withAdmin(w, r, s.handleAbout)
 	case r.URL.Path == "/api/about/update" && r.Method == http.MethodPost:
@@ -486,6 +492,17 @@ func (s *Server) handleOverview(w http.ResponseWriter, r *http.Request, _ *Admin
 		settings.LastSyncError = buildErr.Error()
 	}
 
+	now := time.Now()
+	panelUptime := now.Sub(s.startedAt).Round(time.Second).String()
+	serverUptime := "—"
+	if uptime, ok := systemUptime(); ok {
+		serverUptime = uptime.Round(time.Second).String()
+	}
+	coreUptime := "—"
+	if processRunning && !s.coreStartedAt.IsZero() {
+		coreUptime = now.Sub(s.coreStartedAt).Round(time.Second).String()
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
 		"appName": settings.AppName,
 		"summary": map[string]any{
@@ -507,10 +524,38 @@ func (s *Server) handleOverview(w http.ResponseWriter, r *http.Request, _ *Admin
 			"lastSyncError":   settings.LastSyncError,
 			"processRunning":  processRunning,
 		},
-		"protocols":     protocolCards,
-		"listeners":     listenerCards,
-		"build":         s.opts.Build,
+		"protocols": protocolCards,
+		"listeners": listenerCards,
+		"build":     s.opts.Build,
+		"uptime": map[string]any{
+			"server":    serverUptime,
+			"core":      coreUptime,
+			"panel":     panelUptime,
+			"version":   s.opts.Build.Version,
+			"startedAt": s.startedAt,
+			"sampledAt": now,
+		},
 		"hasBuildError": buildErr != nil,
+	})
+}
+
+func (s *Server) handleTraffic(w http.ResponseWriter, r *http.Request, _ *Admin) {
+	now := time.Now()
+	var totalBytes int64
+
+	if raw, err := os.ReadFile(s.clientStatusPath()); err == nil {
+		var status runtimeClientStatusFile
+		if err := json.Unmarshal(raw, &status); err == nil {
+			for _, entry := range status.Clients {
+				totalBytes += entry.BytesUsed
+			}
+		}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"bytesIn":   totalBytes,
+		"bytesOut":  totalBytes,
+		"timestamp": now,
 	})
 }
 

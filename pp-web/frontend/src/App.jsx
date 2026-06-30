@@ -868,7 +868,7 @@ function Shell({
 
   let content = null;
   if (route.startsWith("/app/overview")) {
-    content = <OverviewPage onNotice={onNotice} />;
+    content = <OverviewPage onNotice={onNotice} onNavigate={onNavigate} />;
   } else if (route.startsWith("/app/connections")) {
     content = <ConnectionsPage onNotice={onNotice} onConfirm={onConfirm} />;
   } else if (route.startsWith("/app/pp-settings")) {
@@ -1219,17 +1219,36 @@ function ListenersSummaryList({ listeners }) {
   );
 }
 
-function OverviewPage({ onNotice }) {
+function OverviewPage({ onNotice, onNavigate }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [trafficHistory, setTrafficHistory] = useState([]);
+  const [currentTraffic, setCurrentTraffic] = useState({ bytesIn: 0, bytesOut: 0 });
+  const [uptimeTick, setUptimeTick] = useState(() => Date.now());
+  const canvasRef = useRef(null);
+  const trafficRef = useRef({ prevBytesIn: 0, prevBytesOut: 0, prevTime: 0 });
+  const animRef = useRef(null);
 
   useEffect(() => {
     loadOverview();
   }, []);
 
-  async function loadOverview() {
-    setLoading(true);
+  useEffect(() => {
+    pollTraffic();
+    const interval = setInterval(pollTraffic, 1000);
+    return () => {
+      clearInterval(interval);
+      if (animRef.current) cancelAnimationFrame(animRef.current);
+    };
+  }, []);
 
+  useEffect(() => {
+    const interval = setInterval(() => setUptimeTick(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  async function loadOverview() {
+    setLoading((wasLoading) => wasLoading && !data);
     try {
       const payload = await api.overview();
       setData(payload);
@@ -1240,12 +1259,210 @@ function OverviewPage({ onNotice }) {
     }
   }
 
+  async function pollTraffic() {
+    try {
+      const result = await api.traffic();
+      const now = Date.now();
+      const ref = trafficRef.current;
+
+      let rateIn = 0;
+      let rateOut = 0;
+
+      if (ref.prevTime > 0) {
+        const dt = (now - ref.prevTime) / 1000;
+        if (dt > 0) {
+          rateIn = Math.max(0, (result.bytesIn - ref.prevBytesIn) / dt);
+          rateOut = Math.max(0, (result.bytesOut - ref.prevBytesOut) / dt);
+        }
+      }
+
+      ref.prevBytesIn = result.bytesIn;
+      ref.prevBytesOut = result.bytesOut;
+      ref.prevTime = now;
+
+      setCurrentTraffic({ bytesIn: rateIn, bytesOut: rateOut });
+
+      setTrafficHistory((prev) => {
+        const next = [...prev, { time: now, rateIn, rateOut }];
+        if (next.length > 60) next.splice(0, next.length - 60);
+        return next;
+      });
+    } catch {
+    }
+  }
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext("2d");
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+
+    const width = rect.width;
+    const height = rect.height;
+    const padding = { top: 24, right: 16, bottom: 32, left: 48 };
+    const chartW = width - padding.left - padding.right;
+    const chartH = height - padding.top - padding.bottom;
+    const styles = getComputedStyle(document.documentElement);
+
+    function cssColor(name) {
+      return styles.getPropertyValue(name).trim();
+    }
+
+    ctx.clearRect(0, 0, width, height);
+
+    const chartPoints = trafficHistory.length >= 2
+      ? trafficHistory
+      : [
+        { time: Date.now() - 1000, rateIn: 0, rateOut: 0 },
+        { time: Date.now(), rateIn: 0, rateOut: 0 }
+      ];
+
+    const maxVal = Math.max(1, ...chartPoints.map((t) => Math.max(t.rateIn, t.rateOut)));
+
+    const getX = (i) => padding.left + (i / (chartPoints.length - 1)) * chartW;
+    const getY = (v) => padding.top + chartH - (v / maxVal) * chartH;
+
+    ctx.strokeStyle = cssColor("--border-color");
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    for (let i = 0; i <= 4; i++) {
+      const y = padding.top + (chartH / 4) * i;
+      ctx.beginPath();
+      ctx.moveTo(padding.left, y);
+      ctx.lineTo(width - padding.right, y);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+
+    function gradientAlpha(hex, alpha) {
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+
+    function drawLine(data, color) {
+      ctx.beginPath();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2.5;
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      for (let i = 0; i < data.length; i++) {
+        const x = getX(i);
+        const y = getY(data[i].rate);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(getX(data.length - 1), getY(data[data.length - 1].rate));
+      ctx.lineTo(getX(data.length - 1), height - padding.bottom);
+      ctx.lineTo(getX(0), height - padding.bottom);
+      ctx.closePath();
+      const resolved = color;
+      const base = resolved.startsWith("#") ? gradientAlpha(resolved, 0.15) : resolved.replace(")", ", 0.15)").replace("rgb", "rgba");
+      const edge = resolved.startsWith("#") ? gradientAlpha(resolved, 0.02) : resolved.replace(")", ", 0.02)").replace("rgb", "rgba");
+      const gradient = ctx.createLinearGradient(0, padding.top, 0, height - padding.bottom);
+      gradient.addColorStop(0, base);
+      gradient.addColorStop(1, edge);
+      ctx.fillStyle = gradient;
+      ctx.fill();
+    }
+
+    drawLine(
+      chartPoints.map((t) => ({ rate: t.rateIn })),
+      cssColor("--accent-strong")
+    );
+    drawLine(
+      chartPoints.map((t) => ({ rate: t.rateOut })),
+      cssColor("--success")
+    );
+
+    ctx.font = "11px var(--font-mono)";
+    ctx.fillStyle = cssColor("--text-muted");
+    ctx.textAlign = "right";
+    for (let i = 0; i <= 4; i++) {
+      const v = (maxVal / 4) * (4 - i);
+      const y = padding.top + (chartH / 4) * i + 4;
+      ctx.fillText(formatBytes(v) + "/s", padding.left - 8, y);
+    }
+
+    const timeLabels = [chartPoints[0], chartPoints[Math.floor(chartPoints.length / 2)], chartPoints[chartPoints.length - 1]];
+    ctx.textAlign = "center";
+    ctx.fillStyle = cssColor("--text-muted");
+    ctx.font = "10px var(--font-mono)";
+    timeLabels.forEach((t, i) => {
+      if (!t) return;
+      const x = getX(chartPoints.indexOf(t));
+      const label = i === 2 ? "сейчас" : `${Math.round((Date.now() - t.time) / 1000)}с назад`;
+      ctx.fillText(label, x, height - 8);
+    });
+
+    ctx.font = "10px var(--font-sans)";
+    ctx.textAlign = "left";
+    ctx.fillStyle = cssColor("--accent-strong");
+    ctx.fillRect(padding.left + 4, 6, 8, 8);
+    ctx.fillText("Входящий", padding.left + 16, 14);
+    ctx.fillStyle = cssColor("--success");
+    ctx.fillRect(width / 2 + 4, 6, 8, 8);
+    ctx.fillText("Исходящий", width / 2 + 16, 14);
+  }, [trafficHistory]);
+
+  function formatBytes(bytesPerSec) {
+    if (bytesPerSec < 1024) return Math.round(bytesPerSec) + " B";
+    if (bytesPerSec < 1024 * 1024) return (bytesPerSec / 1024).toFixed(1) + " KB";
+    return (bytesPerSec / (1024 * 1024)).toFixed(2) + " MB";
+  }
+
+  function formatUptime(seconds) {
+    const d = Math.floor(seconds / 86400);
+    const h = Math.floor((seconds % 86400) / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
+    if (d > 0) return `${d}д ${h}ч ${m}м`;
+    if (h > 0) return `${h}ч ${m}м ${s}с`;
+    if (m > 0) return `${m}м ${s}с`;
+    return `${s}с`;
+  }
+
+  function parseUptime(uptimeStr) {
+    if (!uptimeStr || uptimeStr === "—") return null;
+    let total = 0;
+    const parts = uptimeStr.matchAll(/(\d+(?:\.\d+)?)([a-zA-Z]+)/g);
+    let matched = false;
+    for (const part of parts) {
+      matched = true;
+      const num = Number(part[1]);
+      const unit = part[2];
+      if (unit.startsWith("h")) total += num * 3600;
+      else if (unit.startsWith("m")) total += num * 60;
+      else if (unit.startsWith("s")) total += num;
+    }
+    return matched ? Math.floor(total) : null;
+  }
+
+  function liveUptime(seconds) {
+    if (seconds == null || !data?.uptime?.sampledAt) return seconds;
+    const sampledAt = new Date(data.uptime.sampledAt).getTime();
+    if (Number.isNaN(sampledAt)) return seconds;
+    return seconds + Math.max(0, Math.floor((uptimeTick - sampledAt) / 1000));
+  }
+
   if (loading || !data) {
     return <PageSkeleton title="Обзор системы" />;
   }
 
   const runningListeners = data.listeners.filter((listener) => listener.enabled && listener.reachable);
-  const healthyCore = data.core.binaryAvailable && data.core.configValid;
+  const serverUptime = liveUptime(parseUptime(data.uptime?.server));
+  const coreUptime = liveUptime(parseUptime(data.uptime?.core));
+  const panelUptime = liveUptime(parseUptime(data.uptime?.panel));
+  const ppVersion = data.uptime?.version || data.build?.version || "—";
 
   return (
     <div className="page fade-in">
@@ -1259,27 +1476,84 @@ function OverviewPage({ onNotice }) {
           </p>
         </header>
 
-        <section className="dashboard-stats-grid">
-          <MetricCard
-            value={data.summary.connectionsTotal}
-            label="Всего профилей"
-            icon={ICONS.profiles}
-          />
-          <MetricCard
-            value={data.summary.connectionsActive}
-            label="Активных"
-            icon={ICONS.activity}
-          />
-          <MetricCard
-            value={data.summary.listenersReachable}
-            label="Онлайн"
-            icon={ICONS.network}
-          />
-          <MetricCard
-            value={data.summary.protocolsInstalled}
-            label="Протоколов"
-            icon={ICONS.protocol}
-          />
+        <div className="db-grid">
+          <section className="surface-card db-card-traffic">
+            <div className="surface-card__head">
+              <span className="eyebrow">Пропускная способность</span>
+            </div>
+            <div className="traffic-legend">
+              <span className="traffic-legend-item">
+                <span className="traffic-dot" style={{ background: "var(--accent-strong)" }} />
+                Входящий: <strong>{formatBytes(currentTraffic.bytesIn)}/с</strong>
+              </span>
+              <span className="traffic-legend-item">
+                <span className="traffic-dot" style={{ background: "var(--success)" }} />
+                Исходящий: <strong>{formatBytes(currentTraffic.bytesOut)}/с</strong>
+              </span>
+            </div>
+            <div className="traffic-chart-wrap">
+              <canvas ref={canvasRef} className="traffic-canvas" />
+            </div>
+          </section>
+
+          <section className="surface-card db-card-uptime">
+            <div className="surface-card__head">
+              <span className="eyebrow">Состояние системы</span>
+            </div>
+            <div className="uptime-list">
+              <div className="uptime-item">
+                <span className="uptime-label">Сервер</span>
+                <span className="uptime-value">{serverUptime != null ? formatUptime(serverUptime) : "—"}</span>
+              </div>
+              <div className="uptime-item">
+                <span className="uptime-label">Ядро PP</span>
+                <span className="uptime-value">
+                  {coreUptime != null ? formatUptime(coreUptime) : "—"}
+                </span>
+              </div>
+              <div className="uptime-item">
+                <span className="uptime-label">PP Web</span>
+                <span className="uptime-value">{panelUptime != null ? formatUptime(panelUptime) : "—"}</span>
+              </div>
+              <div className="uptime-item">
+                <span className="uptime-label">Версия PP</span>
+                <span className="uptime-value uptime-version">{ppVersion}</span>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <section className="surface-card">
+          <div className="surface-card__head">
+            <span className="eyebrow">Меню быстрых действий</span>
+          </div>
+          <div className="quick-actions">
+            <button className="quick-action-btn" onClick={() => onNavigate("/app/pp-settings")}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+              </svg>
+              <span>Управление ядром PP</span>
+            </button>
+            <button className="quick-action-btn" onClick={() => onNavigate("/app/settings")}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="7" height="7" />
+                <rect x="14" y="3" width="7" height="7" />
+                <rect x="14" y="14" width="7" height="7" />
+                <rect x="3" y="14" width="7" height="7" />
+              </svg>
+              <span>Настройки системы</span>
+            </button>
+            <button className="quick-action-btn" onClick={() => onNavigate("/app/connections?create=1")}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <line x1="19" y1="8" x2="19" y2="14" />
+                <line x1="16" y1="11" x2="22" y2="11" />
+              </svg>
+              <span>Создать подключение</span>
+            </button>
+          </div>
         </section>
 
         <div className="dashboard-insights">

@@ -101,6 +101,7 @@ func (s *Server) restartCore() (*coreRestartResult, error) {
 
 	if s.coreCmd != nil && s.coreCmd.Process != nil {
 		_ = s.coreCmd.Process.Kill()
+		s.coreStartedAt = time.Time{}
 	}
 
 	binaryStatus := s.inspectPPCoreBinary()
@@ -125,6 +126,7 @@ func (s *Server) restartCore() (*coreRestartResult, error) {
 	}
 
 	s.coreCmd = cmd
+	s.coreStartedAt = time.Now()
 	return &coreRestartResult{
 		Method: "direct",
 		PID:    cmd.Process.Pid,
@@ -148,6 +150,7 @@ func (s *Server) stopCore() error {
 			return err
 		}
 		s.coreCmd = nil
+		s.coreStartedAt = time.Time{}
 	}
 	return nil
 }
