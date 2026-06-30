@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -482,6 +483,9 @@ func fetchGitHubRelease(ctx context.Context, endpoint string) (*gitHubRelease, e
 		if len(releases) == 0 {
 			return nil, errors.New("github releases list is empty")
 		}
+		sort.Slice(releases, func(i, j int) bool {
+			return releases[i].PublishedAt.After(releases[j].PublishedAt)
+		})
 		return &releases[0], nil
 	}
 
