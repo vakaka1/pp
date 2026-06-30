@@ -69,9 +69,9 @@ type FallbackSettings struct {
 	InviteCode             string           `json:"invite_code,omitempty"`
 	Limits                 LimitsConfig     `json:"limits"`
 	AntiReplay             AntiReplayConfig `json:"anti_replay"`
-	// Routing defines the server-side routing policy for this connection.
-	// When set, the inbound handler enforces these rules for all clients.
-	// Clients themselves send all traffic to the server without local rules.
+	// Routing defines centrally managed routing for this connection. The server
+	// exposes it to authenticated clients and also enforces block rules as a
+	// fallback for older clients.
 	Routing *ServerRoutingConfig `json:"routing,omitempty"`
 }
 
@@ -81,11 +81,11 @@ type FallbackClient struct {
 	PSK  string `json:"psk"`
 }
 
-// ServerRoutingConfig defines the routing policy enforced server-side for this
-// connection's inbound handler. Clients send all traffic through the tunnel;
-// the server applies these rules to decide what to allow, block, or direct.
+// ServerRoutingConfig defines the routing policy managed on the server and
+// synchronized to clients. "direct" is applied client-side before opening a
+// tunnel stream; "block" is enforced both client-side and server-side.
 type ServerRoutingConfig struct {
-	DefaultPolicy string        `json:"default_policy"` // "proxy" (allow) or "block"
+	DefaultPolicy string        `json:"default_policy"` // "proxy", "direct", or "block"
 	Rules         []RoutingRule `json:"rules,omitempty"`
 }
 
@@ -118,8 +118,8 @@ type ClientConfig struct {
 		GRPCUserAgent  string `json:"grpc_user_agent"`
 	} `json:"server"`
 
-	// Routing is used only in server-side inbound config, not in client configs.
-	// Client configs omit this field entirely — routing is centralized on the server.
+	// Routing is the client's current local routing snapshot. pp-fallback clients
+	// also synchronize managed routing from the server while running.
 	Routing *RoutingConfig `json:"routing,omitempty"`
 
 	Transport struct {

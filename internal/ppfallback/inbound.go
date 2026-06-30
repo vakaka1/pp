@@ -176,6 +176,7 @@ func (s *Inbound) Start(ctx context.Context) error {
 	}
 
 	mux := http.NewServeMux()
+	mux.HandleFunc(protocol.RoutingSyncPath, s.handleRoutingSync)
 	mux.HandleFunc(protocol.LoginTunnelPath, s.handleGRPC)
 	if s.settings.GRPCPath != "" && s.settings.GRPCPath != protocol.LoginTunnelPath {
 		mux.HandleFunc(s.settings.GRPCPath, s.handleGRPC)
@@ -218,6 +219,44 @@ func (s *Inbound) handleFallback(w http.ResponseWriter, r *http.Request) {
 	s.fallbackHandler.ServeHTTP(w, r)
 }
 
+func (s *Inbound) handleRoutingSync(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if _, ok := s.authenticateRequest(r); !ok {
+		s.handleFallback(w, r)
+		return
+	}
+
+	routingCfg := s.settings.Routing
+	if routingCfg == nil {
+		routingCfg = &config.ServerRoutingConfig{DefaultPolicy: "proxy"}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	if err := json.NewEncoder(w).Encode(routingCfg); err != nil {
+		s.log.Debug("failed to encode routing sync response", zap.Error(err))
+	}
+}
+
+func (s *Inbound) authenticateRequest(r *http.Request) (clientAuth, bool) {
+	auth := r.Header.Get("Authorization")
+	if !strings.HasPrefix(auth, "Bearer ") {
+		return clientAuth{}, false
+	}
+	token := auth[7:]
+	for _, client := range s.clients {
+		valid, err := protocol.ValidateJWT(token, client.psk, 15*time.Minute, s.jtiCache.CheckAndAdd)
+		if valid {
+			return client, true
+		}
+		_ = err
+	}
+	return clientAuth{}, false
+}
+
 type trackedConn struct {
 	net.Conn
 	clientID    int64
@@ -246,25 +285,8 @@ func (s *Inbound) handleGRPC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	auth := r.Header.Get("Authorization")
-	if !strings.HasPrefix(auth, "Bearer ") {
-		s.handleFallback(w, r)
-		return
-	}
-	token := auth[7:]
-	// Try each accepted PSK; the first successful validation wins.
-	var authenticated clientAuth
-	var jwtValid bool
-	for _, client := range s.clients {
-		valid, err := protocol.ValidateJWT(token, client.psk, 15*time.Minute, s.jtiCache.CheckAndAdd)
-		if valid {
-			authenticated = client
-			jwtValid = true
-			break
-		}
-		_ = err
-	}
-	if !jwtValid {
+	authenticated, ok := s.authenticateRequest(r)
+	if !ok {
 		s.log.Debug("invalid jwt - no matching psk")
 		s.handleFallback(w, r)
 		return

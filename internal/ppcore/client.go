@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/vakaka1/pp/internal/config"
@@ -14,19 +15,24 @@ import (
 
 // Client is the main core client structure.
 type Client struct {
-	cfg    *config.ClientConfig
-	log    *zap.Logger
-	engine *routing.Engine
-	pool   *ConnectionPool
+	cfg      *config.ClientConfig
+	log      *zap.Logger
+	engine   *routing.Engine
+	engineMu sync.RWMutex
+	geoIP    *routing.GeoIPDB
+	geoSite  *routing.GeoSiteDB
+	pool     *ConnectionPool
 }
 
 // NewClient creates a new PP client.
-func NewClient(cfg *config.ClientConfig, log *zap.Logger, engine *routing.Engine) *Client {
+func NewClient(cfg *config.ClientConfig, log *zap.Logger, engine *routing.Engine, geoIP *routing.GeoIPDB, geoSite *routing.GeoSiteDB) *Client {
 	return &Client{
-		cfg:    cfg,
-		log:    log,
-		engine: engine,
-		pool:   NewConnectionPool(cfg, log),
+		cfg:     cfg,
+		log:     log,
+		engine:  engine,
+		geoIP:   geoIP,
+		geoSite: geoSite,
+		pool:    NewConnectionPool(cfg, log),
 	}
 }
 
@@ -47,6 +53,9 @@ func TestConnection(ctx context.Context, cfg *config.ClientConfig, log *zap.Logg
 
 // Start starts the client proxy listeners.
 func (c *Client) Start(ctx context.Context) error {
+	c.refreshRemoteRouting(ctx)
+	go c.syncRemoteRouting(ctx)
+
 	if err := c.pool.Start(ctx); err != nil {
 		return err
 	}
@@ -109,7 +118,7 @@ func (c *Client) handleClientConn(conn net.Conn, handler func(net.Conn) (*proxy.
 	host, _, _ := net.SplitHostPort(target)
 	ip := net.ParseIP(host)
 
-	policy := c.engine.Route(host, ip)
+	policy := c.route(host, ip)
 	if policy == routing.PolicyBlock {
 		return
 	}
@@ -155,4 +164,23 @@ func (c *Client) handleClientConn(conn net.Conn, handler func(net.Conn) (*proxy.
 		errc <- err
 	}()
 	<-errc
+}
+
+func (c *Client) route(host string, ip net.IP) routing.Policy {
+	c.engineMu.RLock()
+	engine := c.engine
+	c.engineMu.RUnlock()
+	if engine == nil {
+		return routing.PolicyProxy
+	}
+	return engine.Route(host, ip)
+}
+
+func (c *Client) setRoutingEngine(engine *routing.Engine) {
+	if engine == nil {
+		return
+	}
+	c.engineMu.Lock()
+	c.engine = engine
+	c.engineMu.Unlock()
 }

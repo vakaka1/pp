@@ -357,10 +357,6 @@ func buildFallbackClientCfg(settings ppconfig.FallbackSettings, clientName, psk 
 		return ppconfig.Config{}, fmt.Errorf("failed to derive public key: %w", err)
 	}
 
-	// Client config has NO routing rules: the client tunnels all traffic to the
-	// server, and the server applies centralized routing (allow/block) based on
-	// the connection's Routing settings. This means routing changes on the server
-	// take effect immediately for all clients without any config update.
 	clientCfg := ppconfig.Config{
 		Meta: &ppconfig.ConfigMeta{
 			ClientName:  clientName,
@@ -391,6 +387,12 @@ func buildFallbackClientCfg(settings ppconfig.FallbackSettings, clientName, psk 
 	clientCfg.Client.Transport.ReconnectDurationMinH = 3
 	clientCfg.Client.Transport.ReconnectDurationMaxH = 5
 	clientCfg.Client.ConnectionPool.Size = 1
+	if settings.Routing != nil {
+		clientCfg.Client.Routing = &ppconfig.RoutingConfig{
+			DefaultPolicy: settings.Routing.DefaultPolicy,
+			Rules:         settings.Routing.Rules,
+		}
+	}
 
 	return clientCfg, nil
 }

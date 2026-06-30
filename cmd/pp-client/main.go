@@ -310,7 +310,7 @@ func main() {
 				log.Fatal("failed to initialize routing engine", zap.Error(err))
 			}
 
-			cli := ppcore.NewClient(cfg.Client, log, engine)
+			cli := ppcore.NewClient(cfg.Client, log, engine, geoIpDB, geoSiteDB)
 
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()

@@ -69,21 +69,21 @@ const TYPE_LABELS = {
   domain_regex: "Regexp"
 };
 const POLICY_LABELS = {
-  proxy: "через сервер",
-  direct: "разрешить",
-  block: "блокировать"
+  proxy: "разрешить",
+  direct: "напрямую",
+  block: "запретить"
 };
 
 const POLICY_DESCRIPTIONS = {
-  proxy: "Трафик будет открыт сервером PP.",
-  direct: "Разрешить трафик на сервере PP. Это не обход full-tunnel на клиенте.",
-  block: "Сервер PP отклонит соединение."
+  proxy: "Клиент отправит трафик через PP, сервер откроет соединение к цели.",
+  direct: "Клиент откроет соединение к цели сам, мимо PP-туннеля.",
+  block: "Клиент и сервер отклонят соединение."
 };
 
 const RULE_TYPE_HELP = {
   geosite: "Категория доменов из geosite, например ru.",
   geoip: "Страна IP из GeoIP, например ru.",
-  domain: "Домен и его поддомены, например 2ip.ru.",
+  domain: "Домен и его поддомены, например example.com.",
   domain_suffix: "Суффикс домена, например .ru.",
   domain_keyword: "Любой домен с этим фрагментом.",
   ip_cidr: "Диапазон IP, например 192.168.0.0/16.",
@@ -92,15 +92,15 @@ const RULE_TYPE_HELP = {
 
 const ROUTING_PRESETS = [
   {
-    label: "Разрешить 2ip.ru",
-    rule: { type: "domain", value: "2ip.ru", policy: "direct", comment: "2ip.ru и www.2ip.ru" }
+    label: "Разрешить домен",
+    rule: { type: "domain", value: "", policy: "proxy", comment: "" }
   },
   {
-    label: "Разрешить RU сайты",
-    rule: { type: "geosite", value: "ru", policy: "direct", comment: "Домены из geosite:ru" }
+    label: "Напрямую домен",
+    rule: { type: "domain", value: "", policy: "direct", comment: "" }
   },
   {
-    label: "Блокировать домен",
+    label: "Запретить домен",
     rule: { type: "domain", value: "", policy: "block", comment: "" }
   }
 ];
@@ -2421,7 +2421,7 @@ function RoutingMapEditor({ routing, onChange }) {
                     ? "ru"
                     : rule.type === "ip_cidr"
                       ? "10.0.0.0/8"
-                      : "2ip.ru"
+                      : "example.com"
                 }
                 value={rule.value}
                 onChange={(event) => updateRule(index, "value", event.target.value)}
@@ -3034,7 +3034,7 @@ function ConnectionEditor({ connection, connections, protocols, onClose, onSaved
               <div className="section-divider" />
 
               <div className="section-header-row">
-                <h4>Серверный роутинг</h4>
+                <h4>Роутинг клиентов</h4>
                 <button
                   type="button"
                   className="ghost-button ghost-button--small"
@@ -3045,7 +3045,7 @@ function ConnectionEditor({ connection, connections, protocols, onClose, onSaved
               </div>
 
               <p className="muted-caption">
-                Правила применяются на сервере для всех клиентов этого подключения. Клиенты обновляются автоматически.
+                Правила хранятся на сервере и автоматически применяются клиентами этого подключения.
               </p>
 
               {showRouting ? <RoutingMapEditor routing={routing} onChange={setRouting} /> : null}
