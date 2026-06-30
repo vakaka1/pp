@@ -1122,6 +1122,7 @@ function OverviewPage({ onNotice, onNavigate }) {
   const [loading, setLoading] = useState(true);
   const [trafficHistory, setTrafficHistory] = useState([]);
   const [currentTraffic, setCurrentTraffic] = useState({ bytesIn: 0, bytesOut: 0 });
+  const [uptimeTick, setUptimeTick] = useState(() => Date.now());
   const canvasRef = useRef(null);
   const trafficRef = useRef({ prevBytesIn: 0, prevBytesOut: 0, prevTime: 0 });
   const animRef = useRef(null);
@@ -1133,17 +1134,21 @@ function OverviewPage({ onNotice, onNavigate }) {
   }, []);
 
   useEffect(() => {
-    if (!data) return;
     pollTraffic();
     const interval = setInterval(pollTraffic, 1000);
     return () => {
       clearInterval(interval);
       if (animRef.current) cancelAnimationFrame(animRef.current);
     };
-  }, [data]);
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => setUptimeTick(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   async function loadOverview() {
-    setLoading(true);
+    setLoading((wasLoading) => wasLoading && !data);
     try {
       const payload = await api.overview();
       setData(payload);
@@ -1188,7 +1193,7 @@ function OverviewPage({ onNotice, onNavigate }) {
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || trafficHistory.length < 2) return;
+    if (!canvas) return;
 
     const ctx = canvas.getContext("2d");
     const dpr = window.devicePixelRatio || 1;
@@ -1202,15 +1207,27 @@ function OverviewPage({ onNotice, onNavigate }) {
     const padding = { top: 24, right: 16, bottom: 32, left: 48 };
     const chartW = width - padding.left - padding.right;
     const chartH = height - padding.top - padding.bottom;
+    const styles = getComputedStyle(document.documentElement);
+
+    function cssColor(name) {
+      return styles.getPropertyValue(name).trim();
+    }
 
     ctx.clearRect(0, 0, width, height);
 
-    const maxVal = Math.max(1, ...trafficHistory.map((t) => Math.max(t.rateIn, t.rateOut)));
+    const chartPoints = trafficHistory.length >= 2
+      ? trafficHistory
+      : [
+        { time: Date.now() - 1000, rateIn: 0, rateOut: 0 },
+        { time: Date.now(), rateIn: 0, rateOut: 0 }
+      ];
 
-    const getX = (i) => padding.left + (i / (trafficHistory.length - 1)) * chartW;
+    const maxVal = Math.max(1, ...chartPoints.map((t) => Math.max(t.rateIn, t.rateOut)));
+
+    const getX = (i) => padding.left + (i / (chartPoints.length - 1)) * chartW;
     const getY = (v) => padding.top + chartH - (v / maxVal) * chartH;
 
-    ctx.strokeStyle = "var(--border-color)";
+    ctx.strokeStyle = cssColor("--border-color");
     ctx.lineWidth = 1;
     ctx.setLineDash([4, 4]);
     for (let i = 0; i <= 4; i++) {
@@ -1227,18 +1244,6 @@ function OverviewPage({ onNotice, onNavigate }) {
       const g = parseInt(hex.slice(3, 5), 16);
       const b = parseInt(hex.slice(5, 7), 16);
       return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-    }
-
-    function resolveColor(cssVar) {
-      if (!cssVar || !cssVar.startsWith("var(")) return cssVar;
-      const m = cssVar.match(/var\((--[^,)]+)/);
-      if (!m) return cssVar;
-      const el = document.createElement("div");
-      el.style.color = `var(${m[1]})`;
-      document.body.appendChild(el);
-      const c = getComputedStyle(el).color;
-      document.body.removeChild(el);
-      return c;
     }
 
     function drawLine(data, color) {
@@ -1260,7 +1265,7 @@ function OverviewPage({ onNotice, onNavigate }) {
       ctx.lineTo(getX(data.length - 1), height - padding.bottom);
       ctx.lineTo(getX(0), height - padding.bottom);
       ctx.closePath();
-      const resolved = resolveColor(color);
+      const resolved = color;
       const base = resolved.startsWith("#") ? gradientAlpha(resolved, 0.15) : resolved.replace(")", ", 0.15)").replace("rgb", "rgba");
       const edge = resolved.startsWith("#") ? gradientAlpha(resolved, 0.02) : resolved.replace(")", ", 0.02)").replace("rgb", "rgba");
       const gradient = ctx.createLinearGradient(0, padding.top, 0, height - padding.bottom);
@@ -1271,16 +1276,16 @@ function OverviewPage({ onNotice, onNavigate }) {
     }
 
     drawLine(
-      trafficHistory.map((t) => ({ rate: t.rateIn })),
-      "var(--accent-strong)"
+      chartPoints.map((t) => ({ rate: t.rateIn })),
+      cssColor("--accent-strong")
     );
     drawLine(
-      trafficHistory.map((t) => ({ rate: t.rateOut })),
-      "var(--success)"
+      chartPoints.map((t) => ({ rate: t.rateOut })),
+      cssColor("--success")
     );
 
     ctx.font = "11px var(--font-mono)";
-    ctx.fillStyle = "var(--text-muted)";
+    ctx.fillStyle = cssColor("--text-muted");
     ctx.textAlign = "right";
     for (let i = 0; i <= 4; i++) {
       const v = (maxVal / 4) * (4 - i);
@@ -1288,23 +1293,23 @@ function OverviewPage({ onNotice, onNavigate }) {
       ctx.fillText(formatBytes(v) + "/s", padding.left - 8, y);
     }
 
-    const timeLabels = [trafficHistory[0], trafficHistory[Math.floor(trafficHistory.length / 2)], trafficHistory[trafficHistory.length - 1]];
+    const timeLabels = [chartPoints[0], chartPoints[Math.floor(chartPoints.length / 2)], chartPoints[chartPoints.length - 1]];
     ctx.textAlign = "center";
-    ctx.fillStyle = "var(--text-muted)";
+    ctx.fillStyle = cssColor("--text-muted");
     ctx.font = "10px var(--font-mono)";
     timeLabels.forEach((t, i) => {
       if (!t) return;
-      const x = getX(trafficHistory.indexOf(t));
+      const x = getX(chartPoints.indexOf(t));
       const label = i === 2 ? "сейчас" : `${Math.round((Date.now() - t.time) / 1000)}с назад`;
       ctx.fillText(label, x, height - 8);
     });
 
     ctx.font = "10px var(--font-sans)";
     ctx.textAlign = "left";
-    ctx.fillStyle = "var(--accent-strong)";
+    ctx.fillStyle = cssColor("--accent-strong");
     ctx.fillRect(padding.left + 4, 6, 8, 8);
     ctx.fillText("Входящий", padding.left + 16, 14);
-    ctx.fillStyle = "var(--success)";
+    ctx.fillStyle = cssColor("--success");
     ctx.fillRect(width / 2 + 4, 6, 8, 8);
     ctx.fillText("Исходящий", width / 2 + 16, 14);
   }, [trafficHistory]);
@@ -1329,25 +1334,33 @@ function OverviewPage({ onNotice, onNavigate }) {
   function parseUptime(uptimeStr) {
     if (!uptimeStr || uptimeStr === "—") return null;
     let total = 0;
-    const parts = uptimeStr.match(/(\d+)([a-zA-Z]+)/g);
-    if (!parts) return null;
+    const parts = uptimeStr.matchAll(/(\d+(?:\.\d+)?)([a-zA-Z]+)/g);
+    let matched = false;
     for (const part of parts) {
-      const num = parseInt(part);
-      const unit = part.replace(/\d+/g, "");
+      matched = true;
+      const num = Number(part[1]);
+      const unit = part[2];
       if (unit.startsWith("h")) total += num * 3600;
       else if (unit.startsWith("m")) total += num * 60;
       else if (unit.startsWith("s")) total += num;
     }
-    return total;
+    return matched ? Math.floor(total) : null;
+  }
+
+  function liveUptime(seconds) {
+    if (seconds == null || !data?.uptime?.sampledAt) return seconds;
+    const sampledAt = new Date(data.uptime.sampledAt).getTime();
+    if (Number.isNaN(sampledAt)) return seconds;
+    return seconds + Math.max(0, Math.floor((uptimeTick - sampledAt) / 1000));
   }
 
   if (loading || !data) {
     return <PageSkeleton title="Обзор системы" />;
   }
 
-  const serverUptime = parseUptime(data.uptime?.server);
-  const coreUptime = parseUptime(data.uptime?.core);
-  const panelUptime = parseUptime(data.uptime?.panel);
+  const serverUptime = liveUptime(parseUptime(data.uptime?.server));
+  const coreUptime = liveUptime(parseUptime(data.uptime?.core));
+  const panelUptime = liveUptime(parseUptime(data.uptime?.panel));
   const ppVersion = data.uptime?.version || data.build?.version || "—";
 
   return (
@@ -1391,7 +1404,6 @@ function OverviewPage({ onNotice, onNavigate }) {
               <div className="uptime-item">
                 <span className="uptime-label">Ядро PP</span>
                 <span className="uptime-value">
-                  <span className={`status-orb ${data.core.processRunning ? "orb--good" : "orb--bad"}`} />
                   {coreUptime != null ? formatUptime(coreUptime) : "—"}
                 </span>
               </div>

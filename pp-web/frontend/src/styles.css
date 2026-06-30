@@ -2995,7 +2995,8 @@ code {
 
 .dashboard-hero p {
   font-size: 1.1rem;
-  max-width: 50ch;
+  max-width: none;
+  overflow-wrap: normal;
 }
 
 .dashboard-stats-grid {
@@ -3313,6 +3314,15 @@ code {
 @media (max-width: 900px) {
   .db-grid {
     grid-template-columns: 1fr;
+  }
+
+  .dashboard-hero {
+    padding: 1.5rem;
+  }
+
+  .dashboard-hero p {
+    font-size: 1rem;
+    line-height: 1.45;
   }
 
   .quick-actions {

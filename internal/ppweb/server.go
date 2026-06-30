@@ -24,11 +24,12 @@ import (
 const sessionCookieName = "ppweb_session"
 
 type Server struct {
-	opts      Options
-	store     *Store
-	protocols *protocolRegistry
-	coreCmd   *exec.Cmd
-	log       *zap.Logger
+	opts          Options
+	store         *Store
+	protocols     *protocolRegistry
+	coreCmd       *exec.Cmd
+	coreStartedAt time.Time
+	log           *zap.Logger
 
 	releaseMu    sync.Mutex
 	releaseCache releaseCacheEntry
@@ -497,10 +498,15 @@ func (s *Server) handleOverview(w http.ResponseWriter, r *http.Request, _ *Admin
 		settings.LastSyncError = buildErr.Error()
 	}
 
-	uptime := time.Since(s.startedAt).Round(time.Second).String()
+	now := time.Now()
+	panelUptime := now.Sub(s.startedAt).Round(time.Second).String()
+	serverUptime := "—"
+	if uptime, ok := systemUptime(); ok {
+		serverUptime = uptime.Round(time.Second).String()
+	}
 	coreUptime := "—"
-	if processRunning {
-		coreUptime = uptime
+	if processRunning && !s.coreStartedAt.IsZero() {
+		coreUptime = now.Sub(s.coreStartedAt).Round(time.Second).String()
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -528,11 +534,12 @@ func (s *Server) handleOverview(w http.ResponseWriter, r *http.Request, _ *Admin
 		"listeners": listenerCards,
 		"build":     s.opts.Build,
 		"uptime": map[string]any{
-			"server":    uptime,
+			"server":    serverUptime,
 			"core":      coreUptime,
-			"panel":     uptime,
+			"panel":     panelUptime,
 			"version":   s.opts.Build.Version,
 			"startedAt": s.startedAt,
+			"sampledAt": now,
 		},
 		"hasBuildError": buildErr != nil,
 	})
