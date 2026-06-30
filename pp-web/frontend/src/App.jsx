@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api, stripPanelBasePath, withPanelBasePath } from "./api";
 import AboutPage from "./AboutPage";
@@ -421,10 +421,16 @@ export default function App() {
     if (updateState === "success") {
       const current = aboutData?.release?.currentVersion;
       const target = aboutData?.update?.status?.targetVersion;
+      const reloadKey = target ? `pp-web-reloaded-after-update:${target}` : "pp-web-reloaded-after-update";
 
       if (current && target) {
         const normalize = (v) => v.replace(/^v/, "");
         if (normalize(current) === normalize(target)) {
+          if (window.sessionStorage.getItem(reloadKey) !== "1") {
+            window.sessionStorage.setItem(reloadKey, "1");
+            const timer = window.setTimeout(() => window.location.reload(), 1200);
+            return () => window.clearTimeout(timer);
+          }
           return undefined;
         }
       }
@@ -443,6 +449,7 @@ export default function App() {
 
         api.about(true)
           .then(() => {
+            window.sessionStorage.setItem(reloadKey, "1");
             window.location.reload();
           })
           .catch(() => {
