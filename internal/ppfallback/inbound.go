@@ -278,6 +278,7 @@ func (s *Inbound) handleGRPC(w http.ResponseWriter, r *http.Request) {
 	}
 
 	conn := &protocol.HttpConn{R: r.Body, W: w}
+	defer conn.Close()
 	var tracked net.Conn = &trackedConn{
 		Conn:        conn,
 		clientID:    authenticated.id,
@@ -296,6 +297,7 @@ func (s *Inbound) handleGRPC(w http.ResponseWriter, r *http.Request) {
 		s.log.Debug("smux session failed", zap.Error(err))
 		return
 	}
+	defer session.Close()
 	s.statusStore.Mark(authenticated.id, true)
 	defer s.statusStore.Mark(authenticated.id, false)
 

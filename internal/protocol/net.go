@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/flynn/noise"
@@ -91,8 +92,9 @@ func (c *NoiseConn) Write(b []byte) (n int, err error) {
 
 // HttpConn wraps http Request Body and Response Writer into net.Conn
 type HttpConn struct {
-	R io.Reader
-	W io.Writer
+	R      io.Reader
+	W      io.Writer
+	closed atomic.Bool
 }
 
 func (c *HttpConn) Read(b []byte) (n int, err error) {
@@ -100,6 +102,17 @@ func (c *HttpConn) Read(b []byte) (n int, err error) {
 }
 
 func (c *HttpConn) Write(b []byte) (n int, err error) {
+	if c.closed.Load() {
+		return 0, io.ErrClosedPipe
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			n = 0
+			err = fmt.Errorf("%w: http response writer panic: %v", io.ErrClosedPipe, r)
+		}
+	}()
+
 	n, err = c.W.Write(b)
 	if flusher, ok := c.W.(interface{ Flush() }); ok {
 		flusher.Flush()
@@ -108,6 +121,9 @@ func (c *HttpConn) Write(b []byte) (n int, err error) {
 }
 
 func (c *HttpConn) Close() error {
+	if c.closed.Swap(true) {
+		return nil
+	}
 	if closer, ok := c.R.(io.Closer); ok {
 		closer.Close()
 	}
