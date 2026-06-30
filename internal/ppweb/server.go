@@ -32,6 +32,12 @@ type Server struct {
 
 	releaseMu    sync.Mutex
 	releaseCache releaseCacheEntry
+
+	startedAt time.Time
+
+	trafficMu     sync.Mutex
+	trafficBytes  int64
+	trafficSample time.Time
 }
 
 func NewServer(opts Options) (*Server, error) {
@@ -68,6 +74,9 @@ func NewServer(opts Options) (*Server, error) {
 		store:     store,
 		protocols: newProtocolRegistry(),
 		log:       logger,
+
+		startedAt:     time.Now(),
+		trafficSample: time.Now(),
 	}
 
 	startupCtx, startupCancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -181,6 +190,8 @@ func (s *Server) serveAPI(w http.ResponseWriter, r *http.Request) {
 		s.withAdmin(w, r, s.handleRestartCore)
 	case r.URL.Path == "/api/restart" && r.Method == http.MethodPost:
 		s.withAdmin(w, r, s.handleRestartPanel)
+	case r.URL.Path == "/api/traffic" && r.Method == http.MethodGet:
+		s.withAdmin(w, r, s.handleTraffic)
 	default:
 		writeError(w, http.StatusNotFound, "route not found")
 	}
@@ -486,6 +497,12 @@ func (s *Server) handleOverview(w http.ResponseWriter, r *http.Request, _ *Admin
 		settings.LastSyncError = buildErr.Error()
 	}
 
+	uptime := time.Since(s.startedAt).Round(time.Second).String()
+	coreUptime := "—"
+	if processRunning {
+		coreUptime = uptime
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
 		"appName": settings.AppName,
 		"summary": map[string]any{
@@ -507,10 +524,50 @@ func (s *Server) handleOverview(w http.ResponseWriter, r *http.Request, _ *Admin
 			"lastSyncError":   settings.LastSyncError,
 			"processRunning":  processRunning,
 		},
-		"protocols":     protocolCards,
-		"listeners":     listenerCards,
-		"build":         s.opts.Build,
+		"protocols": protocolCards,
+		"listeners": listenerCards,
+		"build":     s.opts.Build,
+		"uptime": map[string]any{
+			"server":    uptime,
+			"core":      coreUptime,
+			"panel":     uptime,
+			"version":   s.opts.Build.Version,
+			"startedAt": s.startedAt,
+		},
 		"hasBuildError": buildErr != nil,
+	})
+}
+
+func (s *Server) handleTraffic(w http.ResponseWriter, r *http.Request, _ *Admin) {
+	s.trafficMu.Lock()
+	defer s.trafficMu.Unlock()
+
+	now := time.Now()
+	totalBytes := s.trafficBytes
+	elapsed := now.Sub(s.trafficSample).Seconds()
+
+	statusPath := s.clientStatusPath()
+	if raw, err := os.ReadFile(statusPath); err == nil {
+		var status runtimeClientStatusFile
+		if err := json.Unmarshal(raw, &status); err == nil {
+			var sum int64
+			for _, entry := range status.Clients {
+				sum += entry.BytesUsed
+			}
+			if sum > totalBytes {
+				totalBytes = sum
+			}
+		}
+	}
+
+	bytesIn := totalBytes
+	bytesOut := totalBytes
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"bytesIn":   bytesIn,
+		"bytesOut":  bytesOut,
+		"timestamp": now,
+		"elapsed":   elapsed,
 	})
 }
 

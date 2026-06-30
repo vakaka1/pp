@@ -186,5 +186,8 @@ export const api = {
     return request(`/api/clients/${clientId}`, {
       method: "DELETE"
     });
+  },
+  traffic() {
+    return request("/api/traffic", { method: "GET" });
   }
 };
