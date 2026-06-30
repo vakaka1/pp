@@ -3,10 +3,10 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"io"
 	"fmt"
-	"net/http"
+	"io"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -142,7 +142,6 @@ func main() {
 			}
 		},
 	}
-
 
 	choiceCmd := &cobra.Command{
 		Use:   "choice",
@@ -564,7 +563,8 @@ func writeUpdateChannel(channel string) error {
 const gitHubRepoSlug = "vakaka1/pp"
 
 type gitHubRelease struct {
-	TagName string `json:"tag_name"`
+	TagName    string `json:"tag_name"`
+	Prerelease bool   `json:"prerelease"`
 }
 
 func fetchLatestReleaseTag(ctx context.Context, channel string) (string, error) {
@@ -600,10 +600,12 @@ func fetchLatestReleaseTag(ctx context.Context, channel string) (string, error) 
 		if err := json.NewDecoder(resp.Body).Decode(&releases); err != nil {
 			return "", fmt.Errorf("failed to decode github releases list: %w", err)
 		}
-		if len(releases) == 0 {
-			return "", fmt.Errorf("no releases found")
+		for _, release := range releases {
+			if release.Prerelease {
+				return release.TagName, nil
+			}
 		}
-		return releases[0].TagName, nil
+		return "", fmt.Errorf("no prereleases found")
 	}
 
 	var release gitHubRelease

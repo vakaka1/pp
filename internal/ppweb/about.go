@@ -38,6 +38,7 @@ type gitHubRelease struct {
 	Name        string               `json:"name"`
 	HTMLURL     string               `json:"html_url"`
 	Body        string               `json:"body"`
+	Prerelease  bool                 `json:"prerelease"`
 	PublishedAt time.Time            `json:"published_at"`
 	Assets      []gitHubReleaseAsset `json:"assets"`
 }
@@ -175,7 +176,7 @@ func (s *Server) handleAboutUpdate(w http.ResponseWriter, r *http.Request, _ *Ad
 		s.log.Warn("failed to pre-write update status", zap.Error(err))
 	}
 
-	mode, err := s.startReleaseUpdate(targetVersion)
+	mode, err := s.startReleaseUpdate(targetVersion, release.Prerelease)
 	if err != nil {
 		finishedAt := time.Now().UTC()
 		_ = s.writeUpdateStatus(updateRunStatus{
@@ -427,7 +428,7 @@ func (s *Server) fetchLatestRelease(ctx context.Context, forceRefresh bool) (*gi
 		endpoint = gitHubAllReleases
 	}
 
-	release, err := fetchGitHubRelease(ctx, endpoint)
+	release, err := fetchGitHubRelease(ctx, endpoint, channel == "testing")
 	checkedAt := time.Now().UTC()
 	next := releaseCacheEntry{
 		Release:   release,
@@ -450,7 +451,7 @@ func (s *Server) fetchLatestRelease(ctx context.Context, forceRefresh bool) (*gi
 	return next.Release, next.CheckedAt, next.Error
 }
 
-func fetchGitHubRelease(ctx context.Context, endpoint string) (*gitHubRelease, error) {
+func fetchGitHubRelease(ctx context.Context, endpoint string, prereleaseOnly bool) (*gitHubRelease, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, err
@@ -478,15 +479,23 @@ func fetchGitHubRelease(ctx context.Context, endpoint string) (*gitHubRelease, e
 		if err := json.NewDecoder(resp.Body).Decode(&releases); err != nil {
 			return nil, fmt.Errorf("failed to decode github releases list: %w", err)
 		}
-		if len(releases) == 0 {
-			return nil, errors.New("github releases list is empty")
+		for i := range releases {
+			if !prereleaseOnly || releases[i].Prerelease {
+				return &releases[i], nil
+			}
 		}
-		return &releases[0], nil
+		if prereleaseOnly {
+			return nil, errors.New("github prerelease list is empty")
+		}
+		return nil, errors.New("github releases list is empty")
 	}
 
 	var release gitHubRelease
 	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
 		return nil, fmt.Errorf("failed to decode github release: %w", err)
+	}
+	if prereleaseOnly && !release.Prerelease {
+		return nil, errors.New("github release is not a prerelease")
 	}
 	return &release, nil
 }
@@ -715,13 +724,22 @@ func execPathAvailable(name string) bool {
 	return err == nil
 }
 
-func (s *Server) startReleaseUpdate(targetVersion string) (string, error) {
+func (s *Server) startReleaseUpdate(targetVersion string, requireExactTag bool) (string, error) {
 	switch {
-	case s.serviceUnitExists(ppWebUpdateUnit):
+	case s.serviceUnitExists(ppWebUpdateUnit) && (!requireExactTag || s.updateServiceSupportsReleaseTag()):
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		out, err := runPrivilegedCommand(ctx, "systemctl", "--no-block", "start", ppWebUpdateUnit)
+		var out []byte
+		var err error
+		if s.updateServiceSupportsReleaseTag() {
+			out, err = runPrivilegedCommand(ctx, "systemctl", "set-environment", "PP_WEB_RELEASE_TAG="+targetVersion)
+			if err != nil {
+				return "", fmt.Errorf("не удалось передать версию службе обновления: %s", explainPrivilegedCommandFailure("systemctl set-environment PP_WEB_RELEASE_TAG", out, err))
+			}
+		}
+
+		out, err = runPrivilegedCommand(ctx, "systemctl", "--no-block", "start", ppWebUpdateUnit)
 		if err != nil {
 			return "", fmt.Errorf("не удалось запустить службу обновления: %s", explainPrivilegedCommandFailure("systemctl start pp-web-update", out, err))
 		}
@@ -737,6 +755,21 @@ func (s *Server) startReleaseUpdate(targetVersion string) (string, error) {
 		}
 		return "direct", nil
 	}
+}
+
+func (s *Server) updateServiceSupportsReleaseTag() bool {
+	unitPaths := []string{
+		filepath.Join("/etc/systemd/system", ppWebUpdateUnit+".service"),
+		filepath.Join("/lib/systemd/system", ppWebUpdateUnit+".service"),
+		filepath.Join("/usr/lib/systemd/system", ppWebUpdateUnit+".service"),
+	}
+	for _, unitPath := range unitPaths {
+		data, err := os.ReadFile(unitPath)
+		if err == nil {
+			return strings.Contains(string(data), "PP_WEB_RELEASE_TAG")
+		}
+	}
+	return false
 }
 
 func (s *Server) startTransientReleaseUpdate(targetVersion string) error {

@@ -272,7 +272,7 @@ func fetchReleaseForInstall(ctx context.Context, repo, tag string) (*gitHubRelea
 	if tag != "" && tag != "latest" {
 		endpoint = gitHubReleaseByTagURL(repo, tag)
 	}
-	return fetchGitHubRelease(ctx, endpoint)
+	return fetchGitHubRelease(ctx, endpoint, false)
 }
 
 func findReleaseAsset(release *gitHubRelease, name string) (*gitHubReleaseAsset, error) {

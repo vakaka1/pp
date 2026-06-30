@@ -280,7 +280,7 @@ setup_sudoers() {
         local crt_bin="$(command -v certbot || echo /usr/bin/certbot)"
         cat > /etc/sudoers.d/pp-web <<EOF
 Defaults:${PP_USER} !requiretty
-${PP_USER} ALL=(root) NOPASSWD: ${sys_bin} restart pp-core, ${sys_bin} stop pp-core, ${sys_bin} start pp-core, ${sys_bin} stop nginx, ${sys_bin} start nginx, ${sys_bin} restart nginx, ${sys_bin} reload nginx, ${sys_bin} --no-block start pp-web-update, ${crt_bin}
+${PP_USER} ALL=(root) NOPASSWD: ${sys_bin} restart pp-core, ${sys_bin} stop pp-core, ${sys_bin} start pp-core, ${sys_bin} stop nginx, ${sys_bin} start nginx, ${sys_bin} restart nginx, ${sys_bin} reload nginx, ${sys_bin} set-environment PP_WEB_RELEASE_TAG=*, ${sys_bin} --no-block start pp-web-update, ${crt_bin}
 EOF
         chmod 440 /etc/sudoers.d/pp-web
         if command -v visudo &>/dev/null; then
@@ -350,7 +350,7 @@ Group=root
 ExecStart=${PP_WEB_BIN} \\
     apply-release \\
     --repo ${GITHUB_REPO} \\
-    --tag latest \\
+    --tag=\${PP_WEB_RELEASE_TAG} \\
     --pp-path ${PP_BIN} \\
     --pp-web-path ${PP_WEB_BIN} \\
     --frontend-dist ${PP_WEB_FRONTEND_DIR} \\

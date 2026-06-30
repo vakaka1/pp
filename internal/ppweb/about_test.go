@@ -1,7 +1,10 @@
 package ppweb
 
 import (
+	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -179,5 +182,27 @@ func TestBackupPathExists(t *testing.T) {
 
 	if !backupPathExists(target) {
 		t.Fatalf("expected existing backup to be available")
+	}
+}
+
+func TestFetchGitHubReleaseSelectsPrereleaseForTestingChannel(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/releases" {
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[
+			{"tag_name":"v1.0.1","prerelease":false},
+			{"tag_name":"v1.0.2-rc.1","prerelease":true}
+		]`))
+	}))
+	defer server.Close()
+
+	release, err := fetchGitHubRelease(context.Background(), server.URL+"/releases", true)
+	if err != nil {
+		t.Fatalf("fetch release: %v", err)
+	}
+	if release.TagName != "v1.0.2-rc.1" {
+		t.Fatalf("expected prerelease tag, got %q", release.TagName)
 	}
 }
