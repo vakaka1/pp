@@ -24,7 +24,7 @@ func (s *Server) isCoreRunning() bool {
 	if s.serviceUnitExists("pp-core") {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		out, err := runPrivilegedCommand(ctx, "systemctl", "is-active", "pp-core")
+		out, err := exec.CommandContext(ctx, "systemctl", "is-active", "pp-core").CombinedOutput()
 		if err == nil && strings.TrimSpace(string(out)) == "active" {
 			return true
 		}
@@ -486,26 +486,42 @@ func (s *Server) detectCoreStartTimeFromSystemd() time.Time {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	out, err := runPrivilegedCommand(ctx, "systemctl", "show", "pp-core", "--property=ActiveEnterTimestamp", "--value")
+	out, err := exec.CommandContext(ctx, "systemctl", "show", "pp-core", "--property=ActiveEnterTimestamp", "--value").CombinedOutput()
+	if err != nil {
+		s.log.Debug("systemctl show failed, trying without --value flag", zap.Error(err))
+		out, err = exec.CommandContext(ctx, "systemctl", "show", "pp-core", "--property=ActiveEnterTimestamp").CombinedOutput()
+	}
 	if err != nil {
 		return time.Time{}
 	}
 
 	ts := strings.TrimSpace(string(out))
-	if ts == "" || ts == "0" {
+	if ts == "" || ts == "0" || ts == "ActiveEnterTimestamp=" {
 		return time.Time{}
 	}
 
-	t, err := time.Parse("Mon 2006-01-02 15:04:05 MST", ts)
-	if err != nil {
-		t, err = time.Parse(time.RFC3339, ts)
+	if idx := strings.Index(ts, "="); idx >= 0 {
+		ts = strings.TrimSpace(ts[idx+1:])
 	}
-	if err != nil {
-		t, err = time.Parse("2006-01-02 15:04:05", ts)
-	}
-	if err != nil {
-		s.log.Warn("failed to parse core start time from systemd", zap.String("raw", ts), zap.Error(err))
+	if ts == "" {
 		return time.Time{}
 	}
-	return t
+
+	formats := []string{
+		"Mon 2006-01-02 15:04:05.999999999 MST",
+		"Mon 2006-01-02 15:04:05 MST",
+		time.RFC3339,
+		"2006-01-02 15:04:05",
+		"Mon 2006-01-02 15:04:05.999999 -0700",
+		"Mon 2006-01-02 15:04:05 -0700",
+	}
+
+	for _, format := range formats {
+		if t, err := time.Parse(format, ts); err == nil {
+			return t
+		}
+	}
+
+	s.log.Warn("failed to parse core start time from systemd", zap.String("raw", ts))
+	return time.Time{}
 }
