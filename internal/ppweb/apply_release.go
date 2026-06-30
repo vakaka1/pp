@@ -222,12 +222,6 @@ func applyReleaseUpdate(request releaseApplyRequest) error {
 		return finalizeCLIUpdateError(request.StatusPath, request.Tag, now, err)
 	}
 
-	if request.PPService != "" && serviceUnitExists(request.PPService) {
-		if err := restartSystemService(request.PPService); err != nil {
-			return finalizeCLIUpdateError(request.StatusPath, request.Tag, now, err)
-		}
-	}
-
 	finishedAt := time.Now().UTC()
 	if err := writeCLIUpdateStatus(request.StatusPath, updateRunStatus{
 		State:         "success",
@@ -239,9 +233,9 @@ func applyReleaseUpdate(request releaseApplyRequest) error {
 		return err
 	}
 
-	if request.WebService != "" && serviceUnitExists(request.WebService) {
-		if err := restartSystemService(request.WebService); err != nil {
-			return finalizeCLIUpdateError(request.StatusPath, request.Tag, now, err)
+	for _, svc := range []string{request.PPService, request.WebService} {
+		if svc != "" && serviceUnitExists(svc) {
+			_ = restartSystemService(svc)
 		}
 	}
 
@@ -542,7 +536,7 @@ func restartSystemService(name string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	out, err := exec.CommandContext(ctx, "systemctl", "restart", name).CombinedOutput()
+	out, err := exec.CommandContext(ctx, "systemctl", "restart", "--no-block", name).CombinedOutput()
 	if err != nil {
 		message := strings.TrimSpace(string(out))
 		if message == "" {

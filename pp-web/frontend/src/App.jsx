@@ -1222,6 +1222,25 @@ function OverviewPage({ onNotice, onNavigate }) {
     }
     ctx.setLineDash([]);
 
+    function gradientAlpha(hex, alpha) {
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+
+    function resolveColor(cssVar) {
+      if (!cssVar || !cssVar.startsWith("var(")) return cssVar;
+      const m = cssVar.match(/var\((--[^,)]+)/);
+      if (!m) return cssVar;
+      const el = document.createElement("div");
+      el.style.color = `var(${m[1]})`;
+      document.body.appendChild(el);
+      const c = getComputedStyle(el).color;
+      document.body.removeChild(el);
+      return c;
+    }
+
     function drawLine(data, color) {
       ctx.beginPath();
       ctx.strokeStyle = color;
@@ -1241,9 +1260,12 @@ function OverviewPage({ onNotice, onNavigate }) {
       ctx.lineTo(getX(data.length - 1), height - padding.bottom);
       ctx.lineTo(getX(0), height - padding.bottom);
       ctx.closePath();
+      const resolved = resolveColor(color);
+      const base = resolved.startsWith("#") ? gradientAlpha(resolved, 0.15) : resolved.replace(")", ", 0.15)").replace("rgb", "rgba");
+      const edge = resolved.startsWith("#") ? gradientAlpha(resolved, 0.02) : resolved.replace(")", ", 0.02)").replace("rgb", "rgba");
       const gradient = ctx.createLinearGradient(0, padding.top, 0, height - padding.bottom);
-      gradient.addColorStop(0, color.replace(")", ", 0.15)").replace("rgb", "rgba"));
-      gradient.addColorStop(1, color.replace(")", ", 0.02)").replace("rgb", "rgba"));
+      gradient.addColorStop(0, base);
+      gradient.addColorStop(1, edge);
       ctx.fillStyle = gradient;
       ctx.fill();
     }
