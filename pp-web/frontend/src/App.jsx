@@ -2469,18 +2469,39 @@ function SettingsPage({ bootstrap, onNotice, onConfirm, onRefreshAbout }) {
 
   return (
     <div className="page">
-      <div className="settings-page-card">
-        <article className="surface-card">
-          <div className="surface-card__head">
+      <PageHero
+        eyebrow="Panel"
+        title="Настройки панели"
+        description="Сетевые параметры, безопасность и канал обновлений."
+        tone="settings"
+        actions={
+          <div className="page-hero__button-row">
+            <button type="submit" form="settings-form" className="primary-button" disabled={submitting}>
+              {submitting ? "Сохранение..." : "Сохранить изменения"}
+            </button>
+          </div>
+        }
+        aside={
+          <div className="runtime-status-card">
+            <div className={`runtime-status-card__indicator ${form.panelHttps ? "is-live" : ""}`} />
             <div>
-              <span className="eyebrow">Panel</span>
-              <h3>Конфигурация доступа</h3>
+              <span>Адрес панели</span>
+              <strong>{previewUrl}</strong>
             </div>
           </div>
+        }
+      />
 
-          <form onSubmit={handleSubmit} className="auth-form">
-            <div className="settings-section">
-              <h4>Сетевые настройки</h4>
+      <form id="settings-form" onSubmit={handleSubmit}>
+        <section className="insight-grid">
+          <article className="surface-card">
+            <div className="surface-card__head">
+              <div>
+                <span className="eyebrow">Network</span>
+                <h3>Сетевые настройки</h3>
+              </div>
+            </div>
+            <div className="auth-form">
               <div className="input-group">
                 <label>Порт панели</label>
                 <input
@@ -2491,7 +2512,6 @@ function SettingsPage({ bootstrap, onNotice, onConfirm, onRefreshAbout }) {
                   onChange={(e) => setForm({ ...form, panelPort: parseInt(e.target.value) || 4090 })}
                 />
               </div>
-
               <div className="input-group">
                 <label>Префикс пути (напр. /panel)</label>
                 <input
@@ -2503,9 +2523,16 @@ function SettingsPage({ bootstrap, onNotice, onConfirm, onRefreshAbout }) {
                 <p className="muted-caption">Если указать "panel", доступ к системе будет через /panel/</p>
               </div>
             </div>
+          </article>
 
-            <div className="settings-section">
-              <h4>Безопасность и HTTPS</h4>
+          <article className="surface-card">
+            <div className="surface-card__head">
+              <div>
+                <span className="eyebrow">Security</span>
+                <h3>Безопасность и HTTPS</h3>
+              </div>
+            </div>
+            <div className="auth-form">
               <div className="input-group">
                 <label>Домен (для HTTPS)</label>
                 <input
@@ -2516,7 +2543,6 @@ function SettingsPage({ bootstrap, onNotice, onConfirm, onRefreshAbout }) {
                 />
                 <p className="muted-caption">Требуется для корректной работы сертификатов.</p>
               </div>
-
               <div className="checkbox-group">
                 <label>
                   <input
@@ -2528,9 +2554,18 @@ function SettingsPage({ bootstrap, onNotice, onConfirm, onRefreshAbout }) {
                 </label>
               </div>
             </div>
+          </article>
+        </section>
 
-            <div className="settings-section">
-              <h4>Обновления</h4>
+        <section className="insight-grid">
+          <article className="surface-card">
+            <div className="surface-card__head">
+              <div>
+                <span className="eyebrow">Updates</span>
+                <h3>Канал обновлений</h3>
+              </div>
+            </div>
+            <div className="auth-form">
               <div className="input-group">
                 <label>Канал обновлений</label>
                 <select
@@ -2545,33 +2580,26 @@ function SettingsPage({ bootstrap, onNotice, onConfirm, onRefreshAbout }) {
                 </p>
               </div>
             </div>
+          </article>
 
-            <div className="settings-preview">
-              <span className="eyebrow">Итоговый адрес доступа</span>
-              <code>{previewUrl}</code>
+          <article className="surface-card">
+            <div className="surface-card__head">
+              <div>
+                <span className="eyebrow">Danger Zone</span>
+                <h3>Перезапуск панели</h3>
+              </div>
             </div>
-
-            <button type="submit" className="primary-button" disabled={submitting}>
-              {submitting ? "Сохранение..." : "Сохранить изменения"}
-            </button>
-
-            <div style={{ marginTop: "2rem", borderTop: "1px solid var(--border-color)", paddingTop: "1.5rem" }}>
-              <h4>Перезапуск панели</h4>
-              <p className="muted-caption" style={{ marginBottom: "1rem" }}>
-                Нажмите кнопку ниже, чтобы полностью перезапустить веб-интерфейс.
-                Это необходимо для применения изменений порта, HTTPS или префикса пути.
-              </p>
-              <button
-                type="button"
-                className="ghost-button destructive"
-                onClick={handleRestart}
-              >
+            <p className="muted-caption">
+              Полный перезапуск веб-интерфейса. Необходим для применения изменений порта, HTTPS или префикса пути.
+            </p>
+            <div style={{ marginTop: "1rem" }}>
+              <button type="button" className="ghost-button destructive" onClick={handleRestart}>
                 Перезапустить панель
               </button>
             </div>
-          </form>
-        </article>
-      </div>
+          </article>
+        </section>
+      </form>
     </div>
   );
 }
