@@ -2476,8 +2476,8 @@ function SettingsPage({ bootstrap, onNotice, onConfirm, onRefreshAbout }) {
 
   return (
     <div className="page">
-      <section className="settings-grid">
-        <article className="surface-card surface-card--wide">
+      <div className="settings-page-card">
+        <article className="surface-card">
           <div className="surface-card__head">
             <div>
               <span className="eyebrow">Panel</span>
@@ -2485,7 +2485,7 @@ function SettingsPage({ bootstrap, onNotice, onConfirm, onRefreshAbout }) {
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="auth-form" style={{ maxWidth: "600px" }}>
+          <form onSubmit={handleSubmit} className="auth-form">
             <div className="settings-section">
               <h4>Сетевые настройки</h4>
               <div className="input-group">
@@ -2578,7 +2578,7 @@ function SettingsPage({ bootstrap, onNotice, onConfirm, onRefreshAbout }) {
             </div>
           </form>
         </article>
-      </section>
+      </div>
     </div>
   );
 }

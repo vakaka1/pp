@@ -1240,11 +1240,16 @@ code {
 
 .dashboard-grid,
 .insight-grid,
-.panel-grid,
-.settings-grid {
+.panel-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
+}
+
+.settings-page-card {
+  max-width: 680px;
+  margin: 0 auto;
+  width: 100%;
 }
 
 .surface-card {
