@@ -88,10 +88,11 @@ func main() {
 		certFile := settings.PanelCertFile
 		keyFile := settings.PanelKeyFile
 		if certFile == "" || keyFile == "" {
-			// Generate self-signed if not configured
 			certDir := filepath.Join(filepath.Dir(*databasePath), "certs")
 			certFile = filepath.Join(certDir, "panel.crt")
 			keyFile = filepath.Join(certDir, "panel.key")
+		}
+		if _, err := os.Stat(certFile); err != nil && os.IsNotExist(err) {
 			domain := settings.PanelDomain
 			if domain == "" {
 				domain = "localhost"

@@ -404,7 +404,8 @@ export default function App() {
       return;
     }
 
-    loadAbout({ silent: true });
+    // При загрузке страницы сразу проверяем обновления (с force, чтобы сбросить кеш)
+    loadAbout({ force: true, silent: true });
 
     // Автоматическая фоновая проверка обновлений раз в 10 минут
     const backgroundCheckTimer = window.setInterval(() => {
@@ -418,8 +419,6 @@ export default function App() {
     const updateState = aboutData?.update?.status?.state;
 
     if (updateState === "success") {
-      // Если обновление завершено успешно, проверяем версию.
-      // Если версия уже совпадает с целевой, значит перезагрузка больше не нужна.
       const current = aboutData?.release?.currentVersion;
       const target = aboutData?.update?.status?.targetVersion;
 
@@ -430,11 +429,29 @@ export default function App() {
         }
       }
 
-      // Если мы всё ещё на старой версии, перезагружаем страницу
-      const reloadTimer = window.setTimeout(() => {
-        window.location.reload();
-      }, 2500);
-      return () => window.clearTimeout(reloadTimer);
+      // После успешного обновления ждём немного и пробуем перезагрузить страницу.
+      // Если сервер временно недоступен (перезапускается), повторяем попытки.
+      let attempts = 0;
+      const maxAttempts = 30;
+
+      const tryReload = () => {
+        attempts++;
+        if (attempts > maxAttempts) {
+          window.location.reload();
+          return;
+        }
+
+        api.about(true)
+          .then(() => {
+            window.location.reload();
+          })
+          .catch(() => {
+            retryTimer = window.setTimeout(tryReload, 2000);
+          });
+      };
+
+      let retryTimer = window.setTimeout(tryReload, 2500);
+      return () => window.clearTimeout(retryTimer);
     }
 
     if (updateState !== "queued" && updateState !== "running") {
