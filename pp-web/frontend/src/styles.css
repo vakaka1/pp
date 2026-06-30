@@ -1252,6 +1252,24 @@ code {
   width: 100%;
 }
 
+.settings-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.2rem;
+  align-items: start;
+}
+
+.settings-row__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.surface-card--wide {
+  width: 100%;
+}
+
 .surface-card {
   position: relative;
   overflow: hidden;
@@ -3459,7 +3477,8 @@ code {
   .insight-grid,
   .panel-grid,
   .theme-preview-grid,
-  .settings-panel-https-grid {
+  .settings-panel-https-grid,
+  .settings-row {
     grid-template-columns: 1fr;
   }
 

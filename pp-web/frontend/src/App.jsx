@@ -2493,112 +2493,97 @@ function SettingsPage({ bootstrap, onNotice, onConfirm, onRefreshAbout }) {
       />
 
       <form id="settings-form" onSubmit={handleSubmit}>
-        <section className="insight-grid">
-          <article className="surface-card">
-            <div className="surface-card__head">
-              <div>
-                <span className="eyebrow">Network</span>
-                <h3>Сетевые настройки</h3>
-              </div>
+        <article className="surface-card surface-card--wide">
+          <div className="surface-card__head">
+            <div>
+              <span className="eyebrow">Network</span>
+              <h3>Сетевые настройки</h3>
             </div>
-            <div className="auth-form">
-              <div className="input-group">
-                <label>Порт панели</label>
-                <input
-                  type="number"
-                  min="1"
-                  max="65535"
-                  value={form.panelPort || ""}
-                  onChange={(e) => setForm({ ...form, panelPort: parseInt(e.target.value) || 4090 })}
-                />
-              </div>
-              <div className="input-group">
-                <label>Префикс пути (напр. /panel)</label>
-                <input
-                  type="text"
-                  placeholder="/"
-                  value={form.panelPrefix || ""}
-                  onChange={(e) => setForm({ ...form, panelPrefix: e.target.value })}
-                />
-                <p className="muted-caption">Если указать "panel", доступ к системе будет через /panel/</p>
-              </div>
+          </div>
+          <div className="settings-row">
+            <div className="input-group">
+              <label>Порт панели</label>
+              <input
+                type="number"
+                min="1"
+                max="65535"
+                value={form.panelPort || ""}
+                onChange={(e) => setForm({ ...form, panelPort: parseInt(e.target.value) || 4090 })}
+              />
             </div>
-          </article>
+            <div className="input-group">
+              <label>Префикс пути (напр. /panel)</label>
+              <input
+                type="text"
+                placeholder="/"
+                value={form.panelPrefix || ""}
+                onChange={(e) => setForm({ ...form, panelPrefix: e.target.value })}
+              />
+              <p className="muted-caption">Если указать "panel", доступ к системе будет через /panel/</p>
+            </div>
+          </div>
+        </article>
 
-          <article className="surface-card">
-            <div className="surface-card__head">
-              <div>
-                <span className="eyebrow">Security</span>
-                <h3>Безопасность и HTTPS</h3>
-              </div>
+        <article className="surface-card surface-card--wide">
+          <div className="surface-card__head">
+            <div>
+              <span className="eyebrow">Security</span>
+              <h3>Безопасность и HTTPS</h3>
             </div>
-            <div className="auth-form">
-              <div className="input-group">
-                <label>Домен (для HTTPS)</label>
+          </div>
+          <div className="settings-row">
+            <div className="input-group">
+              <label>Домен (для HTTPS)</label>
+              <input
+                type="text"
+                placeholder="panel.example.com"
+                value={form.panelDomain || ""}
+                onChange={(e) => setForm({ ...form, panelDomain: e.target.value })}
+              />
+              <p className="muted-caption">Требуется для корректной работы сертификатов.</p>
+            </div>
+            <div className="checkbox-group">
+              <label>
                 <input
-                  type="text"
-                  placeholder="panel.example.com"
-                  value={form.panelDomain || ""}
-                  onChange={(e) => setForm({ ...form, panelDomain: e.target.value })}
+                  type="checkbox"
+                  checked={!!form.panelHttps}
+                  onChange={(e) => setForm({ ...form, panelHttps: e.target.checked })}
                 />
-                <p className="muted-caption">Требуется для корректной работы сертификатов.</p>
-              </div>
-              <div className="checkbox-group">
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={!!form.panelHttps}
-                    onChange={(e) => setForm({ ...form, panelHttps: e.target.checked })}
-                  />
-                  <span>Включить HTTPS (самоподписанный)</span>
-                </label>
-              </div>
+                <span>Включить HTTPS (самоподписанный)</span>
+              </label>
             </div>
-          </article>
-        </section>
+          </div>
+        </article>
 
-        <section className="insight-grid">
-          <article className="surface-card">
-            <div className="surface-card__head">
-              <div>
-                <span className="eyebrow">Updates</span>
-                <h3>Канал обновлений</h3>
-              </div>
+        <article className="surface-card surface-card--wide">
+          <div className="surface-card__head">
+            <div>
+              <span className="eyebrow">Updates</span>
+              <h3>Канал обновлений</h3>
             </div>
-            <div className="auth-form">
-              <div className="input-group">
-                <label>Канал обновлений</label>
-                <select
-                  value={form.updateChannel || "stable"}
-                  onChange={(e) => handleUpdateChannelChange(e.target.value)}
-                >
-                  <option value="stable">Стабильный (рекомендуется)</option>
-                  <option value="testing">Тестовый (Beta)</option>
-                </select>
-                <p className="muted-caption">
-                  На тестовом канале вы будете получать самые новые функции быстрее, но возможна нестабильная работа.
-                </p>
-              </div>
+          </div>
+          <div className="settings-row">
+            <div className="input-group">
+              <label>Канал обновлений</label>
+              <select
+                value={form.updateChannel || "stable"}
+                onChange={(e) => handleUpdateChannelChange(e.target.value)}
+              >
+                <option value="stable">Стабильный (рекомендуется)</option>
+                <option value="testing">Тестовый (Beta)</option>
+              </select>
+              <p className="muted-caption">
+                На тестовом канале вы будете получать самые новые функции быстрее, но возможна нестабильная работа.
+              </p>
             </div>
-          </article>
-
-          <article className="surface-card">
-            <div className="surface-card__head">
-              <div>
-                <span className="eyebrow">Danger Zone</span>
-                <h3>Перезапуск панели</h3>
-              </div>
-            </div>
-            <p className="muted-caption">
-              Полный перезапуск веб-интерфейса. Необходим для применения изменений порта, HTTPS или префикса пути.
-            </p>
-            <div style={{ marginTop: "1rem" }}>
+            <div className="settings-row__actions">
               <button type="button" className="ghost-button destructive" onClick={handleRestart}>
                 Перезапустить панель
               </button>
+              <p className="muted-caption">Перезапуск для применения изменений порта, HTTPS или префикса.</p>
             </div>
-          </article>
-        </section>
+          </div>
+        </article>
       </form>
     </div>
   );
