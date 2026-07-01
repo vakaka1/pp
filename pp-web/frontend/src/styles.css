@@ -3526,7 +3526,7 @@ code {
 
 .traffic-chart-wrap {
   flex: 1;
-  min-height: 200px;
+  min-height: 220px;
   position: relative;
 }
 

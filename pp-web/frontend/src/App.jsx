@@ -1301,124 +1301,151 @@ function OverviewPage({ onNotice, onNavigate }) {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    const wrap = canvas.parentElement;
 
-    const ctx = canvas.getContext("2d");
-    const dpr = window.devicePixelRatio || 1;
-    const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
-    ctx.scale(dpr, dpr);
-
-    const width = rect.width;
-    const height = rect.height;
-    const padding = { top: 24, right: 16, bottom: 32, left: 48 };
-    const chartW = width - padding.left - padding.right;
-    const chartH = height - padding.top - padding.bottom;
-    const styles = getComputedStyle(document.documentElement);
-
-    function cssColor(name) {
-      return styles.getPropertyValue(name).trim();
-    }
-
-    ctx.clearRect(0, 0, width, height);
-
-    const chartPoints = trafficHistory.length >= 2
-      ? trafficHistory
-      : [
-        { time: Date.now() - 1000, rateIn: 0, rateOut: 0 },
-        { time: Date.now(), rateIn: 0, rateOut: 0 }
-      ];
-
-    const maxVal = Math.max(1, ...chartPoints.map((t) => Math.max(t.rateIn, t.rateOut)));
-
-    const getX = (i) => padding.left + (i / (chartPoints.length - 1)) * chartW;
-    const getY = (v) => padding.top + chartH - (v / maxVal) * chartH;
-
-    ctx.strokeStyle = cssColor("--border-color");
-    ctx.lineWidth = 1;
-    ctx.setLineDash([4, 4]);
-    for (let i = 0; i <= 4; i++) {
-      const y = padding.top + (chartH / 4) * i;
-      ctx.beginPath();
-      ctx.moveTo(padding.left, y);
-      ctx.lineTo(width - padding.right, y);
-      ctx.stroke();
-    }
-    ctx.setLineDash([]);
-
-    function gradientAlpha(hex, alpha) {
-      const r = parseInt(hex.slice(1, 3), 16);
-      const g = parseInt(hex.slice(3, 5), 16);
-      const b = parseInt(hex.slice(5, 7), 16);
-      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-    }
-
-    function drawLine(data, color) {
-      ctx.beginPath();
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2.5;
-      ctx.lineJoin = "round";
-      ctx.lineCap = "round";
-      for (let i = 0; i < data.length; i++) {
-        const x = getX(i);
-        const y = getY(data[i].rate);
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
+    function parseColor(str) {
+      const m = str.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+      if (m) return { r: +m[1], g: +m[2], b: +m[3] };
+      if (str.startsWith("#")) {
+        const h = str.slice(1);
+        return { r: parseInt(h.slice(0, 2), 16), g: parseInt(h.slice(2, 4), 16), b: parseInt(h.slice(4, 6), 16) };
       }
-      ctx.stroke();
-
-      ctx.beginPath();
-      ctx.moveTo(getX(data.length - 1), getY(data[data.length - 1].rate));
-      ctx.lineTo(getX(data.length - 1), height - padding.bottom);
-      ctx.lineTo(getX(0), height - padding.bottom);
-      ctx.closePath();
-      const resolved = color;
-      const base = resolved.startsWith("#") ? gradientAlpha(resolved, 0.15) : resolved.replace(")", ", 0.15)").replace("rgb", "rgba");
-      const edge = resolved.startsWith("#") ? gradientAlpha(resolved, 0.02) : resolved.replace(")", ", 0.02)").replace("rgb", "rgba");
-      const gradient = ctx.createLinearGradient(0, padding.top, 0, height - padding.bottom);
-      gradient.addColorStop(0, base);
-      gradient.addColorStop(1, edge);
-      ctx.fillStyle = gradient;
-      ctx.fill();
+      return { r: 128, g: 128, b: 128 };
     }
 
-    drawLine(
-      chartPoints.map((t) => ({ rate: t.rateIn })),
-      cssColor("--accent-strong")
-    );
-    drawLine(
-      chartPoints.map((t) => ({ rate: t.rateOut })),
-      cssColor("--success")
-    );
-
-    ctx.font = "11px var(--font-mono)";
-    ctx.fillStyle = cssColor("--text-muted");
-    ctx.textAlign = "right";
-    for (let i = 0; i <= 4; i++) {
-      const v = (maxVal / 4) * (4 - i);
-      const y = padding.top + (chartH / 4) * i + 4;
-      ctx.fillText(formatBytes(v) + "/s", padding.left - 8, y);
+    function niceMax(v) {
+      if (v <= 0) return 1;
+      const mag = Math.pow(10, Math.floor(Math.log10(v)));
+      const norm = v / mag;
+      const nice = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10;
+      return nice * mag;
     }
 
-    const timeLabels = [chartPoints[0], chartPoints[Math.floor(chartPoints.length / 2)], chartPoints[chartPoints.length - 1]];
-    ctx.textAlign = "center";
-    ctx.fillStyle = cssColor("--text-muted");
-    ctx.font = "10px var(--font-mono)";
-    timeLabels.forEach((t, i) => {
-      if (!t) return;
-      const x = getX(chartPoints.indexOf(t));
-      const label = i === 2 ? "сейчас" : `${Math.round((Date.now() - t.time) / 1000)}с назад`;
-      ctx.fillText(label, x, height - 8);
-    });
+    function draw() {
+      const dpr = window.devicePixelRatio || 1;
+      const rect = wrap.getBoundingClientRect();
+      const w = rect.width;
+      const h = rect.height;
+      if (w < 10 || h < 10) return;
 
-    ctx.font = "10px var(--font-sans)";
-    ctx.textAlign = "left";
-    ctx.fillStyle = cssColor("--accent-strong");
-    ctx.fillRect(padding.left + 4, 6, 8, 8);
-    ctx.fillText("Входящий", padding.left + 16, 14);
-    ctx.fillStyle = cssColor("--success");
-    ctx.fillRect(width / 2 + 4, 6, 8, 8);
-    ctx.fillText("Исходящий", width / 2 + 16, 14);
+      canvas.width = w * dpr;
+      canvas.height = h * dpr;
+      canvas.style.width = w + "px";
+      canvas.style.height = h + "px";
+
+      const ctx = canvas.getContext("2d");
+      ctx.scale(dpr, dpr);
+
+      const pad = { top: 12, right: 14, bottom: 28, left: 50 };
+      const cw = w - pad.left - pad.right;
+      const ch = h - pad.top - pad.bottom;
+      const styles = getComputedStyle(document.documentElement);
+      const css = (n) => styles.getPropertyValue(n).trim();
+
+      ctx.clearRect(0, 0, w, h);
+
+      const pts = trafficHistory.length >= 2
+        ? trafficHistory
+        : [{ time: Date.now() - 1000, rateIn: 0, rateOut: 0 }, { time: Date.now(), rateIn: 0, rateOut: 0 }];
+
+      const rawMax = Math.max(1, ...pts.map((t) => Math.max(t.rateIn, t.rateOut)));
+      const maxVal = niceMax(rawMax * 1.1);
+
+      const getX = (i) => pad.left + (i / (pts.length - 1)) * cw;
+      const getY = (v) => pad.top + ch - (v / maxVal) * ch;
+
+      const gridColor = css("--border-color");
+      ctx.strokeStyle = gridColor;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+      for (let i = 0; i <= 4; i++) {
+        const y = pad.top + (ch / 4) * i;
+        ctx.beginPath();
+        ctx.moveTo(pad.left, y);
+        ctx.lineTo(w - pad.right, y);
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
+
+      ctx.font = "11px var(--font-mono, monospace)";
+      ctx.fillStyle = css("--text-muted");
+      ctx.textAlign = "right";
+      for (let i = 0; i <= 4; i++) {
+        const v = (maxVal / 4) * (4 - i);
+        const y = pad.top + (ch / 4) * i + 4;
+        ctx.fillText(formatBytes(v) + "/s", pad.left - 8, y);
+      }
+
+      ctx.textAlign = "center";
+      ctx.fillStyle = css("--text-muted");
+      ctx.font = "10px var(--font-mono, monospace)";
+      const labelCount = Math.min(5, pts.length);
+      for (let li = 0; li < labelCount; li++) {
+        const idx = li === labelCount - 1 ? pts.length - 1 : Math.round((li / (labelCount - 1)) * (pts.length - 1));
+        const p = pts[idx];
+        if (!p) continue;
+        const x = getX(idx);
+        const label = li === labelCount - 1 ? "сейчас" : `${Math.round((Date.now() - p.time) / 1000)}с`;
+        ctx.fillText(label, x, h - 8);
+      }
+
+      function getPoints(data) {
+        return data.map((d, i) => ({ x: getX(i), y: getY(d.rate) }));
+      }
+
+      function strokeSmooth(points, color) {
+        if (points.length < 2) return;
+        ctx.beginPath();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2.5;
+        ctx.lineJoin = "round";
+        ctx.lineCap = "round";
+        ctx.moveTo(points[0].x, points[0].y);
+        for (let i = 1; i < points.length; i++) {
+          const prev = points[i - 1];
+          const cur = points[i];
+          const cpx = (prev.x + cur.x) / 2;
+          ctx.bezierCurveTo(cpx, prev.y, cpx, cur.y, cur.x, cur.y);
+        }
+        ctx.stroke();
+      }
+
+      function fillSmooth(points, color) {
+        if (points.length < 2) return;
+        const c = parseColor(color);
+        ctx.beginPath();
+        ctx.moveTo(points[0].x, points[0].y);
+        for (let i = 1; i < points.length; i++) {
+          const prev = points[i - 1];
+          const cur = points[i];
+          const cpx = (prev.x + cur.x) / 2;
+          ctx.bezierCurveTo(cpx, prev.y, cpx, cur.y, cur.x, cur.y);
+        }
+        ctx.lineTo(points[points.length - 1].x, pad.top + ch);
+        ctx.lineTo(points[0].x, pad.top + ch);
+        ctx.closePath();
+        const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + ch);
+        grad.addColorStop(0, `rgba(${c.r}, ${c.g}, ${c.b}, 0.08)`);
+        grad.addColorStop(1, `rgba(${c.r}, ${c.g}, ${c.b}, 0.01)`);
+        ctx.fillStyle = grad;
+        ctx.fill();
+      }
+
+      const inPts = getPoints(pts.map((t) => ({ rate: t.rateIn })));
+      const outPts = getPoints(pts.map((t) => ({ rate: t.rateOut })));
+      const inColor = css("--accent-strong");
+      const outColor = css("--success");
+
+      fillSmooth(inPts, inColor);
+      fillSmooth(outPts, outColor);
+      strokeSmooth(inPts, inColor);
+      strokeSmooth(outPts, outColor);
+    }
+
+    draw();
+    const ro = new ResizeObserver(() => draw());
+    ro.observe(wrap);
+    return () => ro.disconnect();
   }, [trafficHistory]);
 
   function formatBytes(bytesPerSec) {
