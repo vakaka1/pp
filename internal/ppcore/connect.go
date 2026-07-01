@@ -101,7 +101,7 @@ func ConnectToServer(ctx context.Context, cfg *config.ClientConfig, noise *brows
 		return nil, fmt.Errorf("jwt generation failed: %w", err)
 	}
 
-	headers := protocol.GenerateGRPCClientHeaders(cfg.Server.Domain, protocol.LoginTunnelPath, jwtToken, cfg.Server.GRPCUserAgent)
+	headers := protocol.GenerateGRPCClientHeaders(cfg.Server.Domain, clientGRPCPath(cfg), jwtToken, cfg.Server.GRPCUserAgent)
 	if err := protocol.WriteHeaders(h2.Framer(), streamID, false, headers); err != nil {
 		h2.UnlockWrite()
 		h2.Close()
@@ -263,4 +263,11 @@ func clientSmuxConfig(cfg *config.ClientConfig) *smux.Config {
 	}
 	smuxCfg.KeepAliveInterval = keepAliveInterval
 	return smuxCfg
+}
+
+func clientGRPCPath(cfg *config.ClientConfig) string {
+	if cfg == nil || cfg.Server.GRPCPath == "" {
+		return protocol.LoginTunnelPath
+	}
+	return cfg.Server.GRPCPath
 }

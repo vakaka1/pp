@@ -106,6 +106,24 @@ func TestServerSmuxConfigEnablesKeepalive(t *testing.T) {
 	}
 }
 
+func TestClientGRPCPathUsesConfiguredPath(t *testing.T) {
+	cfg := &config.ClientConfig{}
+	cfg.Server.GRPCPath = "/custom-tunnel"
+
+	if got := clientGRPCPath(cfg); got != "/custom-tunnel" {
+		t.Fatalf("expected configured grpc path, got %q", got)
+	}
+}
+
+func TestClientGRPCPathDefaultsToLogin(t *testing.T) {
+	if got := clientGRPCPath(&config.ClientConfig{}); got != protocol.LoginTunnelPath {
+		t.Fatalf("expected default grpc path %q, got %q", protocol.LoginTunnelPath, got)
+	}
+	if got := clientGRPCPath(nil); got != protocol.LoginTunnelPath {
+		t.Fatalf("expected default grpc path for nil config %q, got %q", protocol.LoginTunnelPath, got)
+	}
+}
+
 func TestConnectionPoolStreamTimeoutThreshold(t *testing.T) {
 	clientConn, serverConn := net.Pipe()
 	defer clientConn.Close()

@@ -78,6 +78,12 @@ func TestConfigValidationClient(t *testing.T) {
 		t.Fatalf("expected valid client config, got: %v", err)
 	}
 
+	cfg.Client.Server.GRPCPath = "login"
+	if err := cfg.Validate(false); err == nil {
+		t.Fatalf("expected error for grpc_path without leading slash")
+	}
+	cfg.Client.Server.GRPCPath = "/login"
+
 	cfg.Client.Routing = &RoutingConfig{
 		Rules: []RoutingRule{
 			{Type: "ip_cidr", Value: "192.168.1.1/abc", Policy: "direct"},

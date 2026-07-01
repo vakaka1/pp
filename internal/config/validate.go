@@ -116,6 +116,9 @@ func validateClientConfig(c *ClientConfig) error {
 	if c.Server.Address == "" {
 		return fmt.Errorf("client.server.address is required")
 	}
+	if c.Server.GRPCPath != "" && !strings.HasPrefix(c.Server.GRPCPath, "/") {
+		return fmt.Errorf("client.server.grpc_path must start with '/'")
+	}
 
 	if err := validateKey(c.Server.PSK, "client.server.psk"); err != nil {
 		return err
