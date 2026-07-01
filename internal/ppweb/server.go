@@ -187,6 +187,8 @@ func (s *Server) serveAPI(w http.ResponseWriter, r *http.Request) {
 		s.withAdmin(w, r, s.handleRestartCore)
 	case r.URL.Path == "/api/restart" && r.Method == http.MethodPost:
 		s.withAdmin(w, r, s.handleRestartPanel)
+	case r.URL.Path == "/api/change-password" && r.Method == http.MethodPost:
+		s.withAdmin(w, r, s.handleChangePassword)
 	default:
 		writeError(w, http.StatusNotFound, "route not found")
 	}
@@ -213,6 +215,52 @@ func (s *Server) handleRestartPanel(w http.ResponseWriter, r *http.Request, _ *A
 		time.Sleep(500 * time.Millisecond)
 		os.Exit(0)
 	}()
+}
+
+func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request, admin *Admin) {
+	var payload struct {
+		CurrentPassword string `json:"currentPassword"`
+		NewPassword     string `json:"newPassword"`
+	}
+	if err := decodeJSON(r, &payload); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	if len(payload.CurrentPassword) == 0 {
+		writeError(w, http.StatusBadRequest, "текущий пароль обязателен")
+		return
+	}
+	if len(payload.NewPassword) < 8 {
+		writeError(w, http.StatusBadRequest, "новый пароль должен содержать не менее 8 символов")
+		return
+	}
+	if payload.CurrentPassword == payload.NewPassword {
+		writeError(w, http.StatusBadRequest, "новый пароль должен отличаться от текущего")
+		return
+	}
+
+	freshAdmin, err := s.store.FindAdminByUsername(r.Context(), admin.Username)
+	if err != nil || freshAdmin == nil {
+		writeError(w, http.StatusInternalServerError, "не удалось загрузить данные администратора")
+		return
+	}
+	if bcrypt.CompareHashAndPassword([]byte(freshAdmin.PasswordHash), []byte(payload.CurrentPassword)) != nil {
+		writeError(w, http.StatusUnauthorized, "неверный текущий пароль")
+		return
+	}
+
+	newHash, err := bcrypt.GenerateFromPassword([]byte(payload.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "ошибка хеширования пароля")
+		return
+	}
+	if err := s.store.UpdateAdminPassword(r.Context(), admin.ID, string(newHash)); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
 func (s *Server) currentAdmin(r *http.Request) (*Admin, error) {

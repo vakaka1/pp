@@ -158,6 +158,12 @@ export const api = {
       body: JSON.stringify({})
     });
   },
+  changePassword(payload) {
+    return request("/api/change-password", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+  },
   clientConfig(id) {
     return request(`/api/connections/${id}/client-config`, { method: "GET" });
   },

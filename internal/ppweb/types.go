@@ -80,12 +80,13 @@ type AppSettings struct {
 	InitializedAt  time.Time `json:"initializedAt"`
 
 	// Panel configuration
-	PanelHTTPS    bool   `json:"panelHttps"`
-	PanelPort     int    `json:"panelPort"`
-	PanelPrefix   string `json:"panelPrefix"`
-	PanelDomain   string `json:"panelDomain"`
-	PanelCertFile string `json:"panelCertFile"`
-	PanelKeyFile  string `json:"panelKeyFile"`
+	PanelHTTPS        bool   `json:"panelHttps"`
+	PanelLetsEncrypt  bool   `json:"panelLetsEncrypt"`
+	PanelPort         int    `json:"panelPort"`
+	PanelPrefix       string `json:"panelPrefix"`
+	PanelDomain       string `json:"panelDomain"`
+	PanelCertFile     string `json:"panelCertFile"`
+	PanelKeyFile      string `json:"panelKeyFile"`
 }
 
 type ProtocolDescriptor struct {

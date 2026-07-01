@@ -281,12 +281,13 @@ func (s *Store) GetAppSettings(ctx context.Context, fallbackCoreConfigPath strin
 		UpdateChannel:  firstNonEmpty(settingsMap["update_channel"], "stable"),
 		LastSyncError:  settingsMap["last_sync_error"],
 
-		PanelHTTPS:    settingsMap["panel_https"] == "true",
-		PanelPort:     stringToInt(settingsMap["panel_port"], 4090),
-		PanelPrefix:   settingsMap["panel_prefix"],
-		PanelDomain:   settingsMap["panel_domain"],
-		PanelCertFile: settingsMap["panel_cert_file"],
-		PanelKeyFile:  settingsMap["panel_key_file"],
+		PanelHTTPS:       settingsMap["panel_https"] == "true",
+		PanelLetsEncrypt: settingsMap["panel_lets_encrypt"] == "true",
+		PanelPort:        stringToInt(settingsMap["panel_port"], 4090),
+		PanelPrefix:      settingsMap["panel_prefix"],
+		PanelDomain:      settingsMap["panel_domain"],
+		PanelCertFile:    settingsMap["panel_cert_file"],
+		PanelKeyFile:     settingsMap["panel_key_file"],
 	}
 
 	if settingsMap["initialized_at"] != "" {
@@ -301,15 +302,16 @@ func (s *Store) GetAppSettings(ctx context.Context, fallbackCoreConfigPath strin
 
 func (s *Store) UpdateAppSettings(ctx context.Context, settings *AppSettings) error {
 	settingsMap := map[string]string{
-		"app_name":         settings.AppName,
-		"core_config_path": settings.CoreConfigPath,
-		"update_channel":   settings.UpdateChannel,
-		"panel_https":     fmt.Sprintf("%v", settings.PanelHTTPS),
-		"panel_port":      fmt.Sprintf("%d", settings.PanelPort),
-		"panel_prefix":    settings.PanelPrefix,
-		"panel_domain":    settings.PanelDomain,
-		"panel_cert_file": settings.PanelCertFile,
-		"panel_key_file":  settings.PanelKeyFile,
+		"app_name":           settings.AppName,
+		"core_config_path":   settings.CoreConfigPath,
+		"update_channel":     settings.UpdateChannel,
+		"panel_https":        fmt.Sprintf("%v", settings.PanelHTTPS),
+		"panel_lets_encrypt": fmt.Sprintf("%v", settings.PanelLetsEncrypt),
+		"panel_port":         fmt.Sprintf("%d", settings.PanelPort),
+		"panel_prefix":       settings.PanelPrefix,
+		"panel_domain":       settings.PanelDomain,
+		"panel_cert_file":    settings.PanelCertFile,
+		"panel_key_file":     settings.PanelKeyFile,
 	}
 
 	for key, value := range settingsMap {
@@ -341,6 +343,24 @@ func (s *Store) RecordSyncResult(ctx context.Context, syncTime time.Time, syncEr
 		if err := s.UpsertSetting(ctx, key, value); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// UpdateAdminPassword changes the password hash for the given admin.
+func (s *Store) UpdateAdminPassword(ctx context.Context, adminID int64, passwordHash string) error {
+	result, err := s.db.ExecContext(
+		ctx,
+		`UPDATE admins SET password_hash = ? WHERE id = ?`,
+		passwordHash,
+		adminID,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to update password: %w", err)
+	}
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		return fmt.Errorf("admin not found")
 	}
 	return nil
 }

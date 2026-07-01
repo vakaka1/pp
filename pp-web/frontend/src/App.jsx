@@ -2385,6 +2385,11 @@ function SettingsPage({ bootstrap, onNotice, onConfirm, onRefreshAbout }) {
   const [form, setForm] = useState(null);
   const [initialUpdateChannel, setInitialUpdateChannel] = useState("stable");
 
+  const [pwdCurrent, setPwdCurrent] = useState("");
+  const [pwdNew, setPwdNew] = useState("");
+  const [pwdConfirm, setPwdConfirm] = useState("");
+  const [pwdSubmitting, setPwdSubmitting] = useState(false);
+
   useEffect(() => {
     loadSettings();
   }, []);
@@ -2410,7 +2415,7 @@ function SettingsPage({ bootstrap, onNotice, onConfirm, onRefreshAbout }) {
     try {
       await api.saveSettings(form);
       setInitialUpdateChannel(nextChannel);
-      onNotice({ tone: "success", message: "Настройки сохранены. Используйте кнопку ниже для перезапуска панели." });
+      onNotice({ tone: "success", message: "Настройки сохранены. Используйте кнопку перезапуска для применения изменений." });
       if (nextChannel !== previousChannel) {
         await onRefreshAbout?.({ force: true, silent: true });
         onNotice({
@@ -2444,9 +2449,36 @@ function SettingsPage({ bootstrap, onNotice, onConfirm, onRefreshAbout }) {
     }
   }
 
+  async function handleChangePassword(event) {
+    event.preventDefault();
+    if (!pwdCurrent || !pwdNew) {
+      onNotice({ tone: "error", message: "Заполните все поля для смены пароля" });
+      return;
+    }
+    if (pwdNew.length < 8) {
+      onNotice({ tone: "error", message: "Новый пароль должен содержать не менее 8 символов" });
+      return;
+    }
+    if (pwdNew !== pwdConfirm) {
+      onNotice({ tone: "error", message: "Новые пароли не совпадают" });
+      return;
+    }
+    setPwdSubmitting(true);
+    try {
+      await api.changePassword({ currentPassword: pwdCurrent, newPassword: pwdNew });
+      setPwdCurrent("");
+      setPwdNew("");
+      setPwdConfirm("");
+      onNotice({ tone: "success", message: "Пароль успешно изменен" });
+    } catch (error) {
+      onNotice({ tone: "error", message: error.message });
+    } finally {
+      setPwdSubmitting(false);
+    }
+  }
+
   if (loading || !form) return <PageSkeleton title="Настройки панели" />;
 
-  // Вычисляем предпросмотр
   const protocol = form.panelHttps ? "https" : "http";
   const domain = form.panelDomain || (bootstrap?.publicIP !== "Unknown" ? bootstrap.publicIP : "127.0.0.1");
   const port = form.panelPort || 4090;
@@ -2467,10 +2499,12 @@ function SettingsPage({ bootstrap, onNotice, onConfirm, onRefreshAbout }) {
     setForm({ ...form, updateChannel: nextChannel });
   }
 
+  const hasDomain = !!(form.panelDomain && form.panelDomain.trim());
+
   return (
     <div className="page">
       <PageHero
-        eyebrow="Panel"
+        eyebrow="Панель"
         title="Настройки панели"
         description="Сетевые параметры, безопасность и канал обновлений."
         tone="settings"
@@ -2478,6 +2512,9 @@ function SettingsPage({ bootstrap, onNotice, onConfirm, onRefreshAbout }) {
           <div className="page-hero__button-row">
             <button type="submit" form="settings-form" className="primary-button" disabled={submitting}>
               {submitting ? "Сохранение..." : "Сохранить изменения"}
+            </button>
+            <button type="button" className="ghost-button destructive" onClick={handleRestart}>
+              Перезапустить панель
             </button>
           </div>
         }
@@ -2492,11 +2529,11 @@ function SettingsPage({ bootstrap, onNotice, onConfirm, onRefreshAbout }) {
         }
       />
 
-      <form id="settings-form" onSubmit={handleSubmit}>
+      <form id="settings-form" onSubmit={handleSubmit} className="settings-form">
         <article className="surface-card surface-card--wide">
           <div className="surface-card__head">
             <div>
-              <span className="eyebrow">Network</span>
+              <span className="eyebrow">Сеть</span>
               <h3>Сетевые настройки</h3>
             </div>
           </div>
@@ -2527,30 +2564,60 @@ function SettingsPage({ bootstrap, onNotice, onConfirm, onRefreshAbout }) {
         <article className="surface-card surface-card--wide">
           <div className="surface-card__head">
             <div>
-              <span className="eyebrow">Security</span>
+              <span className="eyebrow">Безопасность</span>
               <h3>Безопасность и HTTPS</h3>
             </div>
           </div>
           <div className="settings-row">
             <div className="input-group">
-              <label>Домен (для HTTPS)</label>
+              <label>Доменное имя панели</label>
               <input
                 type="text"
                 placeholder="panel.example.com"
                 value={form.panelDomain || ""}
                 onChange={(e) => setForm({ ...form, panelDomain: e.target.value })}
               />
-              <p className="muted-caption">Требуется для корректной работы сертификатов.</p>
+              <p className="muted-caption">Используется для отображения адреса и настройки сертификатов</p>
             </div>
-            <div className="checkbox-group">
-              <label>
-                <input
-                  type="checkbox"
-                  checked={!!form.panelHttps}
-                  onChange={(e) => setForm({ ...form, panelHttps: e.target.checked })}
-                />
-                <span>Включить HTTPS (самоподписанный)</span>
-              </label>
+            <div className="input-group">
+              <label>Протокол</label>
+              <div className="radio-group">
+                <label className="radio-label">
+                  <input
+                    type="radio"
+                    name="panelProtocol"
+                    checked={!form.panelHttps}
+                    onChange={() => setForm({ ...form, panelHttps: false, panelLetsEncrypt: false })}
+                  />
+                  <span>HTTP</span>
+                </label>
+                <label className="radio-label">
+                  <input
+                    type="radio"
+                    name="panelProtocol"
+                    checked={!!form.panelHttps && !form.panelLetsEncrypt}
+                    onChange={() => setForm({ ...form, panelHttps: true, panelLetsEncrypt: false })}
+                  />
+                  <span>HTTPS (самоподписанный)</span>
+                </label>
+                {hasDomain && (
+                  <label className="radio-label">
+                    <input
+                      type="radio"
+                      name="panelProtocol"
+                      checked={!!form.panelHttps && !!form.panelLetsEncrypt}
+                      onChange={() => setForm({ ...form, panelHttps: true, panelLetsEncrypt: true })}
+                    />
+                    <span>HTTPS (Let's Encrypt)</span>
+                  </label>
+                )}
+              </div>
+              {form.panelHttps && !form.panelLetsEncrypt && !hasDomain && (
+                <p className="muted-caption">Для работы HTTPS рекомендуется указать домен</p>
+              )}
+              {form.panelLetsEncrypt && (
+                <p className="muted-caption">Домен должен быть направлен на публичный IP сервера. Порт 80 должен быть открыт</p>
+              )}
             </div>
           </div>
         </article>
@@ -2558,7 +2625,7 @@ function SettingsPage({ bootstrap, onNotice, onConfirm, onRefreshAbout }) {
         <article className="surface-card surface-card--wide">
           <div className="surface-card__head">
             <div>
-              <span className="eyebrow">Updates</span>
+              <span className="eyebrow">Обновления</span>
               <h3>Канал обновлений</h3>
             </div>
           </div>
@@ -2577,14 +2644,55 @@ function SettingsPage({ bootstrap, onNotice, onConfirm, onRefreshAbout }) {
               </p>
             </div>
             <div className="settings-row__actions">
-              <button type="button" className="ghost-button destructive" onClick={handleRestart}>
-                Перезапустить панель
-              </button>
-              <p className="muted-caption">Перезапуск для применения изменений порта, HTTPS или префикса.</p>
+              <p className="muted-caption">Для применения изменений порта, HTTPS или префикса необходим перезапуск</p>
             </div>
           </div>
         </article>
       </form>
+
+      <article className="surface-card surface-card--wide settings-card-gap">
+        <div className="surface-card__head">
+          <div>
+            <span className="eyebrow">Пароль</span>
+            <h3>Смена пароля администратора</h3>
+          </div>
+        </div>
+        <form onSubmit={handleChangePassword} className="settings-row settings-row--pwd">
+          <div className="input-group">
+            <label>Текущий пароль</label>
+            <input
+              type="password"
+              value={pwdCurrent}
+              onChange={(e) => setPwdCurrent(e.target.value)}
+              autoComplete="current-password"
+            />
+          </div>
+          <div className="input-group">
+            <label>Новый пароль</label>
+            <input
+              type="password"
+              value={pwdNew}
+              onChange={(e) => setPwdNew(e.target.value)}
+              autoComplete="new-password"
+            />
+            <p className="muted-caption">Не менее 8 символов</p>
+          </div>
+          <div className="input-group">
+            <label>Подтвердите новый пароль</label>
+            <input
+              type="password"
+              value={pwdConfirm}
+              onChange={(e) => setPwdConfirm(e.target.value)}
+              autoComplete="new-password"
+            />
+          </div>
+          <div className="settings-row__actions">
+            <button type="submit" className="primary-button" disabled={pwdSubmitting}>
+              {pwdSubmitting ? "Сохранение..." : "Изменить пароль"}
+            </button>
+          </div>
+        </form>
+      </article>
     </div>
   );
 }
