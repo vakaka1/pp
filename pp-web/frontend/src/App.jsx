@@ -1492,11 +1492,24 @@ function OverviewPage({ onNotice, onNavigate }) {
     return <PageSkeleton title="Обзор системы" />;
   }
 
-  const runningListeners = data.listeners.filter((listener) => listener.enabled && listener.reachable);
+  const enabledListeners = data.listeners.filter((listener) => listener.enabled);
+  const runningListeners = enabledListeners.filter((listener) => listener.reachable);
   const serverUptime = liveUptime(parseUptime(data.uptime?.server));
   const coreUptime = liveUptime(parseUptime(data.uptime?.core));
   const panelUptime = liveUptime(parseUptime(data.uptime?.panel));
   const ppVersion = data.uptime?.version || data.build?.version || "—";
+
+  const allListenersOk = enabledListeners.length > 0 && runningListeners.length === enabledListeners.length;
+  const panelHealthy = allListenersOk;
+
+  function pluralize(n, one, few, many) {
+    const abs = Math.abs(n) % 100;
+    const lastDigit = abs % 10;
+    if (abs > 10 && abs < 20) return many;
+    if (lastDigit > 1 && lastDigit < 5) return few;
+    if (lastDigit === 1) return one;
+    return many;
+  }
 
   return (
     <div className="page fade-in">
@@ -1505,9 +1518,9 @@ function OverviewPage({ onNotice, onNavigate }) {
         <header className="dashboard-hero">
           <span className="eyebrow" style={{ color: "var(--accent-strong)" }}>Добро пожаловать!</span>
           <p>
-            Панель управления PP работает в штатном режиме.
-            Запущено <strong>{runningListeners.length}</strong> слушателей
-            и настроено <strong>{data.summary.connectionsTotal}</strong> профилей подключений.
+            Панель управления PP работает в {panelHealthy ? "штатном" : "нештатном"} режиме.
+            Запущено <strong>{runningListeners.length}</strong> {pluralize(runningListeners.length, "слушатель", "слушателя", "слушателей")}
+            и настроено <strong>{data.summary.connectionsTotal}</strong> {pluralize(data.summary.connectionsTotal, "профиль", "профиля", "профилей")} подключений.
           </p>
         </header>
 
