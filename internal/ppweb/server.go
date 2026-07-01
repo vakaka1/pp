@@ -183,6 +183,8 @@ func (s *Server) serveAPI(w http.ResponseWriter, r *http.Request) {
 		s.withAdmin(w, r, s.handleCheckPort)
 	case r.URL.Path == "/api/pp-core/sync" && r.Method == http.MethodPost:
 		s.withAdmin(w, r, s.handleSyncCoreConfig)
+	case r.URL.Path == "/api/pp-core/config" && r.Method == http.MethodPut:
+		s.withAdmin(w, r, s.handleSaveCoreConfig)
 	case r.URL.Path == "/api/pp-core/restart" && r.Method == http.MethodPost:
 		s.withAdmin(w, r, s.handleRestartCore)
 	case r.URL.Path == "/api/restart" && r.Method == http.MethodPost:
@@ -483,6 +485,11 @@ func (s *Server) handleOverview(w http.ResponseWriter, r *http.Request, _ *Admin
 		if err := cfg.Validate(true); err == nil {
 			configValid = true
 		}
+	}
+	if raw, err := os.ReadFile(settings.CoreConfigPath); err == nil {
+		configPreview = string(raw)
+		var fileCfg config.Config
+		configValid = json.Unmarshal(raw, &fileCfg) == nil && fileCfg.Validate(true) == nil
 	}
 
 	protocolUsage := make(map[string]int)
@@ -1091,6 +1098,63 @@ func (s *Server) handleSyncCoreConfig(w http.ResponseWriter, r *http.Request, _ 
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+func (s *Server) handleSaveCoreConfig(w http.ResponseWriter, r *http.Request, _ *Admin) {
+	var payload struct {
+		Config json.RawMessage `json:"config"`
+	}
+	if err := decodeJSON(r, &payload); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if len(payload.Config) == 0 {
+		writeError(w, http.StatusBadRequest, "config is required")
+		return
+	}
+
+	var cfg config.Config
+	if err := json.Unmarshal(payload.Config, &cfg); err != nil {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid core config JSON: %v", err))
+		return
+	}
+	if err := cfg.Validate(true); err != nil {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("core config validation failed: %v", err))
+		return
+	}
+
+	settings, err := s.store.GetAppSettings(r.Context(), s.opts.CoreConfigPath)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	out, err := json.MarshalIndent(&cfg, "", "  ")
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to encode core config: %v", err))
+		return
+	}
+	if err := os.MkdirAll(filepath.Dir(settings.CoreConfigPath), 0o755); err != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to create core config directory: %v", err))
+		return
+	}
+
+	tmpPath := settings.CoreConfigPath + ".tmp"
+	if err := os.WriteFile(tmpPath, out, 0o644); err != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to write temporary core config: %v", err))
+		return
+	}
+	if err := os.Rename(tmpPath, settings.CoreConfigPath); err != nil {
+		_ = os.Remove(tmpPath)
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to replace core config: %v", err))
+		return
+	}
+	if err := s.store.RecordSyncResult(r.Context(), time.Now().UTC(), ""); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "config": string(out)})
 }
 
 func (s *Server) handleRestartCore(w http.ResponseWriter, r *http.Request, _ *Admin) {

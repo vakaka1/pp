@@ -146,6 +146,12 @@ export const api = {
       body: JSON.stringify({})
     });
   },
+  saveCoreConfig(config) {
+    return request("/api/pp-core/config", {
+      method: "PUT",
+      body: JSON.stringify({ config })
+    });
+  },
   restartCore() {
     return request("/api/pp-core/restart", {
       method: "POST",

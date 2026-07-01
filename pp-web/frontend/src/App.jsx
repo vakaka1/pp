@@ -2186,7 +2186,8 @@ function PPSettingsPage({ onNotice }) {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [restarting, setRestarting] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [configEditorOpen, setConfigEditorOpen] = useState(false);
+  const [jsonViewerOpen, setJsonViewerOpen] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -2212,7 +2213,7 @@ function PPSettingsPage({ onNotice }) {
       const payload = await api.syncCore();
       onNotice({
         tone: payload.warning ? "warning" : "success",
-        message: payload.warning || "Конфигурация обновлена."
+        message: payload.warning || "Конфигурация синхронизирована."
       });
       await loadData();
     } catch (error) {
@@ -2242,16 +2243,28 @@ function PPSettingsPage({ onNotice }) {
 
   const isRunning = !!data.core.processRunning;
   const isCoreReady = data.core.binaryAvailable && data.core.configValid && isRunning;
+  const activeListeners = data.listeners.filter((listener) => listener.enabled).length;
+  const reachableListeners = data.listeners.filter((listener) => listener.reachable).length;
+  const hasListeners = activeListeners > 0;
+  const runtimeTone = isCoreReady ? "good" : isRunning ? "warning" : "bad";
+  const runtimeLabel = isCoreReady ? "Ядро работает" : isRunning ? "Запущено, нужна проверка" : "Ядро остановлено";
 
   return (
     <div className="page">
       <PageHero
-        eyebrow="Runtime"
-        title="Управление ядром PP"
+        eyebrow="Ядро"
+        title="Ядро PP"
+        description="Состояние службы, синхронизация конфигурации и ручная проверка файла ядра."
         actions={
           <div className="page-hero__button-row">
+            <button className="ghost-button" onClick={() => setJsonViewerOpen(true)}>
+              Открыть JSON
+            </button>
+            <button className="ghost-button" onClick={() => setConfigEditorOpen(true)}>
+              Редактировать конфигурацию
+            </button>
             <button className="ghost-button" onClick={handleSync} disabled={syncing}>
-              {syncing ? "Синхронизация..." : "Обновить конфигурацию"}
+              {syncing ? "Синхронизация..." : "Синхронизировать"}
             </button>
             <button
               className={`primary-button ${isRunning ? "warning" : "success"}`}
@@ -2260,15 +2273,6 @@ function PPSettingsPage({ onNotice }) {
             >
               {restarting ? "Подождите..." : isRunning ? "Перезапустить ядро" : "Запустить систему"}
             </button>
-          </div>
-        }
-        aside={
-          <div className="runtime-status-card">
-            <div className={`runtime-status-card__indicator ${isRunning ? "is-live" : ""}`} />
-            <div>
-              <span>Текущий статус</span>
-              <strong>{isRunning ? "Система работает" : "Система остановлена"}</strong>
-            </div>
           </div>
         }
         tone="runtime"
@@ -2284,42 +2288,49 @@ function PPSettingsPage({ onNotice }) {
       ) : null}
 
       <section className="insight-grid">
-        <article className="surface-card">
+        <article className="surface-card surface-card--wide core-health-card">
           <div className="surface-card__head">
             <div>
-              <span className="eyebrow">Status</span>
-              <h3>Что сейчас происходит</h3>
+              <span className="eyebrow">Состояние</span>
+              <h3>Готовность ядра</h3>
             </div>
-            <StatusPill tone={isCoreReady ? "good" : "warning"}>
-              {isCoreReady ? "Готово к работе" : "Нужна проверка"}
-            </StatusPill>
+            <StatusPill tone={runtimeTone}>{runtimeLabel}</StatusPill>
           </div>
 
-          <div className="detail-grid">
-            <div className="detail-card">
-              <span>Бинарник</span>
-              <strong>{data.core.binaryAvailable ? "OK" : "Отсутствует"}</strong>
-              <p>{data.core.binaryPath || "Путь не определён"}</p>
+          <div className="core-health-layout">
+            <div className={`core-health-meter core-health-meter--${runtimeTone}`}>
+              <span>{isCoreReady ? "Работает" : isRunning ? "Проверить" : "Остановлено"}</span>
+              <strong>{reachableListeners}/{activeListeners || data.listeners.length || 0}</strong>
+              <p>доступных сетевых входов</p>
             </div>
-            <div className="detail-card">
-              <span>Конфиг</span>
-              <strong>{data.core.configValid ? "Валиден" : "Ошибка"}</strong>
-              <p>{data.core.configPath}</p>
-            </div>
-            <div className="detail-card">
-              <span>Последняя синхронизация</span>
-              <strong>{formatDateTime(data.core.lastSyncAt)}</strong>
-              <p>{data.core.lastSyncError || "Без ошибок"}</p>
+            <div className="core-check-list">
+              <CoreCheckRow label="Процесс ядра" value={isRunning ? "Запущен" : "Не запущен"} tone={isRunning ? "good" : "bad"} />
+              <CoreCheckRow label="Файл конфигурации" value={data.core.configValid ? "Корректен" : "Требует исправления"} tone={data.core.configValid ? "good" : "bad"} />
+              <CoreCheckRow
+                label="Сетевые входы"
+                value={hasListeners ? `${reachableListeners} из ${activeListeners} доступны` : "Не настроены"}
+                tone={!hasListeners ? "warning" : reachableListeners === activeListeners ? "good" : "warning"}
+              />
+              <CoreCheckRow
+                label="Последняя синхронизация"
+                value={data.core.lastSyncError ? "Есть ошибка" : formatDateTime(data.core.lastSyncAt)}
+                tone={data.core.lastSyncError ? "bad" : "neutral"}
+              />
             </div>
           </div>
+
+          {data.core.lastSyncError ? <Banner notice={{ tone: "error", message: data.core.lastSyncError }} /> : null}
         </article>
 
         <article className="surface-card">
           <div className="surface-card__head">
             <div>
-              <span className="eyebrow">Ports</span>
-              <h3>Сетевые слушатели</h3>
+              <span className="eyebrow">Сеть</span>
+              <h3>Сетевые входы</h3>
             </div>
+            <StatusPill tone={hasListeners ? "neutral" : "warning"}>
+              {hasListeners ? `${activeListeners} настроено` : "Нет входов"}
+            </StatusPill>
           </div>
 
           <div className="mini-listener-list">
@@ -2328,55 +2339,346 @@ function PPSettingsPage({ onNotice }) {
                 <div key={listener.id} className="mini-listener">
                   <span>{listener.name}</span>
                   <StatusPill good={listener.reachable}>
-                    {listener.reachable ? "Активен" : "Ожидание"}
+                    {listener.reachable ? "Доступен" : listener.enabled ? "Недоступен" : "Выключен"}
                   </StatusPill>
                 </div>
               ))
             ) : (
-              <p className="empty-muted">Нет активных слушателей.</p>
+              <p className="empty-muted">Сетевые входы пока не настроены.</p>
             )}
+          </div>
+        </article>
+
+        <article className="surface-card">
+          <div className="surface-card__head">
+            <div>
+              <span className="eyebrow">Конфигурация</span>
+              <h3>Управление файлом ядра</h3>
+            </div>
+          </div>
+
+          <div className="core-action-panel">
+            <button className="ghost-button" onClick={() => setConfigEditorOpen(true)}>Редактировать</button>
+            <button className="ghost-button" onClick={() => setJsonViewerOpen(true)}>Посмотреть JSON</button>
+            <p className="muted-caption">После ручного изменения перезапустите ядро, чтобы оно прочитало сохраненный файл.</p>
           </div>
         </article>
       </section>
 
-      <div className="advanced-toggle">
-        <button onClick={() => setShowAdvanced(!showAdvanced)}>
-          {showAdvanced ? "Скрыть технические детали" : "Показать технические детали"}
-        </button>
-      </div>
+      {jsonViewerOpen ? (
+        <CoreJsonModal configText={data.core.configPreview} onClose={() => setJsonViewerOpen(false)} onNotice={onNotice} />
+      ) : null}
 
-      {showAdvanced ? (
-        <section className="panel-grid fade-in">
-          <article className="surface-card">
-            <div className="surface-card__head">
-              <div>
-                <span className="eyebrow">Build info</span>
-                <h3>Пути и версии</h3>
-              </div>
-            </div>
-
-            <dl className="details-list">
-              <Detail label="Бинарный файл" value={data.core.binaryPath} />
-              <Detail label="Файл конфигурации" value={data.core.configPath} />
-              <Detail label="Версия" value={data.core.binaryVersion || "Неизвестно"} />
-              <Detail label="Последняя синхронизация" value={formatDateTime(data.core.lastSyncAt)} />
-            </dl>
-          </article>
-
-          <article className="surface-card">
-            <div className="surface-card__head">
-              <div>
-                <span className="eyebrow">Preview</span>
-                <h3>Текущий конфиг (JSON)</h3>
-              </div>
-            </div>
-
-            <pre className="json-panel">{data.core.configPreview}</pre>
-          </article>
-        </section>
+      {configEditorOpen ? (
+        <CoreConfigModal
+          configText={data.core.configPreview}
+          onClose={() => setConfigEditorOpen(false)}
+          onSaved={async () => {
+            setConfigEditorOpen(false);
+            await loadData();
+          }}
+          onNotice={onNotice}
+        />
       ) : null}
     </div>
   );
+}
+
+function CoreCheckRow({ label, value, tone }) {
+  return (
+    <div className="core-check-row">
+      <span className={`core-check-row__dot core-check-row__dot--${tone}`} />
+      <div>
+        <strong>{label}</strong>
+        <p>{value}</p>
+      </div>
+    </div>
+  );
+}
+
+function parseCoreConfigText(configText) {
+  try {
+    const config = JSON.parse(configText || "{}");
+    return { config, error: "" };
+  } catch (error) {
+    return { config: null, error: error.message };
+  }
+}
+
+function formatCoreConfig(config) {
+  return JSON.stringify(config || {}, null, 2);
+}
+
+function cleanCoreConfigDraft(config) {
+  return {
+    ...(config || {}),
+    inbounds: (config?.inbounds || []).map(({ settingsText, ...inbound }) => inbound)
+  };
+}
+
+function CoreJsonModal({ configText, onClose, onNotice }) {
+  async function handleCopy() {
+    const copied = await copyToClipboard(configText);
+    onNotice({ tone: copied ? "success" : "error", message: copied ? "JSON скопирован." : "Не удалось скопировать JSON." });
+  }
+
+  return createPortal(
+    <div className="modal-backdrop" role="dialog" aria-modal="true">
+      <div className="modal-window modal-window--large modal-window--fixed core-json-viewer">
+        <div className="modal-header">
+          <div>
+            <span className="eyebrow">JSON</span>
+            <h3>Текущая конфигурация ядра</h3>
+          </div>
+          <button className="icon-button" onClick={onClose} aria-label="Закрыть">×</button>
+        </div>
+        <div className="modal-body scrollable core-json-viewer__body">
+          <pre className="json-panel json-panel--highlighted"><JsonCode value={configText} /></pre>
+        </div>
+        <div className="modal-footer">
+          <button className="ghost-button" onClick={handleCopy}>Скопировать</button>
+          <button className="primary-button" onClick={onClose}>Готово</button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+function CoreConfigModal({ configText, onClose, onSaved, onNotice }) {
+  const parsed = parseCoreConfigText(configText);
+  const [mode, setMode] = useState(parsed.error ? "json" : "form");
+  const [draft, setDraft] = useState(parsed.config || {});
+  const [jsonText, setJsonText] = useState(parsed.error ? configText : formatCoreConfig(parsed.config));
+  const [jsonError, setJsonError] = useState(parsed.error);
+  const [saving, setSaving] = useState(false);
+
+  function syncJsonFromDraft(nextDraft) {
+    setDraft(nextDraft);
+    setJsonText(formatCoreConfig(cleanCoreConfigDraft(nextDraft)));
+    setJsonError("");
+  }
+
+  function switchMode(nextMode) {
+    if (nextMode === mode) return;
+    if (nextMode === "form") {
+      const result = parseCoreConfigText(jsonText);
+      if (result.error) {
+        setJsonError(result.error);
+        onNotice({ tone: "error", message: "Сначала исправьте JSON." });
+        return;
+      }
+      setDraft(result.config);
+    } else {
+      setJsonText(formatCoreConfig(cleanCoreConfigDraft(draft)));
+      setJsonError("");
+    }
+    setMode(nextMode);
+  }
+
+  function updateLog(field, value) {
+    syncJsonFromDraft({ ...draft, log: { ...(draft.log || {}), [field]: value } });
+  }
+
+  function updateInbound(index, patch) {
+    const inbounds = [...(draft.inbounds || [])];
+    inbounds[index] = { ...inbounds[index], ...patch };
+    syncJsonFromDraft({ ...draft, inbounds });
+  }
+
+  function updateInboundSettings(index, value) {
+    try {
+      updateInbound(index, { settings: JSON.parse(value || "{}"), settingsText: value });
+    } catch {
+      updateInbound(index, { settingsText: value });
+    }
+  }
+
+  function addInbound() {
+    syncJsonFromDraft({
+      ...draft,
+      inbounds: [
+        ...(draft.inbounds || []),
+        { tag: `inbound-${(draft.inbounds || []).length + 1}`, protocol: "pp-fallback", listen: "0.0.0.0:8443", settings: {} }
+      ]
+    });
+  }
+
+  function removeInbound(index) {
+    syncJsonFromDraft({ ...draft, inbounds: (draft.inbounds || []).filter((_, itemIndex) => itemIndex !== index) });
+  }
+
+  function handleJsonChange(value) {
+    setJsonText(value);
+    const result = parseCoreConfigText(value);
+    setJsonError(result.error);
+    if (!result.error) setDraft(result.config);
+  }
+
+  async function handleSave() {
+    const source = mode === "json" ? parseCoreConfigText(jsonText) : { config: cleanCoreConfigDraft(draft), error: "" };
+    if (source.error) {
+      setJsonError(source.error);
+      onNotice({ tone: "error", message: "JSON содержит ошибку." });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await api.saveCoreConfig(source.config);
+      onNotice({ tone: "success", message: "Конфигурация ядра сохранена." });
+      await onSaved();
+    } catch (error) {
+      onNotice({ tone: "error", message: error.message });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const inbounds = draft.inbounds || [];
+
+  return createPortal(
+    <div className="modal-backdrop" role="dialog" aria-modal="true">
+      <div className="modal-window modal-window--large modal-window--fixed core-config-modal">
+        <div className="modal-header">
+          <div>
+            <span className="eyebrow">Конфигурация</span>
+            <h3>Редактирование ядра PP</h3>
+          </div>
+          <button className="icon-button" onClick={onClose} aria-label="Закрыть">×</button>
+        </div>
+
+        <div className="core-config-tabs">
+          <button className={mode === "form" ? "is-active" : ""} onClick={() => switchMode("form")}>Форма</button>
+          <button className={mode === "json" ? "is-active" : ""} onClick={() => switchMode("json")}>JSON</button>
+        </div>
+
+        <div className="modal-body scrollable core-config-modal__body">
+          {mode === "form" ? (
+            <div className="core-config-form">
+              <section className="core-config-section">
+                <div className="surface-card__head">
+                  <div>
+                    <span className="eyebrow">Журнал</span>
+                    <h3>Запись событий</h3>
+                  </div>
+                </div>
+                <div className="settings-row">
+                  <div className="input-group">
+                    <label>Уровень</label>
+                    <select value={draft.log?.level || "info"} onChange={(e) => updateLog("level", e.target.value)}>
+                      <option value="debug">Подробно</option>
+                      <option value="info">Обычно</option>
+                      <option value="warn">Только предупреждения</option>
+                      <option value="error">Только ошибки</option>
+                    </select>
+                  </div>
+                  <div className="input-group">
+                    <label>Вывод</label>
+                    <select value={draft.log?.output || "stdout"} onChange={(e) => updateLog("output", e.target.value)}>
+                      <option value="stdout">В консоль</option>
+                      <option value="file">В файл</option>
+                    </select>
+                  </div>
+                </div>
+                {draft.log?.output === "file" ? (
+                  <div className="input-group core-config-wide-field">
+                    <label>Файл журнала</label>
+                    <input value={draft.log?.file || ""} onChange={(e) => updateLog("file", e.target.value)} />
+                  </div>
+                ) : null}
+              </section>
+
+              <section className="core-config-section">
+                <div className="surface-card__head">
+                  <div>
+                    <span className="eyebrow">Входы</span>
+                    <h3>Сетевые обработчики</h3>
+                  </div>
+                  <button className="ghost-button ghost-button--small" onClick={addInbound}>Добавить</button>
+                </div>
+
+                {inbounds.length ? inbounds.map((inbound, index) => (
+                  <div className="core-inbound-editor" key={`${inbound.tag || "inbound"}-${index}`}>
+                    <div className="core-inbound-editor__head">
+                      <strong>{inbound.tag || `Вход ${index + 1}`}</strong>
+                      <button className="ghost-button ghost-button--small destructive" onClick={() => removeInbound(index)}>Удалить</button>
+                    </div>
+                    <div className="settings-row">
+                      <div className="input-group">
+                        <label>Название</label>
+                        <input value={inbound.tag || ""} onChange={(e) => updateInbound(index, { tag: e.target.value })} />
+                      </div>
+                      <div className="input-group">
+                        <label>Адрес и порт</label>
+                        <input value={inbound.listen || ""} onChange={(e) => updateInbound(index, { listen: e.target.value })} />
+                      </div>
+                    </div>
+                    <div className="settings-row">
+                      <div className="input-group">
+                        <label>Протокол</label>
+                        <input value={inbound.protocol || "pp-fallback"} onChange={(e) => updateInbound(index, { protocol: e.target.value })} />
+                      </div>
+                      <label className="checkbox-group core-config-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={!!inbound.tls?.enabled}
+                          onChange={(e) => updateInbound(index, { tls: e.target.checked ? { ...(inbound.tls || {}), enabled: true } : undefined })}
+                        />
+                        <span>Защищенное соединение</span>
+                      </label>
+                    </div>
+                    <div className="input-group">
+                      <label>Параметры обработчика</label>
+                      <textarea
+                        className="code-textarea core-config-settings-textarea"
+                        value={inbound.settingsText ?? formatCoreConfig(inbound.settings || {})}
+                        onChange={(e) => updateInboundSettings(index, e.target.value)}
+                        spellCheck="false"
+                      />
+                    </div>
+                  </div>
+                )) : (
+                  <p className="empty-muted">В конфигурации нет сетевых обработчиков.</p>
+                )}
+              </section>
+            </div>
+          ) : (
+            <div className="core-json-editor">
+              <textarea
+                className="code-textarea core-json-textarea"
+                value={jsonText}
+                onChange={(e) => handleJsonChange(e.target.value)}
+                spellCheck="false"
+              />
+              {jsonError ? <p className="form-error">{jsonError}</p> : null}
+            </div>
+          )}
+        </div>
+
+        <div className="modal-footer">
+          <button className="ghost-button" onClick={onClose}>Отмена</button>
+          <button className="primary-button" onClick={handleSave} disabled={saving || !!jsonError}>
+            {saving ? "Сохранение..." : "Сохранить"}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+function JsonCode({ value }) {
+  const tokens = String(value || "{}").split(/("(?:\\.|[^"\\])*"(?=\s*:)|"(?:\\.|[^"\\])*"|\btrue\b|\bfalse\b|\bnull\b|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g);
+  return tokens.map((token, index) => {
+    let className = "";
+    if (/^"(?:\\.|[^"\\])*"(?=\s*:)/.test(token)) className = "json-token-key";
+    else if (/^"/.test(token)) className = "json-token-string";
+    else if (/\btrue\b|\bfalse\b/.test(token)) className = "json-token-boolean";
+    else if (/\bnull\b/.test(token)) className = "json-token-null";
+    else if (/^-?\d/.test(token)) className = "json-token-number";
+    return className ? <span key={index} className={className}>{token}</span> : <span key={index}>{token}</span>;
+  });
 }
 
 function SettingsPage({ bootstrap, onNotice, onConfirm, onRefreshAbout }) {

@@ -1331,6 +1331,122 @@ code {
   font-size: 1.25rem;
 }
 
+.core-health-card {
+  min-height: 260px;
+}
+
+.core-health-layout {
+  display: grid;
+  grid-template-columns: minmax(180px, 240px) 1fr;
+  gap: 1rem;
+  align-items: stretch;
+}
+
+.core-health-meter {
+  min-height: 190px;
+  padding: 1.2rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
+  background: var(--surface-accent);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.core-health-meter span {
+  color: var(--text-soft);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.core-health-meter strong {
+  margin-top: 0.55rem;
+  font-size: clamp(2.6rem, 6vw, 4.4rem);
+  line-height: 0.95;
+  letter-spacing: 0;
+}
+
+.core-health-meter p {
+  margin-top: 0.55rem;
+  font-size: 0.88rem;
+}
+
+.core-health-meter--good {
+  border-color: rgba(79, 143, 119, 0.32);
+  background: linear-gradient(145deg, rgba(79, 143, 119, 0.14), var(--surface-accent));
+}
+
+.core-health-meter--warning {
+  border-color: rgba(178, 138, 77, 0.34);
+  background: linear-gradient(145deg, rgba(178, 138, 77, 0.15), var(--surface-accent));
+}
+
+.core-health-meter--bad {
+  border-color: rgba(178, 109, 121, 0.34);
+  background: linear-gradient(145deg, rgba(178, 109, 121, 0.15), var(--surface-accent));
+}
+
+.core-check-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.core-check-row {
+  min-height: 86px;
+  padding: 1rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  background: var(--surface-accent);
+  display: flex;
+  align-items: flex-start;
+  gap: 0.8rem;
+}
+
+.core-check-row__dot {
+  width: 0.72rem;
+  height: 0.72rem;
+  margin-top: 0.25rem;
+  border-radius: 999px;
+  background: var(--text-soft);
+  flex-shrink: 0;
+}
+
+.core-check-row__dot--good {
+  background: var(--success);
+}
+
+.core-check-row__dot--warning {
+  background: var(--warning);
+}
+
+.core-check-row__dot--bad {
+  background: var(--error);
+}
+
+.core-check-row strong {
+  display: block;
+  font-size: 0.96rem;
+}
+
+.core-check-row p {
+  margin-top: 0.3rem;
+  font-size: 0.84rem;
+}
+
+.core-action-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.core-action-panel .muted-caption {
+  flex-basis: 100%;
+}
+
 .listener-list,
 .mini-listener-list,
 .details-list,
@@ -2414,6 +2530,11 @@ code {
   max-height: 92vh;
 }
 
+.modal-window--fixed {
+  height: min(86vh, 860px);
+  max-height: min(86vh, 860px);
+}
+
 .modal-header,
 .modal-footer {
   padding: 1.1rem 1.2rem;
@@ -2570,6 +2691,147 @@ code {
 .json-panel--small {
   margin-top: 1rem;
   max-height: 240px;
+}
+
+.core-json-viewer,
+.core-config-modal {
+  min-height: min(620px, 86vh);
+}
+
+.core-json-viewer__body,
+.core-config-modal__body {
+  padding: 1rem 1.2rem;
+}
+
+.core-config-tabs {
+  display: inline-flex;
+  gap: 0.35rem;
+  padding: 0.45rem;
+  margin: 0 1.2rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-color);
+  background: var(--surface-accent);
+  align-self: flex-start;
+}
+
+.core-config-tabs button {
+  min-width: 7rem;
+  padding: 0.65rem 1rem;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text-muted);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.core-config-tabs button.is-active {
+  background: var(--surface-strong);
+  color: var(--text-color);
+  box-shadow: var(--shadow-xs);
+}
+
+.core-config-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.core-config-section,
+.core-inbound-editor {
+  padding: 1rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
+  background: var(--surface-accent);
+}
+
+.core-config-section .surface-card__head,
+.core-inbound-editor .surface-card__head {
+  margin-bottom: 0.9rem;
+}
+
+.core-config-wide-field {
+  margin-top: 1rem;
+}
+
+.core-inbound-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.core-inbound-editor + .core-inbound-editor {
+  margin-top: 0.85rem;
+}
+
+.core-inbound-editor__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.core-config-checkbox {
+  min-height: 3.45rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0;
+}
+
+.core-config-settings-textarea {
+  min-height: 170px;
+  resize: vertical;
+  font-family: var(--font-mono);
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+
+.core-json-editor {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.core-json-textarea {
+  min-height: 0;
+  flex: 1;
+  resize: none;
+  font-family: var(--font-mono);
+  font-size: 0.84rem;
+  line-height: 1.55;
+  white-space: pre;
+  overflow: auto;
+}
+
+.json-panel--highlighted {
+  min-height: 100%;
+  white-space: pre;
+  word-break: normal;
+  overflow: auto;
+  font-family: var(--font-mono);
+}
+
+.json-token-key {
+  color: var(--accent-strong);
+}
+
+.json-token-string {
+  color: var(--success);
+}
+
+.json-token-number {
+  color: var(--warning);
+}
+
+.json-token-boolean {
+  color: var(--accent-rose);
+}
+
+.json-token-null {
+  color: var(--text-soft);
 }
 
 .uri-block {
@@ -3773,6 +4035,24 @@ code {
 }
 
 @media (max-width: 720px) {
+  .core-health-layout,
+  .core-check-list {
+    grid-template-columns: 1fr;
+  }
+
+  .core-health-meter {
+    min-height: 150px;
+  }
+
+  .core-config-tabs {
+    align-self: stretch;
+  }
+
+  .core-config-tabs button {
+    min-width: 0;
+    flex: 1;
+  }
+
   .welcome-shell__inner {
     width: min(100%, calc(100% - 1.4rem));
     padding-top: 1rem;
