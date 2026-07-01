@@ -1436,10 +1436,12 @@ function OverviewPage({ onNotice, onNavigate }) {
       const inColor = css("--accent-strong");
       const outColor = css("--success");
 
-      fillSmooth(inPts, inColor);
       fillSmooth(outPts, outColor);
+      fillSmooth(inPts, inColor);
       strokeSmooth(inPts, inColor);
+      ctx.setLineDash([6, 5]);
       strokeSmooth(outPts, outColor);
+      ctx.setLineDash([]);
     }
 
     draw();
@@ -1511,6 +1513,12 @@ function OverviewPage({ onNotice, onNavigate }) {
     return many;
   }
 
+  function verbByCount(n, one, many) {
+    const abs = Math.abs(n) % 100;
+    const lastDigit = abs % 10;
+    return lastDigit === 1 && abs !== 11 ? one : many;
+  }
+
   return (
     <div className="page fade-in">
       <div className="dashboard-layout">
@@ -1519,8 +1527,8 @@ function OverviewPage({ onNotice, onNavigate }) {
           <span className="eyebrow" style={{ color: "var(--accent-strong)" }}>Добро пожаловать!</span>
           <p>
             Панель управления PP работает в {panelHealthy ? "штатном" : "нештатном"} режиме.
-            Запущено <strong>{runningListeners.length}</strong> {pluralize(runningListeners.length, "слушатель", "слушателя", "слушателей")}
-            и настроено <strong>{data.summary.connectionsTotal}</strong> {pluralize(data.summary.connectionsTotal, "профиль", "профиля", "профилей")} подключений.
+            {verbByCount(runningListeners.length, "Запущен", "Запущено")} <strong>{runningListeners.length}</strong> {pluralize(runningListeners.length, "слушатель", "слушателя", "слушателей")},
+            {verbByCount(data.summary.connectionsTotal, "настроен", "настроено")} <strong>{data.summary.connectionsTotal}</strong> {pluralize(data.summary.connectionsTotal, "профиль", "профиля", "профилей")} подключений.
           </p>
         </header>
 
@@ -1578,8 +1586,11 @@ function OverviewPage({ onNotice, onNavigate }) {
           <div className="quick-actions">
             <button className="quick-action-btn" onClick={() => onNavigate("/app/pp-settings")}>
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="3" />
-                <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+                <path d="M4 7h16" />
+                <path d="M4 17h16" />
+                <path d="M7 4v16" />
+                <path d="M17 4v16" />
+                <rect x="8" y="8" width="8" height="8" rx="1.5" />
               </svg>
               <span>Управление ядром PP</span>
             </button>
@@ -2426,8 +2437,7 @@ function PPSettingsPage({ onNotice }) {
 
 function CoreCheckRow({ label, value, tone }) {
   return (
-    <div className="core-check-row">
-      <span className={`core-check-row__dot core-check-row__dot--${tone}`} />
+    <div className={`core-check-row core-check-row--${tone}`}>
       <div>
         <strong>{label}</strong>
         <p>{value}</p>
@@ -2654,19 +2664,11 @@ function CoreConfigModal({ configText, onClose, onSaved, onNotice }) {
                         <input value={inbound.listen || ""} onChange={(e) => updateInbound(index, { listen: e.target.value })} />
                       </div>
                     </div>
-                    <div className="settings-row">
+                    <div className="settings-row core-inbound-row">
                       <div className="input-group">
                         <label>Протокол</label>
                         <input value={inbound.protocol || "pp-fallback"} onChange={(e) => updateInbound(index, { protocol: e.target.value })} />
                       </div>
-                      <label className="checkbox-group core-config-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={!!inbound.tls?.enabled}
-                          onChange={(e) => updateInbound(index, { tls: e.target.checked ? { ...(inbound.tls || {}), enabled: true } : undefined })}
-                        />
-                        <span>Защищенное соединение</span>
-                      </label>
                     </div>
                     <div className="input-group">
                       <label>Параметры обработчика</label>
@@ -2848,7 +2850,7 @@ function SettingsPage({ bootstrap, onNotice, onConfirm, onRefreshAbout }) {
       <PageHero
         eyebrow="Панель"
         title="Настройки панели"
-        description="Сетевые параметры, безопасность и канал обновлений."
+        description="Порт, HTTPS, пароль администратора и канал обновлений."
         tone="settings"
         actions={
           <div className="page-hero__button-row">
@@ -2861,8 +2863,7 @@ function SettingsPage({ bootstrap, onNotice, onConfirm, onRefreshAbout }) {
           </div>
         }
         aside={
-          <div className="runtime-status-card">
-            <div className={`runtime-status-card__indicator ${form.panelHttps ? "is-live" : ""}`} />
+          <div className="runtime-status-card runtime-status-card--address">
             <div>
               <span>Адрес панели</span>
               <strong>{previewUrl}</strong>
@@ -2962,6 +2963,51 @@ function SettingsPage({ bootstrap, onNotice, onConfirm, onRefreshAbout }) {
               )}
             </div>
           </div>
+
+          <div className="settings-security-divider" />
+
+          <div className="settings-password-block">
+            <div className="surface-card__head surface-card__head--compact">
+              <div>
+                <span className="eyebrow">Пароль</span>
+                <h3>Смена пароля администратора</h3>
+              </div>
+            </div>
+            <div className="settings-row settings-row--pwd">
+              <div className="input-group">
+                <label>Текущий пароль</label>
+                <input
+                  type="password"
+                  value={pwdCurrent}
+                  onChange={(e) => setPwdCurrent(e.target.value)}
+                  autoComplete="current-password"
+                />
+              </div>
+              <div className="input-group">
+                <label>Новый пароль</label>
+                <input
+                  type="password"
+                  value={pwdNew}
+                  onChange={(e) => setPwdNew(e.target.value)}
+                  autoComplete="new-password"
+                />
+              </div>
+              <div className="input-group">
+                <label>Повторите пароль</label>
+                <input
+                  type="password"
+                  value={pwdConfirm}
+                  onChange={(e) => setPwdConfirm(e.target.value)}
+                  autoComplete="new-password"
+                />
+              </div>
+              <div className="settings-row__actions">
+                <button type="button" className="primary-button" disabled={pwdSubmitting} onClick={handleChangePassword}>
+                  {pwdSubmitting ? "Сохранение..." : "Изменить пароль"}
+                </button>
+              </div>
+            </div>
+          </div>
         </article>
 
         <article className="surface-card surface-card--wide">
@@ -2992,49 +3038,6 @@ function SettingsPage({ bootstrap, onNotice, onConfirm, onRefreshAbout }) {
         </article>
       </form>
 
-      <article className="surface-card surface-card--wide settings-card-gap">
-        <div className="surface-card__head">
-          <div>
-            <span className="eyebrow">Пароль</span>
-            <h3>Смена пароля администратора</h3>
-          </div>
-        </div>
-        <form onSubmit={handleChangePassword} className="settings-row settings-row--pwd">
-          <div className="input-group">
-            <label>Текущий пароль</label>
-            <input
-              type="password"
-              value={pwdCurrent}
-              onChange={(e) => setPwdCurrent(e.target.value)}
-              autoComplete="current-password"
-            />
-          </div>
-          <div className="input-group">
-            <label>Новый пароль</label>
-            <input
-              type="password"
-              value={pwdNew}
-              onChange={(e) => setPwdNew(e.target.value)}
-              autoComplete="new-password"
-            />
-            <p className="muted-caption">Не менее 8 символов</p>
-          </div>
-          <div className="input-group">
-            <label>Подтвердите новый пароль</label>
-            <input
-              type="password"
-              value={pwdConfirm}
-              onChange={(e) => setPwdConfirm(e.target.value)}
-              autoComplete="new-password"
-            />
-          </div>
-          <div className="settings-row__actions">
-            <button type="submit" className="primary-button" disabled={pwdSubmitting}>
-              {pwdSubmitting ? "Сохранение..." : "Изменить пароль"}
-            </button>
-          </div>
-        </form>
-      </article>
     </div>
   );
 }
